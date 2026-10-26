@@ -19,3 +19,4 @@ apps/*/test-results
 apps/*/playwright-report
 .data
 apps/api/.data
+*.tsbuildinfo
