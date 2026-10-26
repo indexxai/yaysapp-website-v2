@@ -1,0 +1,17 @@
+{
+  "name": "@yays/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./tokens.css": "./dist/tokens.css",
+    "./icons.json": "./dist/icons.json"
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node scripts/build.js && node --test scripts/*.test.js"
+  }
+}

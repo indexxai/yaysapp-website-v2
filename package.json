@@ -1,0 +1,15 @@
+{
+  "name": "yaysapp-v2",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "infra:up": "bash infra/dev-up.sh",
+    "infra:down": "bash infra/dev-down.sh",
+    "build": "pnpm -r --filter ./packages/** build && pnpm -r --filter ./apps/** --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm --filter @yays/api test:e2e && pnpm --filter @yays/web test:e2e",
+    "lint": "pnpm -r --if-present lint"
+  },
+  "engines": { "node": ">=20" }
+}

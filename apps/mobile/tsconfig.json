@@ -1,0 +1,6 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": { "resolveJsonModule": true, "types": ["jest", "react-native"] },
+  "include": ["App.tsx", "index.js", "src", "__tests__", "e2e"],
+  "exclude": ["node_modules", "android", "ios"]
+}
