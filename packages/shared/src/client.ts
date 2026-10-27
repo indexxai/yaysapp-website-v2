@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, PublicProfile, Tokens } from './types';
-import type { ConversationPage, ConversationSummary, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { ConversationPage, ConversationSummary, GroupInfo, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -144,6 +144,38 @@ export class YaysClient {
   }
   markDelivered(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/delivered`, { seq }); }
   markRead(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/read`, { seq }); }
+  /** Public profiles by id (names and photos for group members, past and present). */
+  profiles(ids: string[]) { return this.request<PublicProfile[]>('GET', `/v1/users/profiles?ids=${ids.map(encodeURIComponent).join(',')}`); }
+
+  /** Uploads a photo and returns its storage key (for a profile or group photo). */
+  async uploadPhoto(file: Blob): Promise<string> {
+    const t = await this.request<{ key: string; uploadUrl: string; headers: Record<string, string> }>('POST', '/v1/media/upload-url', { purpose: 'avatar', contentType: file.type, size: file.size });
+    let r: Response;
+    try { r = await this.f(t.uploadUrl, { method: 'PUT', headers: t.headers, body: file }); }
+    catch { throw new ApiError(0, ErrorCode.PROVIDER_UNAVAILABLE, "The photo didn't upload. Check your connection and try again."); }
+    if (!r.ok) throw new ApiError(r.status, ErrorCode.INTERNAL, "The photo didn't upload. Try again.");
+    return t.key;
+  }
+
+  // ---- groups ----
+  createGroup(v: { name: string; memberIds: string[]; about?: string; settings?: { send?: 'all' | 'admins' } }) { return this.request<ConversationSummary>('POST', '/v1/groups', v); }
+  groupInfo(id: string) { return this.request<GroupInfo>('GET', `/v1/groups/${encodeURIComponent(id)}`); }
+  updateGroup(id: string, v: { name?: string; about?: string; photoKey?: string | null }) { return this.request<ConversationSummary>('PATCH', `/v1/groups/${encodeURIComponent(id)}`, v); }
+  groupSettings(id: string, v: Partial<GroupSettings>) { return this.request<ConversationSummary>('PATCH', `/v1/groups/${encodeURIComponent(id)}/settings`, v); }
+  addMembers(id: string, userIds: string[]) { return this.request<ConversationSummary>('POST', `/v1/groups/${encodeURIComponent(id)}/members`, { userIds }); }
+  removeMember(id: string, userId: string) { return this.request<ConversationSummary>('DELETE', `/v1/groups/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`); }
+  setAdmin(id: string, userId: string, on: boolean) { return this.request<ConversationSummary>(on ? 'POST' : 'DELETE', `/v1/groups/${encodeURIComponent(id)}/admins/${encodeURIComponent(userId)}`); }
+  leaveGroup(id: string) { return this.request<ConversationSummary>('POST', `/v1/groups/${encodeURIComponent(id)}/leave`, {}); }
+  deleteGroup(id: string) { return this.request<void>('DELETE', `/v1/groups/${encodeURIComponent(id)}`); }
+  resetInvite(id: string) { return this.request<{ inviteCode: string }>('POST', `/v1/groups/${encodeURIComponent(id)}/invite`, {}); }
+  revokeInvite(id: string) { return this.request<void>('DELETE', `/v1/groups/${encodeURIComponent(id)}/invite`); }
+  joinRequests(id: string) { return this.request<JoinRequest[]>('GET', `/v1/groups/${encodeURIComponent(id)}/requests`); }
+  approveRequest(id: string, userId: string) { return this.request<ConversationSummary>('POST', `/v1/groups/${encodeURIComponent(id)}/requests/${encodeURIComponent(userId)}`, {}); }
+  rejectRequest(id: string, userId: string) { return this.request<void>('DELETE', `/v1/groups/${encodeURIComponent(id)}/requests/${encodeURIComponent(userId)}`); }
+  invitePreview(code: string) { return this.request<InvitePreview>('GET', `/v1/invites/${encodeURIComponent(code)}`); }
+  joinInvite(code: string) { return this.request<JoinResult>('POST', `/v1/invites/${encodeURIComponent(code)}/join`, {}); }
+  cancelJoinRequest(code: string) { return this.request<void>('DELETE', `/v1/invites/${encodeURIComponent(code)}/request`); }
+
   /** The current access token, refreshed first when it is about to expire. Used to open the real-time connection. */
   async accessToken(forceRefresh = false): Promise<string | null> {
     let t = await this.o.tokens.get();

@@ -55,3 +55,18 @@ test('dates read the way people say them', () => {
   assert.equal(lastSeen(at(0, 14, 30)), 'last seen today at 14:30');
   assert.equal(lastSeen(at(1, 8, 0)), 'last seen yesterday at 08:00');
 });
+
+test('group lines read naturally, with "You" for the reader', async () => {
+  const { systemText, listNames } = await import('./format');
+  const names: Record<string, string> = { a: 'Ali', s: 'Sara', o: 'Omar', me: 'You' };
+  const n = (id: string) => names[id] ?? 'Someone';
+  assert.equal(listNames(['Ali', 'Sara', 'Omar']), 'Ali, Sara and Omar');
+  assert.equal(systemText({ kind: 'created', name: 'Family' }, 'a', n), 'Ali created the group “Family”');
+  assert.equal(systemText({ kind: 'added', userIds: ['s', 'me'] }, 'a', n), 'Ali added Sara and you');
+  assert.equal(systemText({ kind: 'removed', userIds: ['o'] }, 'me', n), 'You removed Omar');
+  assert.equal(systemText({ kind: 'admin', userId: 's', on: true }, 's', n), 'Sara is now an admin');
+  assert.equal(systemText({ kind: 'admin', userId: 'me', on: true }, 'me', n), 'You are now an admin');
+  assert.equal(systemText({ kind: 'admin', userId: 'o', on: false }, 'a', n), 'Ali dismissed Omar as admin');
+  assert.equal(systemText({ kind: 'settings', changes: { send: 'admins', approveNew: true } }, 'a', n), 'Ali changed the group settings: only admins can send messages; admins approve new members');
+  assert.equal(systemText({ kind: 'joined', via: 'link' }, 'o', n), 'Omar joined using an invite link');
+});

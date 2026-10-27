@@ -1,7 +1,8 @@
 import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
 import type { YaysClient } from './client';
-import { tickFor, type Ack, type ChatMessage, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
+import type { PublicProfile } from './types';
+import { tickFor, type Ack, type ChatMessage, type GroupInfo, type GroupSettings, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
 
 /** A message typed on this device that the server has not confirmed yet. Kept on the device until it has. */
 export interface PendingMessage {
@@ -35,9 +36,13 @@ export interface ChatState {
   presence: Record<string, Presence>;
   active: string | null;
   signedOut: boolean;
+  /** Group details (members, roles, invite link) for groups that have been opened. */
+  groups: Record<string, GroupInfo>;
+  /** Names and photos of people seen in groups, for sender names and "Ali added Sara" lines. */
+  people: Record<string, PublicProfile>;
 }
 
-export interface ThreadItem { key: string; mine: boolean; text: string; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string }
+export interface ThreadItem { key: string; mine: boolean; type: 'text' | 'system'; text: string; system?: SystemEvent; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string }
 
 /** What the app keeps on the device so chats open with no connection. */
 export interface ChatSnapshot { v: 1; conversations: Record<string, ConversationSummary>; listNext: string | null; threads: Record<string, { items: ChatMessage[]; hasMore: boolean }> }
@@ -81,7 +86,7 @@ const byActivity = (cs: Record<string, ConversationSummary>) => Object.values(cs
  * ticks, typing and online status. Screens read `getState()` and re-render on `subscribe`.
  */
 export class ChatEngine {
-  private state: ChatState = { connection: 'connecting', conversations: {}, order: [], listLoaded: false, listNext: null, threads: {}, outbox: [], typing: {}, presence: {}, active: null, signedOut: false };
+  private state: ChatState = { connection: 'connecting', conversations: {}, order: [], listLoaded: false, listNext: null, threads: {}, outbox: [], typing: {}, presence: {}, active: null, signedOut: false, groups: {}, people: {} };
   private listeners = new Set<() => void>();
   private socket?: Socket<ServerEvents, ClientEvents>;
   private flushing = false;
@@ -118,6 +123,7 @@ export class ChatEngine {
   private setThread(id: string, t: Partial<Thread>) {
     const cur = this.state.threads[id] ?? { items: [], hasMore: true, loaded: false, loading: false };
     this.set({ threads: { ...this.state.threads, [id]: { ...cur, ...t } } });
+    if (t.items && this.state.conversations[id]?.kind === 'group') this.ensurePeople(peopleIn(t.items));
   }
   private async setOutbox(items: PendingMessage[]) { this.set({ outbox: items }); try { await this.outbox.save(items); } catch { /* storage full: the queue still lives in memory */ } }
 
@@ -162,7 +168,7 @@ export class ChatEngine {
     // The app is closing: write what is pending now rather than lose it.
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = undefined; this.saveNow(); }
     this.stopped = true;
-    clearTimeout(this.flushTimer); clearInterval(this.typingTimer);
+    clearTimeout(this.flushTimer); clearInterval(this.typingTimer); clearTimeout(this.peopleTimer);
     this.socket?.removeAllListeners(); this.socket?.disconnect(); this.socket = undefined;
     this.listeners.clear();
   }
@@ -194,6 +200,7 @@ export class ChatEngine {
     s.on('receipt', (r) => this.onReceipt(r.conversationId, r.userId, { deliveredSeq: r.deliveredSeq, readSeq: r.readSeq }));
     s.on('typing', ({ conversationId, userId, on }) => this.onTyping(conversationId, userId, on));
     s.on('presence', (p) => this.set({ presence: { ...this.state.presence, [p.userId]: p } }));
+    s.on('conv:update', ({ conversationId }) => { void this.refreshConv(conversationId); });
   }
 
   /** After a refused connection: refresh the access token and reconnect, or report sign-out. */
@@ -234,6 +241,93 @@ export class ChatEngine {
     return c;
   }
   lookup(q: string) { return this.o.client.lookupUser(q); }
+
+  // ---------- groups ----------
+  /** Fetches a chat's summary again (after a conv:update); drops it when I can no longer see it. */
+  async refreshConv(id: string) {
+    try {
+      const c = await this.o.client.conversation(id);
+      this.setConv(this.mergeConv(this.state.conversations[id], c));
+      if (this.state.groups[id] || this.state.active === id) { if (c.kind === 'group') await this.loadGroup(id).catch(() => undefined); }
+      if (this.state.active === id) this.rewatch();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) this.dropConv(id);
+    }
+  }
+
+  private dropConv(id: string) {
+    const { [id]: _c, ...conversations } = this.state.conversations;
+    const { [id]: _t, ...threads } = this.state.threads;
+    const { [id]: _g, ...groups } = this.state.groups;
+    this.set({ conversations, threads, groups, order: byActivity(conversations), active: this.state.active === id ? null : this.state.active });
+  }
+
+  async loadGroup(id: string): Promise<GroupInfo> {
+    const g = await this.o.client.groupInfo(id);
+    const people = { ...this.state.people };
+    for (const m of g.members) people[m.id] = { id: m.id, displayName: m.displayName, username: m.username, about: m.about, photoUrl: m.photoUrl };
+    this.set({ groups: { ...this.state.groups, [id]: g }, people });
+    return g;
+  }
+
+  private wantedPeople = new Set<string>();
+  private peopleTimer?: ReturnType<typeof setTimeout>;
+  /** Looks up names for these ids soon, in batches, skipping ones already known. */
+  ensurePeople(ids: string[]) {
+    for (const id of ids) if (id && id !== this.o.me && !this.state.people[id]) this.wantedPeople.add(id);
+    if (!this.wantedPeople.size || this.peopleTimer) return;
+    this.peopleTimer = setTimeout(() => {
+      this.peopleTimer = undefined;
+      const batch = [...this.wantedPeople].slice(0, 100);
+      for (const b of batch) this.wantedPeople.delete(b);
+      void this.o.client.profiles(batch).then((list) => {
+        const people = { ...this.state.people };
+        for (const p of list) people[p.id] = p;
+        // Accounts that no longer exist still need a name.
+        for (const b of batch) if (!people[b]) people[b] = { id: b, displayName: 'Deleted account', username: null, about: '', photoUrl: null };
+        this.set({ people });
+        if (this.wantedPeople.size) this.ensurePeople([]);
+      }, () => { for (const b of batch) this.wantedPeople.add(b); });
+    }, 30);
+  }
+
+  /** A person's name as this user should see it. */
+  nameOf(id: string): string {
+    if (id === this.o.me) return 'You';
+    const p = this.state.people[id];
+    if (p) return p.displayName;
+    for (const c of Object.values(this.state.conversations)) if (c.peer?.id === id) return c.peer.displayName;
+    return '…';
+  }
+
+  private async afterGroupChange(c: ConversationSummary) {
+    this.setConv(this.mergeConv(this.state.conversations[c.id], c));
+    if (this.state.groups[c.id] || this.state.active === c.id) await this.loadGroup(c.id).catch(() => undefined);
+    return c;
+  }
+  async createGroup(v: { name: string; memberIds: string[]; about?: string; adminsOnly?: boolean }) {
+    return this.afterGroupChange(await this.o.client.createGroup({ name: v.name, memberIds: v.memberIds, about: v.about, settings: v.adminsOnly ? { send: 'admins' } : undefined }));
+  }
+  async updateGroup(id: string, v: { name?: string; about?: string; photoKey?: string | null }) { return this.afterGroupChange(await this.o.client.updateGroup(id, v)); }
+  async setGroupSettings(id: string, v: Partial<GroupSettings>) { return this.afterGroupChange(await this.o.client.groupSettings(id, v)); }
+  async addMembers(id: string, userIds: string[]) { return this.afterGroupChange(await this.o.client.addMembers(id, userIds)); }
+  async removeMember(id: string, userId: string) { return this.afterGroupChange(await this.o.client.removeMember(id, userId)); }
+  async setAdmin(id: string, userId: string, on: boolean) { return this.afterGroupChange(await this.o.client.setAdmin(id, userId, on)); }
+  async leaveGroup(id: string) { return this.afterGroupChange(await this.o.client.leaveGroup(id)); }
+  async deleteGroup(id: string) { await this.o.client.deleteGroup(id); this.dropConv(id); }
+  async resetInvite(id: string) { const r = await this.o.client.resetInvite(id); await this.loadGroup(id).catch(() => undefined); return r.inviteCode; }
+  async revokeInvite(id: string) { await this.o.client.revokeInvite(id); await this.loadGroup(id).catch(() => undefined); }
+  joinRequests(id: string) { return this.o.client.joinRequests(id); }
+  async approveRequest(id: string, userId: string) { return this.afterGroupChange(await this.o.client.approveRequest(id, userId)); }
+  async rejectRequest(id: string, userId: string) { await this.o.client.rejectRequest(id, userId); await this.loadGroup(id).catch(() => undefined); }
+  invitePreview(code: string) { return this.o.client.invitePreview(code); }
+  async joinInvite(code: string) {
+    const r = await this.o.client.joinInvite(code);
+    if (r.status === 'joined') this.setConv(this.mergeConv(this.state.conversations[r.conversation.id], r.conversation));
+    return r;
+  }
+  cancelJoinRequest(code: string) { return this.o.client.cancelJoinRequest(code); }
+  uploadPhoto(file: Blob) { return this.o.client.uploadPhoto(file); }
 
   // ---------- threads ----------
   /** The chat on screen: loads it, keeps it read, and follows the other person's online status. */
@@ -306,13 +400,14 @@ export class ChatEngine {
     const t = this.state.threads[id];
     const me = this.o.me;
     const items: ThreadItem[] = (t?.items ?? []).map((m) => ({
-      key: m.clientId, mine: m.senderId === me, text: m.text, createdAt: m.createdAt, seq: m.seq, senderId: m.senderId, clientId: m.clientId,
-      tick: m.senderId === me && conv ? tickFor(m, conv) : null,
+      key: m.clientId, mine: m.senderId === me && m.type !== 'system', type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}),
+      createdAt: m.createdAt, seq: m.seq, senderId: m.senderId, clientId: m.clientId,
+      tick: m.senderId === me && m.type !== 'system' && conv ? tickFor(m, conv) : null,
     }));
     const confirmed = new Set(items.map((i) => i.clientId));
     for (const p of this.state.outbox) {
       if (p.conversationId !== id || confirmed.has(p.clientId)) continue;
-      items.push({ key: p.clientId, mine: true, text: p.text, createdAt: p.createdAt, seq: null, senderId: me, clientId: p.clientId, tick: p.status === 'failed' ? 'failed' : 'pending' });
+      items.push({ key: p.clientId, mine: true, type: 'text', text: p.text, createdAt: p.createdAt, seq: null, senderId: me, clientId: p.clientId, tick: p.status === 'failed' ? 'failed' : 'pending' });
     }
     return items;
   }
@@ -395,8 +490,9 @@ export class ChatEngine {
     const isNew = m.seq > conv.lastSeq;
     const readingNow = this.state.active === id && this.visible;
     const next: ConversationSummary = isNew
-      ? { ...conv, lastSeq: m.seq, lastMessage: m, lastActivityAt: m.createdAt > conv.lastActivityAt ? m.createdAt : conv.lastActivityAt, unread: mine || readingNow ? (mine ? 0 : conv.unread) : Math.min(100, conv.unread + 1) }
+      ? { ...conv, lastSeq: m.seq, lastMessage: m, lastSenderName: m.senderId === this.o.me ? 'You' : this.nameOf(m.senderId), lastActivityAt: m.createdAt > conv.lastActivityAt ? m.createdAt : conv.lastActivityAt, unread: mine || readingNow ? (mine ? 0 : conv.unread) : Math.min(100, conv.unread + 1) }
       : conv;
+    if (isNew && conv.kind === 'group') this.ensurePeople([m.senderId]);
     if (mine && isNew) next.receipts = { ...next.receipts, [m.senderId]: { deliveredSeq: m.seq, readSeq: m.seq } };
     this.setConv(next);
     const t = this.state.threads[id];
@@ -504,6 +600,18 @@ export class ChatEngine {
       if (a.ok) { const presence = { ...this.state.presence }; for (const p of a.data) presence[p.userId] = p; this.set({ presence }); }
     }, () => undefined);
   }
+}
+
+/** Everyone a group thread mentions: senders and the people in "added"/"removed"/"admin" lines. */
+export function peopleIn(items: ChatMessage[]): string[] {
+  const out = new Set<string>();
+  for (const m of items) {
+    out.add(m.senderId);
+    const e = m.system;
+    if (e && (e.kind === 'added' || e.kind === 'removed')) for (const u of e.userIds) out.add(u);
+    if (e && e.kind === 'admin') out.add(e.userId);
+  }
+  return [...out];
 }
 
 /** Merges two sorted message lists by seq, dropping duplicates. */

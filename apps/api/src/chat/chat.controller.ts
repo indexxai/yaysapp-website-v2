@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { ObjectId } from 'mongodb';
 import { normalizeEmail, normalizePhone, openDirectSchema, receiptSchema, sendMessageSchema, USERNAME_RE, type PublicProfile } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { parse } from '../common/zod';
@@ -53,6 +54,18 @@ export class ChatController {
 @UseGuards(AuthGuard)
 export class PeopleController {
   constructor(@Inject(USERS) private users: UsersRepo, @Inject(STORAGE) private storage: Storage, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
+
+  /** Names and photos for people already known by id (group members, senders). Ids are random, so this can't be used to browse. */
+  @Get('profiles')
+  async profiles(@Auth() a: AuthCtx, @Query('ids') raw = ''): Promise<PublicProfile[]> {
+    const ids = [...new Set(String(raw).split(',').map((x) => x.trim().toLowerCase()).filter(Boolean))];
+    if (!ids.length) return [];
+    if (ids.length > 100) throw AppError.validation('Ask for up to 100 people at a time.');
+    if (ids.some((x) => !/^[a-f0-9]{24}$/.test(x))) throw AppError.validation('Not a valid id.');
+    await this.limiter.hit(`profiles:${a.userId}`, 120, 60);
+    const docs = await this.users.col.find({ _id: { $in: ids.map((x) => new ObjectId(x)) } }).toArray();
+    return Promise.all(docs.map((u) => toPublic(u, (k) => this.storage.downloadUrl(k))));
+  }
 
   /** Exact match only (username, phone or email), so the directory can't be browsed. */
   @Get('lookup')

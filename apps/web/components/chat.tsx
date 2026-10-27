@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { ApiError, MAX_TEXT, textLength, tickFor, type ConversationSummary, type PublicProfile, type ThreadItem, type Tick } from '@yays/shared';
+import { ApiError, MAX_TEXT, listNames, systemText, textLength, tickFor, type ConversationSummary, type PublicProfile, type ThreadItem, type Tick } from '@yays/shared';
+import { memberLine } from './group';
 import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
@@ -38,6 +39,12 @@ export function ChatList({ activeId, onOpen, onNewChat }: { activeId: string | n
   const engine = useEngine();
   const [loadingMore, setLoadingMore] = useState(false);
   const me = useMe();
+  // Names for "Ali added Sara" previews in group rows.
+  useEffect(() => {
+    const ids: string[] = [];
+    for (const id of s.order) { const m = s.conversations[id]?.lastMessage; if (m?.system && (m.system.kind === 'added' || m.system.kind === 'removed')) ids.push(m.senderId, ...m.system.userIds); else if (m?.system?.kind === 'admin') ids.push(m.senderId, m.system.userId); }
+    if (ids.length) engine.ensurePeople(ids);
+  }, [engine, s.order, s.conversations]);
   if (!s.listLoaded) return <div className="list-empty" aria-busy="true"><span className="ys-spin" aria-hidden /> Loading chats…</div>;
   if (!s.order.length) {
     return (
@@ -51,7 +58,7 @@ export function ChatList({ activeId, onOpen, onNewChat }: { activeId: string | n
   }
   return (
     <nav aria-label="Chats" className="chat-rows">
-      {s.order.map((id) => <ChatRow key={id} c={s.conversations[id]} me={me} active={id === activeId} typing={engine.typingIn(id).length > 0} onOpen={onOpen} />)}
+      {s.order.map((id) => <ChatRow key={id} c={s.conversations[id]} me={me} active={id === activeId} typing={typingLabel(engine, s.conversations[id])} onOpen={onOpen} />)}
       {s.listNext && (
         <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
           <OvalButton icon="chevron-down" label="Older chats" size="sm" variant="ghost" loading={loadingMore} onClick={() => { setLoadingMore(true); void engine.loadList(true).finally(() => setLoadingMore(false)); }} />
@@ -62,19 +69,40 @@ export function ChatList({ activeId, onOpen, onNewChat }: { activeId: string | n
 }
 
 function useMe() { return useEngine().me; }
+type Engine = ReturnType<typeof useEngine>;
 
-function ChatRow({ c, me, active, typing, onOpen }: { c: ConversationSummary; me: string; active: boolean; typing: boolean; onOpen: (id: string) => void }) {
-  const name = c.peer?.displayName ?? 'Chat';
+/** "typing…" in a direct chat; "Sara is typing…" / "Sara and Omar are typing…" in a group. */
+function typingLabel(engine: Engine, c: ConversationSummary | undefined): string | null {
+  if (!c) return null;
+  const who = engine.typingIn(c.id);
+  if (!who.length) return null;
+  if (c.kind === 'direct') return 'typing…';
+  const names = who.map((u) => engine.nameOf(u).split(' ')[0]);
+  return names.length > 2 ? `${names.length} people are typing…` : `${listNames(names)} ${names.length > 1 ? 'are' : 'is'} typing…`;
+}
+/** First name of a group message's sender, from what the engine knows or what the server last said. */
+function senderFirst(engine: Engine, id: string, fallback: string | null) {
+  const n = engine.nameOf(id);
+  return (n === '…' ? fallback ?? '' : n).split(' ')[0];
+}
+export const chatName = (c: ConversationSummary) => c.group?.name ?? c.peer?.displayName ?? 'Chat';
+const chatPhoto = (c: ConversationSummary) => c.group?.photoUrl ?? c.peer?.photoUrl ?? null;
+
+function ChatRow({ c, me, active, typing, onOpen }: { c: ConversationSummary; me: string; active: boolean; typing: string | null; onOpen: (id: string) => void }) {
+  const engine = useEngine();
+  const name = chatName(c);
   const last = c.lastMessage;
-  const mine = last?.senderId === me;
+  const mine = last?.senderId === me && last.type !== 'system';
+  const preview = !last ? '' : last.type === 'system' && last.system ? systemText(last.system, last.senderId, (u) => engine.nameOf(u) === '…' && u === last.senderId && c.lastSenderName ? c.lastSenderName : engine.nameOf(u))
+    : c.kind === 'group' && !mine ? `${senderFirst(engine, last.senderId, c.lastSenderName)}: ${last.text}` : last.text;
   return (
     <a href={`/chats?c=${c.id}`} className="ys-row-item" aria-current={active ? 'true' : undefined} data-testid="chat-row"
       onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); onOpen(c.id); }} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <Avatar name={name} photoUrl={c.peer?.photoUrl} size={48} />
+      <Avatar name={name} photoUrl={chatPhoto(c)} size={48} />
       <span className="ys-row-item__text">
         <span className="ys-row-item__title">{name}</span>
         <span className="ys-row-item__sub" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>
-          {typing ? 'typing…' : <>{mine && last && <TickIcon tick={tickFor(last, c)} />} {last?.text ?? ''}</>}
+          {typing ?? <>{mine && last && <TickIcon tick={tickFor(last, c)} />} {preview}</>}
         </span>
       </span>
       <span className="ys-row-item__end">
@@ -138,7 +166,7 @@ export function NewChat({ onClose, onOpened }: { onClose: () => void; onOpened: 
 }
 
 // ---------------- conversation ----------------
-export function Conversation({ id, onBack }: { id: string; onBack: () => void }) {
+export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onBack: () => void; onInfo?: () => void; infoOpen?: boolean }) {
   const engine = useEngine();
   const s = useChatState();
   const me = useMe();
@@ -147,7 +175,7 @@ export function Conversation({ id, onBack }: { id: string; onBack: () => void })
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     setError(null);
-    engine.open(id).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
+    void engine.open(id).then(() => { if (engine.getState().conversations[id]?.kind === 'group') return engine.loadGroup(id); }).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
     return () => { if (engine.getState().active === id) void engine.open(null); };
   }, [engine, id]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,27 +184,30 @@ export function Conversation({ id, onBack }: { id: string; onBack: () => void })
   if (error) return <div className="pane-center"><Banner>{error}</Banner><OvalButton icon="arrow-left" label="Back to chats" variant="ghost" onClick={onBack} /></div>;
   if (!c) return <div className="pane-center" aria-busy="true"><span className="ys-spin" aria-hidden /></div>;
   const peer = c.peer;
-  const name = peer?.displayName ?? 'Chat';
-  const typing = engine.typingIn(id).length > 0;
+  const name = chatName(c);
+  const typing = typingLabel(engine, c);
   const p = peer ? s.presence[peer.id] : undefined;
-  const status = typing ? 'typing…' : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : peer?.username ? `@${peer.username}` : '';
+  const status = typing ?? (c.kind === 'group' ? memberLine(s.groups[id], me, '') : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : peer?.username ? `@${peer.username}` : '');
   return (
     <section className="convo" aria-label={`Chat with ${name}`}>
       <header className="convo__head">
         <span className="convo__back"><OvalButton icon="arrow-left" label="Chats" size="sm" variant="ghost" onClick={onBack} /></span>
-        <Avatar name={name} photoUrl={peer?.photoUrl} size={44} online={!!p?.online} />
-        <span className="convo__who">
-          <strong>{name}</strong>
-          <span data-testid="peer-status" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>{status}</span>
-        </span>
+        <button type="button" className="convo__whobtn" onClick={onInfo} disabled={!onInfo || c.kind !== 'group'} aria-expanded={c.kind === 'group' ? !!infoOpen : undefined} aria-label={c.kind === 'group' ? 'Group info' : undefined}>
+          <Avatar name={name} photoUrl={chatPhoto(c)} size={44} online={!!p?.online} />
+          <span className="convo__who">
+            <strong>{name}</strong>
+            <span data-testid="peer-status" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>{status}</span>
+          </span>
+        </button>
+        {c.kind === 'group' && onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'soft' : 'ghost'} onClick={onInfo} />}
       </header>
-      <Thread id={id} items={items} me={me} typing={typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} />
-      <Composer id={id} />
+      <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} />
+      {c.canSend ? <Composer id={id} /> : <LockedComposer c={c} onGone={onBack} />}
     </section>
   );
 }
 
-function Thread({ id, items, me, typing, loading, hasMore }: { id: string; items: ThreadItem[]; me: string; typing: boolean; loading: boolean; hasMore: boolean }) {
+function Thread({ id, items, me, typing, loading, hasMore, group }: { id: string; items: ThreadItem[]; me: string; typing: boolean; loading: boolean; hasMore: boolean; group: boolean }) {
   const engine = useEngine();
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -203,13 +234,18 @@ function Thread({ id, items, me, typing, loading, hasMore }: { id: string; items
       <div className="ys-thread convo__thread" role="log" aria-live="polite" aria-label="Messages">
         {(older || loading) && <span className="ys-spin" style={{ alignSelf: 'center' }} aria-label="Loading messages" />}
         {!loading && !items.length && <div className="day-sep">Say hello 👋</div>}
-        {items.map((m) => {
+        {items.map((m, i) => {
           const day = dayLabel(m.createdAt);
           const sep = day !== lastDay; lastDay = day;
+          const prev = items[i - 1];
+          // In groups, others' messages carry the sender's name at the start of each run.
+          const showName = group && m.type === 'text' && m.senderId !== me && (sep || !prev || prev.type === 'system' || prev.senderId !== m.senderId);
           return (
             <div key={m.key} style={{ display: 'contents' }}>
               {sep && <div className="day-sep">{day}</div>}
-              <Bubble m={m} mine={m.senderId === me} />
+              {m.type === 'system' && m.system
+                ? <div className="sys-line" data-testid="system-line">{systemText(m.system, m.senderId, (u) => engine.nameOf(u))}</div>
+                : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} />}
             </div>
           );
         })}
@@ -219,12 +255,13 @@ function Thread({ id, items, me, typing, loading, hasMore }: { id: string; items
   );
 }
 
-function Bubble({ m, mine }: { m: ThreadItem; mine: boolean }) {
+function Bubble({ m, mine, sender }: { m: ThreadItem; mine: boolean; sender?: string | null }) {
   const engine = useEngine();
   const failed = m.tick === 'failed';
   return (
     <div className={`msg ${mine ? 'msg--me' : 'msg--them'}`} data-testid="message" data-tick={m.tick ?? undefined}>
       <div className={`ys-bubble ys-bubble--${mine ? 'me' : 'them'}`} style={m.tick === 'pending' || failed ? { opacity: 0.75 } : undefined}>
+        {sender && <span className="msg__sender" style={{ color: senderColor(m.senderId) }}>{sender}</span>}
         <span className="msg__text">{m.text}</span>
         <span className="ys-bubble__meta">
           <span>{clock(m.createdAt)}</span>
@@ -237,6 +274,21 @@ function Bubble({ m, mine }: { m: ThreadItem; mine: boolean }) {
           <button type="button" onClick={() => void engine.discard(m.clientId)}><Icon name="trash" size={14} /> Delete</button>
         </span>
       )}
+    </div>
+  );
+}
+
+/** Sender names get one of a few readable colours, the same for a person every time. */
+const SENDER_COLORS = ['var(--ember-ink)', 'var(--info)', 'var(--success-ink)', 'var(--danger-ink)', 'var(--warning-ink)'];
+function senderColor(id: string) { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return SENDER_COLORS[h % SENDER_COLORS.length]; }
+
+function LockedComposer({ c, onGone }: { c: ConversationSummary; onGone: () => void }) {
+  const engine = useEngine();
+  const former = c.group?.role === 'former';
+  return (
+    <div className="composer composer--locked" role="status">
+      <span>{former ? 'You’re no longer in this group.' : 'Only admins can send messages.'}</span>
+      {former && <button type="button" className="link-btn link-btn--danger" onClick={() => void engine.deleteGroup(c.id).then(onGone)}>Delete group</button>}
     </div>
   );
 }
