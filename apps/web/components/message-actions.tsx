@@ -119,7 +119,7 @@ export function Quote({ r, onClick }: { r: NonNullable<ThreadItem['replyTo']>; o
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;

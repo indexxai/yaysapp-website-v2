@@ -22,6 +22,8 @@ export const C = {
   stars: 'yc_stars',
   pushSubs: 'yc_push_subscriptions',
   chatPrefs: 'yc_chat_prefs',
+  blocks: 'yc_blocks',
+  reports: 'yc_reports',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -40,7 +42,10 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { inviteCode: 1 }, name: 'invite_code_unique', unique: true, partialFilterExpression: { inviteCode: { $type: 'string' } } },
   ]);
   await db.collection(C.pushSubs).createIndexes([{ key: { userId: 1 }, name: 'user' }, { key: { sid: 1 }, name: 'session' }]);
-  await db.collection(C.chatPrefs).createIndexes([{ key: { userId: 1 }, name: 'user' }]);
+  await db.collection(C.chatPrefs).createIndexes([{ key: { userId: 1 }, name: 'user' }, { key: { userId: 1, archived: 1 }, name: 'user_archived' }, { key: { userId: 1, pinnedAt: -1 }, name: 'user_pinned' }]);
+  await db.collection(C.blocks).createIndexes([{ key: { by: 1, at: -1 }, name: 'by' }]);
+  await db.collection(C.reports).createIndexes([{ key: { at: -1 }, name: 'recent' }, { key: { targetUserId: 1, at: -1 }, name: 'target' }]);
+  await db.collection(C.messages).createIndex({ convId: 1, 'attachment.kind': 1, seq: -1 }, { name: 'conv_media', partialFilterExpression: { type: 'media' } });
   await db.collection(C.stars).createIndexes([{ key: { userId: 1, at: -1 }, name: 'user_recent' }, { key: { userId: 1, msgId: 1 }, name: 'user_msg' }]);
   await db.collection(C.joinRequests).createIndexes([{ key: { convId: 1, createdAt: 1 }, name: 'conv_time' }]);
   await db.collection(C.messages).createIndexes([

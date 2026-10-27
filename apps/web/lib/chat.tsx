@@ -32,10 +32,13 @@ export function ChatProvider({ me, onSignedOut, children }: { me: string; onSign
     setEngine(e);
     void e.start();
     // A chat counts as read only while its tab is showing.
-    const vis = () => e.setVisible(document.visibilityState === 'visible');
+    const vis = () => { e.setVisible(document.visibilityState === 'visible'); if (document.visibilityState === 'hidden') e.flushCache(); };
     vis();
+    // Reloading or closing the tab: save what's pending so the next load starts from it.
+    const leaving = () => e.flushCache();
     document.addEventListener('visibilitychange', vis);
-    return () => { document.removeEventListener('visibilitychange', vis); e.stop(); };
+    window.addEventListener('pagehide', leaving);
+    return () => { document.removeEventListener('visibilitychange', vis); window.removeEventListener('pagehide', leaving); e.stop(); };
   }, [me, onSignedOut]);
   if (!engine) return null;
   return <EngineCtx.Provider value={engine}>{children}</EngineCtx.Provider>;

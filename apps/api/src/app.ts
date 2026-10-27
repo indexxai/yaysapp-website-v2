@@ -45,9 +45,10 @@ export async function createApp(env: Record<string, string | undefined> = proces
   realtime.attach(app.getHttpServer());
   // Live events go to sockets; new messages also go to notifications for people who aren't looking.
   chat.events = {
-    messageCreated: (users, m) => { realtime.messageCreated(users, m); void chat.convs.findOne({ _id: chat.parseId(m.conversationId) }).then((c) => { if (c) push.messageCreated(c, m); }); },
+    messageCreated: (users, m) => { realtime.messageCreated(users, m); void chat.convs.findOne({ _id: chat.parseId(m.conversationId) }).then((c) => { if (c) push.messageCreated(c, m, users); }); },
     receiptChanged: (...a) => realtime.receiptChanged(...a),
     conversationChanged: (...a) => realtime.conversationChanged(...a),
+    blocked: (...a) => realtime.blocked(...a),
   };
   chat.msgEvents = realtime;
   chat.onRead = (u, conv) => push.read(u, conv);

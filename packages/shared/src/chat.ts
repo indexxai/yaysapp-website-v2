@@ -91,6 +91,8 @@ export interface ChatMessage {
   reactions?: Record<string, string[]>;
   /** Only in answers to the person asking: whether they starred it. */
   starred?: boolean;
+  /** Mine, to someone who blocked me: it stays at one tick. */
+  held?: boolean;
 }
 
 /** Rules for message actions. */
@@ -163,6 +165,12 @@ export interface ConversationSummary {
   archived: boolean;
   /** Pinned to the top of my chat list. */
   pinnedAt: string | null;
+  /** I marked it unread by hand (shows a dot until I open it). */
+  markedUnread: boolean;
+  /** Direct chats: I blocked this person. */
+  blocked: boolean;
+  /** I see messages after this number only (where I joined, or cleared the chat). */
+  visibleFrom: number;
   memberIds: string[];
   lastSeq: number;
   lastMessage: ChatMessage | null;
@@ -173,7 +181,11 @@ export interface ConversationSummary {
   lastActivityAt: string;
 }
 
-export interface ConversationPage { items: ConversationSummary[]; next: string | null }
+export interface ConversationPage {
+  items: ConversationSummary[]; next: string | null;
+  /** First page only: how many chats are archived and how many of those have unread messages. */
+  archived?: { count: number; unread: number };
+}
 export interface MessagePage { items: ChatMessage[]; hasMore: boolean }
 export interface SendResult { message: ChatMessage; duplicate: boolean }
 export interface Presence { userId: string; online: boolean; lastSeenAt: string | null }
@@ -181,7 +193,8 @@ export interface Presence { userId: string; online: boolean; lastSeenAt: string 
 export type Tick = 'pending' | 'failed' | 'sent' | 'delivered' | 'read';
 
 /** Ticks on my own message: read when every other member has read it, delivered when every other member's device has it. */
-export function tickFor(message: Pick<ChatMessage, 'seq' | 'senderId'>, conv: Pick<ConversationSummary, 'receipts' | 'memberIds'>): Tick {
+export function tickFor(message: Pick<ChatMessage, 'seq' | 'senderId'> & { held?: boolean }, conv: Pick<ConversationSummary, 'receipts' | 'memberIds'>): Tick {
+  if (message.held) return 'sent';
   const others = conv.memberIds.filter((m) => m !== message.senderId);
   if (!others.length) return 'sent';
   const r = others.map((m) => conv.receipts[m] ?? { deliveredSeq: 0, readSeq: 0 });
@@ -300,4 +313,39 @@ export interface SearchResults {
   counts: { messages: number; files: number };
   /** For more messages or files: pass as `before`. */
   next: string | null;
+}
+
+// ---- chat list settings, contact info, block and report ----
+export const MAX_PINNED_CHATS = 3;
+export const MUTE_OPTIONS = ['8h', '1w', 'always'] as const;
+export type MuteFor = (typeof MUTE_OPTIONS)[number];
+export const chatPrefsSchema = z.object({
+  mute: z.enum([...MUTE_OPTIONS, 'off']).optional(),
+  archived: z.boolean().optional(),
+  pinned: z.boolean().optional(),
+  unread: z.boolean().optional(),
+}).refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
+export type ChatPrefsInput = z.input<typeof chatPrefsSchema>;
+
+export const REPORT_REASONS = ['spam', 'scam', 'harassment', 'other'] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+export const reportSchema = z.object({
+  userId: objectIdSchema.optional(),
+  conversationId: objectIdSchema.optional(),
+  reason: z.enum(REPORT_REASONS),
+  note: z.string().max(500).optional(),
+  block: z.boolean().optional(),
+}).refine((v) => v.userId || v.conversationId, 'Say who or which chat you are reporting.');
+export type ReportInput = z.input<typeof reportSchema>;
+
+export type SharedTab = 'media' | 'docs' | 'links';
+export interface SharedPage { items: ChatMessage[]; next: number | null }
+/** What the contact or group info panel shows besides the profile. */
+export interface ChatOverview {
+  counts: { media: number; docs: number; links: number; starred: number };
+  /** Latest photos and videos, newest first (up to 8). */
+  recentMedia: ChatMessage[];
+  /** Direct chats: groups we're both in. */
+  commonGroups: Array<{ id: string; name: string; photoUrl: string | null; memberCount: number }>;
+  blocked: boolean;
 }

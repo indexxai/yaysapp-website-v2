@@ -95,12 +95,13 @@ export class PushService {
   }
 
   /** Called for every new message. Runs in the background; failures are logged, never thrown at the sender. */
-  messageCreated(c: ConversationDoc, m: ChatMessage) {
-    void this.notifyMessage(c, m).catch((e) => this.log.warn({ err: e }, 'push failed'));
+  /** `to`: who the message was delivered to (leaves out anyone who blocked the sender). */
+  messageCreated(c: ConversationDoc, m: ChatMessage, to: ObjectId[] = c.members) {
+    void this.notifyMessage(c, m, to).catch((e) => this.log.warn({ err: e }, 'push failed'));
   }
 
-  private async notifyMessage(c: ConversationDoc, m: ChatMessage) {
-    let targets = c.members.filter((u) => u.toHexString() !== m.senderId);
+  private async notifyMessage(c: ConversationDoc, m: ChatMessage, to: ObjectId[]) {
+    let targets = to.filter((u) => u.toHexString() !== m.senderId);
     if (m.type === 'system') {
       // Only "added you" is worth a notification.
       const e = m.system;

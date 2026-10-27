@@ -2,7 +2,8 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
-import { ChatList, ConnectionNotice, Conversation, NewChat } from '@/components/chat';
+import { ArchivedList, ChatList, ConnectionNotice, Conversation, NewChat } from '@/components/chat';
+import { ContactInfoPanel } from '@/components/contact';
 import { GroupInfoPanel, NewGroup } from '@/components/group';
 import { Attention, NotifyBanner } from '@/components/notify';
 import { SearchPanel } from '@/components/search';
@@ -35,28 +36,30 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
   const router = useRouter();
   const params = useSearchParams();
   const active = params.get('c');
-  const [panel, setPanel] = useState<'list' | 'chat' | 'group' | 'search'>('list');
+  const [panel, setPanel] = useState<'list' | 'chat' | 'group' | 'search' | 'archived'>('list');
+  const [searchNonce, setSearchNonce] = useState(0);
   const jumpSeq = Number(params.get('m')) || undefined;
   const [info, setInfo] = useState(params.get('info') === '1');
   const s = useChatState();
   const open = useCallback((id: string) => { setPanel('list'); router.push(`/chats?c=${id}`); }, [router]);
   // From search: the results stay on the left so you can try the next one.
-  const openFound = useCallback((id: string, seq?: number) => { router.push(`/chats?c=${id}${seq ? `&m=${seq}` : ''}`); }, [router]);
+  const openFound = useCallback((id: string, seq?: number) => { router.push(`/chats?c=${id}${seq ? `&m=${seq}&j=${Date.now()}` : ''}`); }, [router]);
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPanel('search'); } };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const back = useCallback(() => { setInfo(false); router.push('/chats'); }, [router]);
-  // Info only makes sense for an open group.
-  const isGroup = !!active && s.conversations[active]?.kind === 'group';
-  useEffect(() => { if (!isGroup) setInfo(false); }, [isGroup]);
+  const kind = active ? s.conversations[active]?.kind : undefined;
+  const isGroup = kind === 'group';
+  useEffect(() => { if (!active) setInfo(false); }, [active]);
   return (
-    <div className={`chats${active ? ' chats--open' : ''}${info && isGroup ? ' chats--info' : ''}`}>
+    <div className={`chats${active ? ' chats--open' : ''}${info && kind ? ' chats--info' : ''}`}>
       <aside className="chats__list" aria-label="Chat list">
         {panel === 'chat' ? <NewChat onClose={() => setPanel('list')} onOpened={open} />
           : panel === 'group' ? <NewGroup onClose={() => setPanel('list')} onCreated={open} />
           : panel === 'search' ? <SearchPanel onClose={() => setPanel('list')} onOpen={openFound} />
+          : panel === 'archived' ? <ArchivedList activeId={active} onOpen={(id) => router.push(`/chats?c=${id}`)} onClose={() => setPanel('list')} />
           : (
             <>
               <div className="chats__head">
@@ -71,12 +74,12 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
               </button>
               <ConnectionNotice />
               <NotifyBanner />
-              <ChatList activeId={active} onOpen={open} onNewChat={() => setPanel('chat')} />
+              <ChatList activeId={active} onOpen={open} onNewChat={() => setPanel('chat')} onArchived={() => setPanel('archived')} />
             </>
           )}
       </aside>
       <main className="chats__pane">
-        {active ? <Conversation id={active} jumpSeq={jumpSeq} onBack={back} onInfo={() => setInfo((v) => !v)} infoOpen={info} /> : (
+        {active ? <Conversation id={active} jumpSeq={jumpSeq} jumpKey={params.get('j') ?? ''} searchNonce={searchNonce} onBack={back} onInfo={() => setInfo((v) => !v)} infoOpen={info} /> : (
           <div className="pane-center pane-welcome" data-testid="chats-ready">
             <span className="ys-oval ys-oval--wash" style={{ width: 96 }}><Icon name="chat" size={40} /></span>
             <strong>Welcome, {name}</strong>
@@ -86,6 +89,9 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
       </main>
       <Attention />
       {active && isGroup && info && <GroupInfoPanel id={active} onClose={() => setInfo(false)} onLeft={() => setInfo(false)} />}
+      {active && kind === 'direct' && info && (
+        <ContactInfoPanel id={active} onClose={() => setInfo(false)} onJump={(seq) => openFound(active, seq)} onSearch={() => { setSearchNonce((n) => n + 1); }} onOpenChat={(id) => { setInfo(false); open(id); }} />
+      )}
     </div>
   );
 }

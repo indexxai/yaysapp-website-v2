@@ -105,8 +105,10 @@ export class Realtime implements ChatEvents {
       if (v.on && now - last < TYPING_EVERY_MS) return null;
       s.data.typingAt.set(v.conversationId, v.on ? now : 0);
       const c = await this.d.chat.memberConv(v.conversationId, s.data.userId);
-      const others = c.members.filter((m) => !m.equals(s.data.userId)).map((m) => room.user(m.toHexString()));
-      if (others.length) this.io!.to(others).emit('typing', { conversationId: v.conversationId, userId: uid, on: v.on });
+      let others = c.members.filter((m) => !m.equals(s.data.userId));
+      if (c.kind === 'direct') { const blocked = await this.d.chat.blockedEitherWay(s.data.userId, others); others = others.filter((m) => !blocked.has(m.toHexString())); }
+      const rooms = others.map((m) => room.user(m.toHexString()));
+      if (rooms.length) this.io!.to(rooms).emit('typing', { conversationId: v.conversationId, userId: uid, on: v.on });
       return null;
     });
     this.on(s, 'focus', focusSchema, async (v) => { await this.d.push.setFocus(uid, s.id, v.conversationId, v.visible); return null; });
@@ -114,6 +116,8 @@ export class Realtime implements ChatEvents {
       // Only people you share a chat with: online status is not public.
       const asked = [...new Set(v.userIds)].filter((id) => id !== uid);
       const allowed = await this.d.chat.sharesChatWith(s.data.userId, asked.map((i) => new ObjectId(i)));
+      // Blocking hides online status both ways.
+      for (const id of await this.d.chat.blockedEitherWay(s.data.userId, [...allowed].map((i) => new ObjectId(i)))) allowed.delete(id);
       for (const id of s.data.watching) if (!allowed.has(id)) void s.leave(room.presence(id));
       for (const id of allowed) void s.join(room.presence(id));
       s.data.watching = allowed;
@@ -185,6 +189,15 @@ export class Realtime implements ChatEvents {
 
   conversationChanged(userIds: ObjectId[], conversationId: string) {
     if (userIds.length) this.io?.to(userIds.map((m) => room.user(m.toHexString()))).emit('conv:update', { conversationId });
+  }
+
+  /** After a block, neither side keeps watching the other's online status. */
+  blocked(by: ObjectId, target: ObjectId) {
+    const b = by.toHexString(), t = target.toHexString();
+    this.io?.in(room.user(t)).socketsLeave(room.presence(b));
+    this.io?.in(room.user(b)).socketsLeave(room.presence(t));
+    // Their screen stops showing me online, the same as anyone who can't see it.
+    this.io?.to(room.user(t)).emit('presence', { userId: b, online: false, lastSeenAt: null });
   }
 
   /** A device that was signed out loses its live connection right away, on whichever server holds it. */

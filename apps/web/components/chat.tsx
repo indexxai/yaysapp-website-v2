@@ -8,6 +8,7 @@ import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
 import { InChatSearch } from './search';
+import { isMuted, MUTE_CHOICES } from './contact';
 
 const TICK_LABEL: Record<Tick, string> = { pending: 'Sending', failed: 'Not sent', sent: 'Sent', delivered: 'Delivered', read: 'Read' };
 
@@ -17,10 +18,10 @@ export function TickIcon({ tick, size = 14 }: { tick: Tick; size?: number }) {
   return <span className={`tick tick--${tick}`} data-tick={tick}><Icon name={tick === 'sent' ? 'check' : 'check-double'} size={size} strokeWidth={tick === 'read' ? 2.6 : 1.8} title={TICK_LABEL[tick]} /></span>;
 }
 
-function Badge({ n }: { n: number }) {
-  if (n <= 0) return null;
+function Badge({ n, muted, marked }: { n: number; muted?: boolean; marked?: boolean }) {
+  if (n <= 0) return marked ? <span className={`ys-oval ys-badge ys-badge--dot${muted ? ' ys-oval--sunken ys-badge--muted' : ' ys-oval--ember'}`} aria-label="Marked unread" /> : null;
   const label = n >= 100 ? '99+' : String(n);
-  return <span className={`ys-oval ys-oval--ember ys-badge${label.length > 2 ? ' ys-badge--wide' : ''}`} aria-label={`${label} unread`}><span>{label}</span></span>;
+  return <span className={`ys-oval ys-badge${muted ? ' ys-oval--sunken ys-badge--muted' : ' ys-oval--ember'}${label.length > 2 ? ' ys-badge--wide' : ''}`} aria-label={`${label} unread`}><span>{label}</span></span>;
 }
 
 /** Connection state shown above the list when it isn't plainly online. */
@@ -37,19 +38,20 @@ export function ConnectionNotice() {
 }
 
 // ---------------- chat list ----------------
-export function ChatList({ activeId, onOpen, onNewChat }: { activeId: string | null; onOpen: (id: string) => void; onNewChat: () => void }) {
+type ListFilter = 'all' | 'unread' | 'groups';
+const hasUnread = (c: ConversationSummary) => c.unread > 0 || !!c.markedUnread;
+
+export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId: string | null; onOpen: (id: string) => void; onNewChat: () => void; onArchived: () => void }) {
   const s = useChatState();
   const engine = useEngine();
   const [loadingMore, setLoadingMore] = useState(false);
+  const [filter, setFilter] = useState<ListFilter>('all');
   const me = useMe();
-  // Names for "Ali added Sara" previews in group rows.
-  useEffect(() => {
-    const ids: string[] = [];
-    for (const id of s.order) { const m = s.conversations[id]?.lastMessage; if (m?.system && (m.system.kind === 'added' || m.system.kind === 'removed')) ids.push(m.senderId, ...m.system.userIds); else if (m?.system?.kind === 'admin') ids.push(m.senderId, m.system.userId); }
-    if (ids.length) engine.ensurePeople(ids);
-  }, [engine, s.order, s.conversations]);
+  usePreviewNames();
   if (!s.listLoaded) return <div className="list-empty" aria-busy="true"><span className="ys-spin" aria-hidden /> Loading chats…</div>;
-  if (!s.order.length) {
+  const main = s.order.filter((id) => s.conversations[id] && !s.conversations[id].archived);
+  const archived = s.order.filter((id) => s.conversations[id]?.archived);
+  if (!main.length && !archived.length) {
     return (
       <div className="list-empty">
         <span className="ys-oval ys-oval--wash" style={{ width: 72 }}><Icon name="chats" size={30} /></span>
@@ -59,16 +61,72 @@ export function ChatList({ activeId, onOpen, onNewChat }: { activeId: string | n
       </div>
     );
   }
+  const unreadCount = main.filter((id) => hasUnread(s.conversations[id])).length;
+  const shown = main.filter((id) => { const c = s.conversations[id]; return filter === 'all' || (filter === 'unread' ? hasUnread(c) : c.kind === 'group'); });
+  const archivedUnread = archived.filter((id) => hasUnread(s.conversations[id])).length;
   return (
-    <nav aria-label="Chats" className="chat-rows">
-      {s.order.map((id) => <ChatRow key={id} c={s.conversations[id]} me={me} active={id === activeId} typing={typingLabel(engine, s.conversations[id])} onOpen={onOpen} />)}
-      {s.listNext && (
-        <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
-          <OvalButton icon="chevron-down" label="Older chats" size="sm" variant="ghost" loading={loadingMore} onClick={() => { setLoadingMore(true); void engine.loadList(true).finally(() => setLoadingMore(false)); }} />
+    <>
+      <div className="list-filters">
+        <div className="ys-tabs" role="tablist" aria-label="Filter chats">
+          {([['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups']] as Array<[ListFilter, string]>).map(([f, label]) => (
+            <button key={f} type="button" role="tab" className="ys-tab" aria-selected={filter === f} onClick={() => setFilter(f)}>
+              {label}{f === 'unread' && unreadCount > 0 && <span className="search__count">{unreadCount}</span>}
+            </button>
+          ))}
         </div>
-      )}
-    </nav>
+      </div>
+      <nav aria-label="Chats" className="chat-rows">
+        {filter === 'all' && archived.length > 0 && (
+          <button type="button" className="ys-row-item archived-row" onClick={onArchived}>
+            <span className="ys-oval ys-oval--sunken" style={{ width: 44 }}><Icon name="archive" size={18} /></span>
+            <span className="ys-row-item__text"><span className="ys-row-item__title">Archived</span></span>
+            <span className="archived-row__count" style={archivedUnread ? { color: 'var(--ember-ink)' } : undefined}>{archivedUnread || archived.length}</span>
+          </button>
+        )}
+        {shown.map((id) => <ChatRow key={id} c={s.conversations[id]} me={me} active={id === activeId} typing={typingLabel(engine, s.conversations[id])} onOpen={onOpen} />)}
+        {!shown.length && <div className="list-empty list-empty--small">{filter === 'unread' ? 'No unread chats.' : filter === 'groups' ? 'No groups yet.' : 'All your chats are archived.'}</div>}
+        {s.listNext && filter === 'all' && (
+          <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
+            <OvalButton icon="chevron-down" label="Older chats" size="sm" variant="ghost" loading={loadingMore} onClick={() => { setLoadingMore(true); void engine.loadList(true).finally(() => setLoadingMore(false)); }} />
+          </div>
+        )}
+      </nav>
+    </>
   );
+}
+
+/** Archived chats (m43). New messages don't bring them back to the list. */
+export function ArchivedList({ activeId, onOpen, onClose }: { activeId: string | null; onOpen: (id: string) => void; onClose: () => void }) {
+  const s = useChatState();
+  const engine = useEngine();
+  const me = useMe();
+  usePreviewNames();
+  useEffect(() => { void engine.loadArchived().catch(() => undefined); }, [engine]);
+  const ids = s.order.filter((id) => s.conversations[id]?.archived);
+  return (
+    <section aria-label="Archived chats" className="search">
+      <div className="pane-head">
+        <OvalButton icon="arrow-left" label="Chats" size="sm" variant="ghost" onClick={onClose} />
+        <h2>Archived</h2>
+      </div>
+      <p className="archived-note">These chats stay archived when new messages arrive. Unarchive one from its menu.</p>
+      <nav aria-label="Archived" className="chat-rows">
+        {ids.map((id) => <ChatRow key={id} c={s.conversations[id]} me={me} active={id === activeId} typing={typingLabel(engine, s.conversations[id])} onOpen={onOpen} />)}
+        {!ids.length && <div className="list-empty list-empty--small">No archived chats.</div>}
+      </nav>
+    </section>
+  );
+}
+
+/** Names for "Ali added Sara" previews in group rows. */
+function usePreviewNames() {
+  const s = useChatState();
+  const engine = useEngine();
+  useEffect(() => {
+    const ids: string[] = [];
+    for (const id of s.order) { const m = s.conversations[id]?.lastMessage; if (m?.system && (m.system.kind === 'added' || m.system.kind === 'removed')) ids.push(m.senderId, ...m.system.userIds); else if (m?.system?.kind === 'admin') ids.push(m.senderId, m.system.userId); }
+    if (ids.length) engine.ensurePeople(ids);
+  }, [engine, s.order, s.conversations]);
 }
 
 function useMe() { return useEngine().me; }
@@ -93,26 +151,75 @@ const chatPhoto = (c: ConversationSummary) => c.group?.photoUrl ?? c.peer?.photo
 
 function ChatRow({ c, me, active, typing, onOpen }: { c: ConversationSummary; me: string; active: boolean; typing: string | null; onOpen: (id: string) => void }) {
   const engine = useEngine();
+  const [menu, setMenu] = useState(false);
   const name = chatName(c);
   const last = c.lastMessage;
   const mine = last?.senderId === me && last.type !== 'system';
+  const muted = isMuted(c);
   const preview = !last ? '' : last.type === 'system' && last.system ? systemText(last.system, last.senderId, (u) => engine.nameOf(u) === '…' && u === last.senderId && c.lastSenderName ? c.lastSenderName : engine.nameOf(u))
     : c.kind === 'group' && !mine ? `${senderFirst(engine, last.senderId, c.lastSenderName)}: ${messagePreview(last)}` : messagePreview(last);
   return (
-    <a href={`/chats?c=${c.id}`} className="ys-row-item" aria-current={active ? 'true' : undefined} data-testid="chat-row"
-      onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); onOpen(c.id); }} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <Avatar name={name} photoUrl={chatPhoto(c)} size={48} />
-      <span className="ys-row-item__text">
-        <span className="ys-row-item__title">{name}</span>
-        <span className="ys-row-item__sub" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>
-          {typing ?? <>{mine && last && <TickIcon tick={tickFor(last, c)} />} {preview}</>}
+    <div className={`chat-row${menu ? ' chat-row--menu' : ''}`} onContextMenu={(e) => { e.preventDefault(); setMenu(true); }}>
+      <a href={`/chats?c=${c.id}`} className="ys-row-item" aria-current={active ? 'true' : undefined} data-testid="chat-row"
+        onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); onOpen(c.id); }} style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Avatar name={name} photoUrl={chatPhoto(c)} size={48} />
+        <span className="ys-row-item__text">
+          <span className="ys-row-item__title">{name}</span>
+          <span className="ys-row-item__sub" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>
+            {typing ?? <>{mine && last && <TickIcon tick={tickFor(last, c)} />} {preview}</>}
+          </span>
         </span>
+        <span className="ys-row-item__end">
+          <span style={c.unread && !muted ? { color: 'var(--ember-ink)', fontWeight: 800 } : undefined}>{listTime(c.lastActivityAt)}</span>
+          <span className="chat-row__icons">
+            {muted && <Icon name="bell-off" size={14} title="Muted" />}
+            {c.pinnedAt && <Icon name="pin" size={14} title="Pinned" />}
+            <Badge n={c.unread} muted={muted} marked={c.markedUnread} />
+          </span>
+        </span>
+      </a>
+      <span className="chat-row__more">
+        <button type="button" className="icon-btn" aria-label={`Options for ${name}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)}><Icon name="chevron-down" size={18} /></button>
+        {menu && <ChatRowMenu c={c} onClose={() => setMenu(false)} />}
       </span>
-      <span className="ys-row-item__end">
-        <span style={c.unread ? { color: 'var(--ember-ink)', fontWeight: 800 } : undefined}>{listTime(c.lastActivityAt)}</span>
-        <span style={{ minHeight: 20, display: 'flex' }}><Badge n={c.unread} /></span>
-      </span>
-    </a>
+    </div>
+  );
+}
+
+/** Archive, mute, pin and mark unread, from a chat's row. */
+function ChatRowMenu({ c, onClose }: { c: ConversationSummary; onClose: () => void }) {
+  const engine = useEngine();
+  const ref = useRef<HTMLSpanElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [muting, setMuting] = useState(false);
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('[role=menuitem]')?.focus();
+    const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
+    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('mousedown', away); document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc); };
+  }, [onClose]);
+  const set = (p: Parameters<typeof engine.setChatPrefs>[1]) => { setError(null); void engine.setChatPrefs(c.id, p).then(onClose, (e) => setError(e instanceof ApiError ? e.message : 'That did not work.')); };
+  const muted = isMuted(c);
+  const unread = hasUnread(c);
+  return (
+    <span className="menu menu--row" role="menu" ref={ref} aria-label="Chat options">
+      {error && <span className="menu__error" role="alert">{error}</span>}
+      {muting ? (
+        <>
+          {MUTE_CHOICES.map(([v, l]) => <button key={v} type="button" role="menuitem" onClick={() => set({ mute: v })}>Mute for {l.toLowerCase()}</button>)}
+          <button type="button" role="menuitem" onClick={() => setMuting(false)}>Back</button>
+        </>
+      ) : (
+        <>
+          <button type="button" role="menuitem" onClick={() => set({ archived: !c.archived })}><Icon name="archive" size={16} />{c.archived ? 'Unarchive chat' : 'Archive chat'}</button>
+          {muted ? <button type="button" role="menuitem" onClick={() => set({ mute: 'off' })}><Icon name="bell" size={16} />Unmute notifications</button>
+            : <button type="button" role="menuitem" onClick={() => setMuting(true)}><Icon name="bell-off" size={16} />Mute notifications</button>}
+          {!c.archived && <button type="button" role="menuitem" onClick={() => set({ pinned: !c.pinnedAt })}><Icon name="pin" size={16} />{c.pinnedAt ? 'Unpin chat' : 'Pin chat'}</button>}
+          <button type="button" role="menuitem" onClick={() => set({ unread: !unread })}><Icon name="check-double" size={16} />{unread ? 'Mark as read' : 'Mark as unread'}</button>
+        </>
+      )}
+    </span>
   );
 }
 // ---------------- new chat ----------------
@@ -169,7 +276,7 @@ export function NewChat({ onClose, onOpened }: { onClose: () => void; onOpened: 
 }
 
 // ---------------- conversation ----------------
-export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq }: { id: string; onBack: () => void; onInfo?: () => void; infoOpen?: boolean; jumpSeq?: number }) {
+export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = '', searchNonce = 0 }: { id: string; onBack: () => void; onInfo?: () => void; infoOpen?: boolean; jumpSeq?: number; jumpKey?: string; searchNonce?: number }) {
   const engine = useEngine();
   const s = useChatState();
   const me = useMe();
@@ -201,11 +308,12 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq }: { id: st
   // Opened from a search result: go to that message once the thread is there.
   const loaded = !!thread?.loaded;
   useEffect(() => {
-    const k = `${id}:${jumpSeq}`;
+    const k = `${id}:${jumpSeq}:${jumpKey}`;
     if (!jumpSeq || !loaded || jumped.current === k) return;
     jumped.current = k;
     setTimeout(() => jump.current(jumpSeq), 30);
-  }, [id, jumpSeq, loaded]);
+  }, [id, jumpSeq, jumpKey, loaded]);
+  useEffect(() => { if (searchNonce) setSearching(true); }, [searchNonce]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const items = useMemo(() => engine.thread(id), [engine, id, thread, s.outbox, s.uploads, c]);
 
@@ -224,7 +332,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq }: { id: st
       onDrop={(e) => { e.preventDefault(); setDragging(false); const fs = [...e.dataTransfer.files]; if (fs.length && c.canSend) setAttachFiles(fs); }}>
       <header className="convo__head">
         <span className="convo__back"><OvalButton icon="arrow-left" label="Chats" size="sm" variant="ghost" onClick={onBack} /></span>
-        <button type="button" className="convo__whobtn" onClick={onInfo} disabled={!onInfo || c.kind !== 'group'} aria-expanded={c.kind === 'group' ? !!infoOpen : undefined} aria-label={c.kind === 'group' ? 'Group info' : undefined}>
+        <button type="button" className="convo__whobtn" onClick={onInfo} disabled={!onInfo} aria-expanded={!!infoOpen} aria-label={c.kind === 'group' ? 'Group info' : 'Contact info'}>
           <Avatar name={name} photoUrl={chatPhoto(c)} size={44} online={!!p?.online} />
           <span className="convo__who">
             <strong>{name}</strong>
@@ -232,7 +340,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq }: { id: st
           </span>
         </button>
         <OvalButton icon="search" label="Search" size="sm" variant={searching ? 'soft' : 'ghost'} onClick={() => setSearching((v) => !v)} />
-        {c.kind === 'group' && onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'soft' : 'ghost'} onClick={onInfo} />}
+        {onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'soft' : 'ghost'} onClick={onInfo} />}
       </header>
       {searching && <InChatSearch convId={id} onJump={(seq) => jump.current(seq)} onClose={() => setSearching(false)} />}
       <PinnedBar c={c} />
@@ -351,6 +459,14 @@ function senderColor(id: string) { let h = 0; for (const ch of id) h = (h * 31 +
 function LockedComposer({ c, onGone }: { c: ConversationSummary; onGone: () => void }) {
   const engine = useEngine();
   const former = c.group?.role === 'former';
+  if (c.blocked && c.peer) {
+    return (
+      <div className="composer composer--locked" role="status">
+        <span>You blocked {c.peer.displayName}.</span>
+        <button type="button" className="link-btn" onClick={() => void engine.unblock(c.peer!.id)}>Unblock</button>
+      </div>
+    );
+  }
   return (
     <div className="composer composer--locked" role="status">
       <span>{former ? 'You’re no longer in this group.' : 'Only admins can send messages.'}</span>

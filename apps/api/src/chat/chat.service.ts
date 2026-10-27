@@ -54,6 +54,8 @@ export interface MessageDoc {
   reactions?: Array<{ u: ObjectId; e: string; at: Date }>;
   /** People who deleted it for themselves. */
   hiddenFor?: ObjectId[];
+  /** Sent to someone who blocked the sender: never delivered to them (also in hiddenFor). */
+  heldFrom?: ObjectId;
 }
 /**
  * One row per person per conversation: how far they have received and read, and which part of the history they
@@ -71,8 +73,10 @@ export interface ChatEvents {
   messageCreated(userIds: ObjectId[], message: ChatMessage): void;
   receiptChanged(members: ObjectId[], conversationId: string, userId: string, r: MemberReceipt): void;
   conversationChanged(userIds: ObjectId[], conversationId: string): void;
+  /** `by` blocked `target`: they stop seeing each other online. */
+  blocked(by: ObjectId, target: ObjectId): void;
 }
-const noEvents: ChatEvents = { messageCreated() {}, receiptChanged() {}, conversationChanged() {} };
+const noEvents: ChatEvents = { messageCreated() {}, receiptChanged() {}, conversationChanged() {}, blocked() {} };
 
 const UNREAD_CAP = 100;
 const MAX_SEQ = Number.MAX_SAFE_INTEGER;
@@ -122,11 +126,14 @@ export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, view
     out.reactions = r;
   }
   if (viewer) out.starred = viewer.starred.has(m._id.toHexString());
+  if (m.heldFrom && viewer?.id.equals(m.senderId)) out.held = true;
   return out;
 }
 
 /** Per person per chat: muted, archived, pinned to the top. */
-export interface ChatPrefDoc { _id: string; convId: ObjectId; userId: ObjectId; mutedUntil?: Date | null; archived?: boolean; pinnedAt?: Date | null; updatedAt: Date }
+export interface ChatPrefDoc { _id: string; convId: ObjectId; userId: ObjectId; mutedUntil?: Date | null; archived?: boolean; pinnedAt?: Date | null; markedUnread?: boolean; updatedAt: Date }
+/** `by` blocked `target`. _id is `by:target`. */
+export interface BlockDoc { _id: string; by: ObjectId; target: ObjectId; at: Date }
 
 export interface StarDoc { _id: string; userId: ObjectId; msgId: ObjectId; convId: ObjectId; at: Date }
 
@@ -144,8 +151,10 @@ export class ChatService {
   onRead: (userId: ObjectId, conversationId: string) => void = () => undefined;
   readonly stars: Collection<StarDoc>;
   readonly prefs: Collection<ChatPrefDoc>;
+  readonly blocks: Collection<BlockDoc>;
 
-  constructor(readonly client: MongoClient, db: Db, readonly storage: Storage) {
+  constructor(readonly client: MongoClient, readonly db: Db, readonly storage: Storage) {
+    this.blocks = db.collection(C.blocks);
     this.stars = db.collection(C.stars);
     this.prefs = db.collection(C.chatPrefs);
     this.convs = db.collection(C.conversations);
@@ -158,6 +167,17 @@ export class ChatService {
     if (typeof convId !== 'string') return convId;
     if (!/^[a-f0-9]{24}$/i.test(convId)) throw AppError.notFound('Chat not found.');
     return new ObjectId(convId);
+  }
+
+  /** Of these people, the ones where either side blocked the other. */
+  async blockedEitherWay(me: ObjectId, ids: ObjectId[]): Promise<Set<string>> {
+    if (!ids.length) return new Set();
+    const rows = await this.blocks.find({ $or: [{ by: me, target: { $in: ids } }, { target: me, by: { $in: ids } }] }).toArray();
+    return new Set(rows.map((b) => (b.by.equals(me) ? b.target : b.by).toHexString()));
+  }
+  async blockState(me: ObjectId, other: ObjectId) {
+    const rows = await this.blocks.find({ _id: { $in: [`${me.toHexString()}:${other.toHexString()}`, `${other.toHexString()}:${me.toHexString()}`] } }).toArray();
+    return { iBlocked: rows.some((b) => b.by.equals(me)), theyBlocked: rows.some((b) => b.target.equals(me)) };
   }
 
   /** The conversation, only if this user is in it now. Anything else is "not found", so ids can't be probed. */
@@ -225,8 +245,9 @@ export class ChatService {
     return (await this.summaries(me, [conv!]))[0];
   }
 
-  async list(me: ObjectId, before: string | undefined, limit: number): Promise<ConversationPage> {
-    const filter: Record<string, unknown> = { $or: [{ members: me }, { former: me }], seq: { $gt: 0 } };
+  async list(me: ObjectId, before: string | undefined, limit: number, archivedOnly = false): Promise<ConversationPage> {
+    const archivedIds = (await this.prefs.find({ userId: me, archived: true }, { projection: { convId: 1 } }).limit(5000).toArray()).map((p) => p.convId);
+    const filter: Record<string, unknown> = { $or: [{ members: me }, { former: me }], seq: { $gt: 0 }, _id: archivedOnly ? { $in: archivedIds } : { $nin: archivedIds } };
     if (before) {
       const m = /^(\d{1,15})_([a-f0-9]{24})$/.exec(before);
       if (!m) throw AppError.validation('That page link is not valid.');
@@ -236,7 +257,19 @@ export class ChatService {
     const rows = await this.convs.find(filter).sort({ lastAt: -1, _id: -1 }).limit(limit + 1).toArray();
     const page = rows.slice(0, limit);
     const last = page[page.length - 1];
-    return { items: await this.summaries(me, page), next: rows.length > limit && last ? `${last.lastAt.getTime()}_${last._id.toHexString()}` : null };
+    const out: ConversationPage = { items: [], next: rows.length > limit && last ? `${last.lastAt.getTime()}_${last._id.toHexString()}` : null };
+    if (!before && !archivedOnly) {
+      // Pinned chats come with the first page wherever they'd fall by date.
+      const pinned = (await this.prefs.find({ userId: me, pinnedAt: { $ne: null } }).toArray()).map((p) => p.convId).filter((id) => !page.some((c) => c._id.equals(id)));
+      if (pinned.length) page.push(...await this.convs.find({ _id: { $in: pinned }, $or: [{ members: me }, { former: me }], seq: { $gt: 0 } }).toArray());
+      out.archived = { count: 0, unread: 0 };
+      if (archivedIds.length) {
+        const arch = await this.convs.find({ _id: { $in: archivedIds }, $or: [{ members: me }, { former: me }], seq: { $gt: 0 } }).limit(500).toArray();
+        out.archived = { count: arch.length, unread: (await this.summaries(me, arch)).filter((c) => c.unread > 0 || c.markedUnread).length };
+      }
+    }
+    out.items = await this.summaries(me, page);
+    return out;
   }
 
   async one(me: ObjectId, convId: string): Promise<ConversationSummary> {
@@ -267,13 +300,19 @@ export class ChatService {
     const mine = new Map((await this.receipts.find({ _id: { $in: ids.map((i) => rKey(i, me)) } }).toArray()).map((r) => [r.convId.toHexString(), r]));
     const visibleLast = (c: ConversationDoc) => (has(c.members, me) ? c.seq : Math.min(mine.get(c._id.toHexString())?.leftSeq ?? 0, c.seq));
     // Former members see the last message from before they left.
-    const lastMsgs = await Promise.all(convs.map((c) => (has(c.members, me) || !c.seq ? (c.lastMessageId ? this.msgs.findOne({ _id: c.lastMessageId }) : null) : this.msgs.findOne({ convId: c._id, seq: visibleLast(c) }))));
+    const lastMsgs = await Promise.all(convs.map(async (c) => {
+      const m = has(c.members, me) || !c.seq ? (c.lastMessageId ? await this.msgs.findOne({ _id: c.lastMessageId }) : null) : await this.msgs.findOne({ convId: c._id, seq: visibleLast(c) });
+      // A message I can't see (deleted for me, or from someone I blocked): show the one before it.
+      if (m && has(m.hiddenFor, me)) return this.msgs.findOne({ convId: c._id, seq: { $lte: m.seq }, hiddenFor: { $ne: me } }, { sort: { seq: -1 } });
+      return m;
+    }));
     const peerIds = convs.filter((c) => c.kind === 'direct').map((c) => c.members.find((m) => !m.equals(me))).filter((x): x is ObjectId => !!x);
     const senderIds = lastMsgs.map((m) => m?.senderId).filter((x): x is ObjectId => !!x);
     const people = await this.users.find({ _id: { $in: [...peerIds, ...senderIds] } }).toArray();
     const byId = new Map(people.map((u) => [u._id.toHexString(), u]));
     const recs = await this.receipts.find({ convId: { $in: ids } }).toArray();
     const prefs = new Map((await this.prefs.find({ _id: { $in: ids.map((i) => rKey(i, me)) } }).toArray()).map((p) => [p.convId.toHexString(), p]));
+    const blocks = await this.blocks.find({ $or: [{ by: me, target: { $in: peerIds } }, { target: me, by: { $in: peerIds } }] }).toArray();
     return Promise.all(convs.map(async (c, i) => {
       const pref = prefs.get(c._id.toHexString());
       const member = has(c.members, me);
@@ -284,22 +323,29 @@ export class ChatService {
       if (!member) receipts[me.toHexString()] = { deliveredSeq: my?.deliveredSeq ?? 0, readSeq: my?.readSeq ?? 0 };
       const lastSeq = visibleLast(c);
       const readFrom = Math.max(my?.readSeq ?? 0, my?.fromSeq ?? 0);
-      const unread = lastSeq > readFrom ? await this.msgs.countDocuments({ convId: c._id, seq: { $gt: readFrom, $lte: lastSeq }, senderId: { $ne: me } }, { limit: UNREAD_CAP }) : 0;
+      const unread = lastSeq > readFrom ? await this.msgs.countDocuments({ convId: c._id, seq: { $gt: readFrom, $lte: lastSeq }, senderId: { $ne: me }, hiddenFor: { $ne: me } }, { limit: UNREAD_CAP }) : 0;
       const last = lastMsgs[i];
       const peerId = c.kind === 'direct' ? c.members.find((m) => !m.equals(me)) : undefined;
       const peerDoc = peerId ? byId.get(peerId.toHexString()) : undefined;
       const sender = last ? byId.get(last.senderId.toHexString()) : undefined;
+      const iBlocked = !!peerId && blocks.some((b) => b.by.equals(me) && b.target.equals(peerId));
+      const theyBlocked = !!peerId && blocks.some((b) => b.target.equals(me) && b.by.equals(peerId));
+      let peer: PublicProfile | null = peerId ? (peerDoc ? await toPublic(peerDoc, this.photo) : { ...DELETED, id: peerId.toHexString() }) : null;
+      // Someone who blocked me doesn't share their photo or about with me.
+      if (peer && theyBlocked) peer = { ...peer, photoUrl: null, about: '' };
+      const fromSeq = my?.fromSeq ?? 0;
       return {
         id: c._id.toHexString(), kind: c.kind,
-        peer: peerId ? (peerDoc ? await toPublic(peerDoc, this.photo) : { ...DELETED, id: peerId.toHexString() }) : null,
+        peer,
         group: c.kind === 'group' ? await this.groupMeta(c, me) : null,
-        canSend: member && this.may(c, me, 'send'),
+        canSend: member && this.may(c, me, 'send') && !iBlocked,
         memberIds: c.members.map((m) => m.toHexString()), lastSeq, lastMessage: last && last.seq > (my?.fromSeq ?? 0) ? toMessage(last, undefined, { id: me, starred: new Set() }, await this.urlsFor([last])) : null, unread, receipts,
         lastSenderName: last ? (last.senderId.equals(me) ? 'You' : sender ? displayNameOf(sender) : DELETED.displayName) : null,
-        pins: await this.pinsOf(c),
+        pins: (await this.pinsOf(c)).filter((p) => p.seq > fromSeq && p.seq <= lastSeq),
         mutedUntil: pref?.mutedUntil && pref.mutedUntil.getTime() > Date.now() ? pref.mutedUntil.toISOString() : null,
         archived: !!pref?.archived, pinnedAt: pref?.pinnedAt ? pref.pinnedAt.toISOString() : null,
-        lastActivityAt: (member ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
+        markedUnread: !!pref?.markedUnread, blocked: iBlocked, visibleFrom: fromSeq,
+        lastActivityAt: (member && !(last && c.lastMessageId && !last._id.equals(c.lastMessageId)) ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
       };
     }));
   }
@@ -373,6 +419,17 @@ export class ChatService {
     if (existing) return this.duplicate(existing, convId, me);
     const pre = await this.memberConv(convId, me);
     if (!this.may(pre, me, 'send')) throw AppError.forbidden('Only admins can send messages in this group.');
+    // Direct chats and blocking: I can't write to someone I blocked; if they blocked me, my message is
+    // kept (one tick, as usual) but never reaches them, and they aren't told.
+    let hiddenFrom: ObjectId | undefined;
+    if (pre.kind === 'direct') {
+      const peer = pre.members.find((m) => !m.equals(me));
+      if (peer) {
+        const b = await this.blockState(me, peer);
+        if (b.iBlocked) throw AppError.forbidden('You blocked this person. Unblock them to send a message.');
+        if (b.theyBlocked) hiddenFrom = peer;
+      }
+    }
     // Forwarding reuses the original file as it is; anything else is checked.
     const attachment = opts.trustedAttachment ?? (opts.attachment ? await this.checkAttachment(me, opts.attachment) : undefined);
     let replyToId: ObjectId | undefined;
@@ -395,7 +452,7 @@ export class ChatService {
         const id = new ObjectId();
         const c = await this.convs.findOneAndUpdate({ _id: pre._id, members: me }, { $inc: { seq: 1 }, $set: { lastAt: now, lastMessageId: id } }, { session, returnDocument: 'after' });
         if (!c) throw AppError.notFound('Chat not found.');
-        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: attachment ? 'media' : 'text', text, createdAt: now, ...(attachment ? { attachment } : {}), ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}) };
+        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: attachment ? 'media' : 'text', text, createdAt: now, ...(attachment ? { attachment } : {}), ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}), ...(hiddenFrom ? { hiddenFor: [hiddenFrom], heldFrom: hiddenFrom } : {}) };
         await this.msgs.insertOne(m, { session });
         await this.receipts.updateOne({ _id: rKey(c._id, me) }, { $max: { deliveredSeq: c.seq, readSeq: c.seq }, $set: { updatedAt: now }, $setOnInsert: { convId: c._id, userId: me } }, { upsert: true, session });
         created = m; conv = c;
@@ -408,8 +465,10 @@ export class ChatService {
     if (!m) throw new Error('send finished without a message');
     if (!c) return this.duplicate(m, convId, me);
     const [message] = await this.present([m]);
-    this.events.messageCreated(c.members, message);
-    this.events.receiptChanged(c.members, message.conversationId, me.toHexString(), { deliveredSeq: m.seq, readSeq: m.seq });
+    if (hiddenFrom) message.held = true; // only the sender's own devices get this message
+    const to = hiddenFrom ? c.members.filter((x) => !x.equals(hiddenFrom!)) : c.members;
+    this.events.messageCreated(to, message);
+    this.events.receiptChanged(to, message.conversationId, me.toHexString(), { deliveredSeq: m.seq, readSeq: m.seq });
     return { message, duplicate: false };
   }
 
@@ -430,6 +489,10 @@ export class ChatService {
       { upsert: true, returnDocument: 'before' },
     );
     const pr = before?.readSeq ?? 0, pd = Math.max(before?.deliveredSeq ?? 0, pr);
+    // Opening a chat I marked unread clears the mark.
+    if (kind === 'read' && (await this.prefs.updateOne({ _id: rKey(c._id, me), markedUnread: true }, { $unset: { markedUnread: '' }, $set: { updatedAt: new Date() } })).modifiedCount) {
+      this.events.conversationChanged([me], c._id.toHexString());
+    }
     const next = { readSeq: Math.max(pr, kind === 'read' ? upTo : 0), deliveredSeq: Math.max(pd, upTo) };
     if (next.readSeq !== pr || next.deliveredSeq !== pd) {
       const now = new Date();

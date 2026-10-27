@@ -2,7 +2,7 @@ import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
 import type { UploadTicket, YaysClient } from './client';
 import type { PublicProfile } from './types';
-import { MEDIA_LIMITS, baseMime, formatBytes, tickFor, type Ack, type Attachment, type AttachmentInput, type AttachmentKind, type ChatMessage, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
+import { MEDIA_LIMITS, baseMime, formatBytes, tickFor, type Ack, type Attachment, type AttachmentInput, type AttachmentKind, type ChatMessage, type ChatPrefsInput, type ReportInput, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
 
 /** A message typed on this device that the server has not confirmed yet. Kept on the device until it has. */
 export interface PendingMessage {
@@ -119,7 +119,9 @@ export function uuid(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-const byActivity = (cs: Record<string, ConversationSummary>) => Object.values(cs).filter((c) => c.lastSeq > 0).sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt) || b.id.localeCompare(a.id)).map((c) => c.id);
+/** Pinned chats first (last pinned on top), then by latest activity. */
+const byActivity = (cs: Record<string, ConversationSummary>) => Object.values(cs).filter((c) => c.lastSeq > 0 || c.pinnedAt)
+  .sort((a, b) => (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') || b.lastActivityAt.localeCompare(a.lastActivityAt) || b.id.localeCompare(a.id)).map((c) => c.id);
 
 /**
  * Everything a chat screen needs, the same on web and mobile: the chat list, threads, the unsent queue,
@@ -191,6 +193,13 @@ export class ChatEngine {
   private scheduleSave() {
     if (!this.o.cache || this.saveTimer || this.stopped) return;
     this.saveTimer = setTimeout(() => { this.saveTimer = undefined; this.saveNow(); }, 1000);
+  }
+
+  /** Writes a pending snapshot right away (the page is being hidden or closed). */
+  flushCache() {
+    if (!this.saveTimer) return;
+    clearTimeout(this.saveTimer); this.saveTimer = undefined;
+    this.saveNow();
   }
 
   private saveNow() {
@@ -273,7 +282,43 @@ export class ChatEngine {
     for (const c of page.items) conversations[c.id] = this.mergeConv(conversations[c.id], c);
     this.set({ conversations, order: byActivity(conversations), listLoaded: true, listNext: more || !this.state.listLoaded ? page.next : this.state.listNext });
     for (const c of page.items) this.ackDelivered(c);
+    // Archived chats aren't in the main pages: fetch them too, so the "Archived" row can count them.
+    if (!more && page.archived?.count) void this.loadArchived().catch(() => undefined);
   }
+
+  async loadArchived() {
+    let before: string | undefined;
+    for (let i = 0; i < 5; i++) {
+      const page = await this.o.client.conversations({ archived: true, limit: 100, before });
+      const conversations = { ...this.state.conversations };
+      for (const c of page.items) conversations[c.id] = this.mergeConv(conversations[c.id], c);
+      this.set({ conversations, order: byActivity(conversations) });
+      if (!page.next) return;
+      before = page.next;
+    }
+  }
+
+  // ---------- my settings for a chat ----------
+  async setChatPrefs(id: string, p: ChatPrefsInput) {
+    const c = await this.o.client.setChatPrefs(id, p);
+    this.setConv(this.mergeConv(this.state.conversations[id], c));
+    return c;
+  }
+  async clearChat(id: string) {
+    const c = await this.o.client.clearChat(id);
+    this.setConv(this.mergeConv(this.state.conversations[id], c));
+    this.pruneCleared(id);
+  }
+  /** Drops messages from before a "clear chat" (here or on another device). */
+  private pruneCleared(id: string) {
+    const from = this.state.conversations[id]?.visibleFrom ?? 0;
+    const t = this.state.threads[id];
+    if (t && from && t.items.some((m) => m.seq <= from)) { this.setThread(id, { items: t.items.filter((m) => m.seq > from) }); this.scheduleSave(); }
+  }
+  private directWith(userId: string) { return Object.values(this.state.conversations).find((c) => c.kind === 'direct' && c.peer?.id === userId); }
+  async block(userId: string) { await this.o.client.block(userId); const c = this.directWith(userId); if (c) await this.refreshConv(c.id); }
+  async unblock(userId: string) { await this.o.client.unblock(userId); const c = this.directWith(userId); if (c) await this.refreshConv(c.id); }
+  report(r: ReportInput) { return this.o.client.report(r); }
 
   /** A fresher summary from the server, keeping receipts that already moved further here. */
   private mergeConv(old: ConversationSummary | undefined, c: ConversationSummary): ConversationSummary {
@@ -297,6 +342,7 @@ export class ChatEngine {
     try {
       const c = await this.o.client.conversation(id);
       this.setConv(this.mergeConv(this.state.conversations[id], c));
+      this.pruneCleared(id);
       if (this.state.groups[id] || this.state.active === id) { if (c.kind === 'group') await this.loadGroup(id).catch(() => undefined); }
       if (this.state.active === id) this.rewatch();
     } catch (e) {
@@ -449,7 +495,8 @@ export class ChatEngine {
     const conv = this.state.conversations[id];
     const t = this.state.threads[id];
     const me = this.o.me;
-    const items: ThreadItem[] = (t?.items ?? []).map((m) => ({
+    const from = conv?.visibleFrom ?? 0;
+    const items: ThreadItem[] = (t?.items ?? []).filter((m) => m.seq > from).map((m) => ({
       key: m.clientId, id: m.id, mine: m.senderId === me && m.type !== 'system', type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}),
       attachment: m.attachment, replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred,
       createdAt: m.createdAt, seq: m.seq, senderId: m.senderId, clientId: m.clientId,
@@ -784,8 +831,8 @@ export class ChatEngine {
     const c = this.state.conversations[id];
     if (!c || c.lastSeq === 0) return;
     const mine = c.receipts[this.o.me];
-    if (mine && mine.readSeq >= c.lastSeq && c.unread === 0) return;
-    this.setConv({ ...c, unread: 0 });
+    if (mine && mine.readSeq >= c.lastSeq && c.unread === 0 && !c.markedUnread) return;
+    this.setConv({ ...c, unread: 0, markedUnread: false });
     this.emitReceipt('receipt:read', id, c.lastSeq);
   }
 

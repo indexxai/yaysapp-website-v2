@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, PublicProfile, Tokens } from './types';
-import type { AttachmentInput, AttachmentKind, ChatMessage, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -124,14 +124,25 @@ export class YaysClient {
   // ---- chats ----
   /** Finds a person by exact username (@name), phone number or email. */
   lookupUser(q: string) { return this.request<PublicProfile>('GET', `/v1/users/lookup?q=${encodeURIComponent(q)}`); }
-  conversations(opts: { before?: string; limit?: number } = {}) {
+  conversations(opts: { before?: string; limit?: number; archived?: boolean } = {}) {
     const q = new URLSearchParams();
     if (opts.before) q.set('before', opts.before);
+    if (opts.archived) q.set('archived', '1');
     if (opts.limit) q.set('limit', String(opts.limit));
     const s = q.toString();
     return this.request<ConversationPage>('GET', `/v1/conversations${s ? `?${s}` : ''}`);
   }
   conversation(id: string) { return this.request<ConversationSummary>('GET', `/v1/conversations/${encodeURIComponent(id)}`); }
+  /** Mute, archive, pin or mark unread, for me only. */
+  setChatPrefs(id: string, p: ChatPrefsInput) { return this.request<ConversationSummary>('PUT', `/v1/conversations/${encodeURIComponent(id)}/prefs`, p); }
+  /** Removes every message so far from my view of this chat. */
+  clearChat(id: string) { return this.request<ConversationSummary>('POST', `/v1/conversations/${encodeURIComponent(id)}/clear`, {}); }
+  chatOverview(id: string) { return this.request<ChatOverview>('GET', `/v1/conversations/${encodeURIComponent(id)}/overview`); }
+  sharedItems(id: string, tab: SharedTab, before?: number) { return this.request<SharedPage>('GET', `/v1/conversations/${encodeURIComponent(id)}/shared?tab=${tab}${before ? `&before=${before}` : ''}`); }
+  block(userId: string) { return this.request<void>('POST', '/v1/blocks', { userId }); }
+  unblock(userId: string) { return this.request<void>('DELETE', `/v1/blocks/${encodeURIComponent(userId)}`); }
+  blocked() { return this.request<PublicProfile[]>('GET', '/v1/blocks'); }
+  report(r: ReportInput) { return this.request<void>('POST', '/v1/reports', r); }
   openDirect(userId: string) { return this.request<ConversationSummary>('POST', '/v1/conversations/direct', { userId }); }
   messages(conversationId: string, opts: { before?: number; after?: number; limit?: number } = {}) {
     const q = new URLSearchParams();

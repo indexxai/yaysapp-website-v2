@@ -65,7 +65,7 @@ export function Attention() {
     setTimeout(() => setToasts((x) => x.filter((y) => y.id !== t.id)), 5000);
   }), [engine]);
   // "(3) YaysApp": chats with something unread.
-  const count = s.order.filter((id) => { const c = s.conversations[id]; return c && c.unread > 0 && !(c.mutedUntil && Date.parse(c.mutedUntil) > Date.now()); }).length;
+  const count = s.order.filter((id) => { const c = s.conversations[id]; return c && c.unread > 0 && !c.archived && !(c.mutedUntil && Date.parse(c.mutedUntil) > Date.now()); }).length;
   useEffect(() => { document.title = count ? `(${count}) YaysApp` : 'YaysApp'; }, [count]);
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;

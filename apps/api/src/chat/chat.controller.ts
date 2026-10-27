@@ -12,7 +12,7 @@ import { toPublic, USERS, type UserDoc, type UsersRepo } from '../users/users.re
 import { CHAT, type ChatService } from './chat.service';
 
 const intParam = z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const listQuery = z.object({ before: z.string().max(64).optional(), limit: z.coerce.number().int().min(1).max(100).default(50) });
+const listQuery = z.object({ before: z.string().max(64).optional(), limit: z.coerce.number().int().min(1).max(100).default(50), archived: z.enum(['0', '1']).optional() });
 const messagesQuery = z.object({ before: intParam.optional(), after: intParam.optional(), limit: z.coerce.number().int().min(1).max(100).default(50) })
   .refine((q) => q.before === undefined || q.after === undefined, { message: 'Use before or after, not both.' });
 
@@ -25,7 +25,7 @@ export class ChatController {
   constructor(@Inject(CHAT) private chat: ChatService, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
 
   @Get()
-  list(@Auth() a: AuthCtx, @Query() q: unknown) { const v = parse(listQuery, q); return this.chat.list(a.userId, v.before, v.limit); }
+  list(@Auth() a: AuthCtx, @Query() q: unknown) { const v = parse(listQuery, q); return this.chat.list(a.userId, v.before, v.limit, v.archived === '1'); }
 
   @Post('direct') @HttpCode(200)
   open(@Auth() a: AuthCtx, @Body() b: unknown) { return this.chat.openDirect(a.userId, parse(openDirectSchema, b).userId); }

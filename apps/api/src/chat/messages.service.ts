@@ -28,7 +28,9 @@ export class MessagesService {
   }
   private async broadcast(c: ConversationDoc, m: MessageDoc) {
     const [msg] = await this.chat.present([m]);
-    this.chat.msgEvents.messageUpdated(c.members, msg);
+    if (m.heldFrom) msg.held = true; // only the sender is told about it at all
+    // Not to people who can't see it (deleted it for themselves, or blocked the sender).
+    this.chat.msgEvents.messageUpdated(c.members.filter((u) => !has(m.hiddenFor, u)), msg);
   }
   private async mine(me: ObjectId, id: ObjectId): Promise<ChatMessage> {
     const m = await this.chat.msgs.findOne({ _id: id });
@@ -125,6 +127,7 @@ export class MessagesService {
     for (const u of others) {
       const r = recs.get(u.toHexString());
       if ((r?.fromSeq ?? 0) >= m.seq) continue;
+      if (m.heldFrom?.equals(u)) { waiting.push(await profile(u)); continue; }
       if (r && r.readSeq >= m.seq) readBy.push({ user: await profile(u), at: reachedAt(r.readMarks, m.seq, r.updatedAt).toISOString() });
       else if (r && r.deliveredSeq >= m.seq) deliveredTo.push({ user: await profile(u), at: reachedAt(r.deliveredMarks, m.seq, r.updatedAt).toISOString() });
       else waiting.push(await profile(u));

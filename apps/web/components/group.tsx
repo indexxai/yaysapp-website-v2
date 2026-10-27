@@ -4,6 +4,7 @@ import { ApiError, MAX_GROUP_ABOUT, MAX_GROUP_NAME, textLength, type GroupInfo, 
 import { Icon } from '@/lib/icons';
 import { useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
+import { BlockReportDialog, MuteRow } from './contact';
 
 const msg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -156,6 +157,7 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [mode, setMode] = useState<'view' | 'edit' | 'add'>('view');
+  const [reporting, setReporting] = useState(false);
   useEffect(() => { void engine.loadGroup(id).catch((e) => setError(msg(e, 'Could not load the group.'))); }, [engine, id]);
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
     setError(null); setNotice(null);
@@ -186,6 +188,7 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
           </div>
         )}
         {!member && <Banner tone="info">You’re no longer in this group. You can still read what was said while you were.</Banner>}
+        <section className="info-section"><MuteRow c={c} run={run} /></section>
 
         {mode === 'add' ? (
           <AddMembers g={g} onDone={(n) => { setMode('view'); if (n) setNotice(`Added ${n} ${n === 1 ? 'person' : 'people'}.`); }} />
@@ -203,11 +206,16 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
         {(canAdd || admin) && member && <InviteAndPermissions g={g} admin={admin} canAdd={canAdd} run={run} />}
 
         <section className="info-section info-danger">
+          <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
+            <OvalButton icon="flag" label="Report group" size="sm" variant="danger" onClick={() => setReporting(true)} />
+            <ConfirmButton label="Clear chat" icon="trash" danger={false} confirm="Clear" question="Clear all messages in this group for you?" onConfirm={() => run(() => engine.clearChat(id), 'Chat cleared.')} />
+          </div>
           {member
             ? <ConfirmButton label="Leave group" confirm="Leave" question={`Leave ${g.name}?`} onConfirm={() => run(async () => { await engine.leaveGroup(id); onLeft(); })} />
             : <ConfirmButton label="Delete group" icon="trash" confirm="Delete" question="Delete this group and its messages from your chats?" onConfirm={() => run(async () => { await engine.deleteGroup(id); onLeft(); })} />}
         </section>
       </div>
+      {reporting && <BlockReportDialog mode="report" c={c} onClose={() => setReporting(false)} onDone={(t) => { setReporting(false); setNotice(t); }} />}
     </aside>
   );
 }

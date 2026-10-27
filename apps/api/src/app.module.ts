@@ -30,6 +30,9 @@ import { MESSAGES, MessagesService } from './chat/messages.service';
 import { PUSH, PushService } from './push/push.service';
 import { SEARCH, SearchService } from './chat/search.service';
 import { SearchController } from './chat/search.controller';
+import { CHAT_PREFS, ChatPrefsService } from './chat/prefs.service';
+import { SAFETY, SafetyService } from './chat/safety.service';
+import { ChatPrefsController } from './chat/prefs.controller';
 import { PushController } from './push/push.controller';
 import { MessageActionsController, StarredController } from './chat/messages.controller';
 
@@ -52,15 +55,17 @@ export class AppModule {
     const messages = new MessagesService(chat);
     const push = new PushService(db, redis, c, log);
     const search = new SearchService(chat);
+    const chatPrefs = new ChatPrefsService(chat);
+    const safety = new SafetyService(chat);
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
-      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search },
+      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PushController, SearchController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PushController, SearchController, ChatPrefsController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }
