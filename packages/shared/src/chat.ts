@@ -5,6 +5,20 @@ import type { PublicProfile } from './types';
 export const MAX_TEXT = 4096;
 export const textLength = (s: string) => [...s].length;
 
+/** Things that happen in a group, shown as a centred line in the chat. The person who did it is the message's senderId. */
+export type SystemEvent =
+  | { kind: 'created'; name: string }
+  | { kind: 'added'; userIds: string[] }
+  | { kind: 'removed'; userIds: string[] }
+  | { kind: 'left' }
+  | { kind: 'joined'; via: 'link' | 'request' }
+  | { kind: 'renamed'; name: string }
+  | { kind: 'about' }
+  | { kind: 'photo'; removed: boolean }
+  | { kind: 'admin'; userId: string; on: boolean }
+  | { kind: 'settings'; changes: Partial<GroupSettings> }
+  | { kind: 'invite_reset' };
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -13,10 +27,49 @@ export interface ChatMessage {
   senderId: string;
   /** Chosen by the sending device; sending the same clientId twice never makes two messages. */
   clientId: string;
-  type: 'text';
+  type: 'text' | 'system';
   text: string;
+  system?: SystemEvent;
   createdAt: string;
 }
+
+/** Who may do what in a group. Admins can always do everything. */
+export interface GroupSettings {
+  editInfo: 'all' | 'admins';
+  send: 'all' | 'admins';
+  addMembers: 'all' | 'admins';
+  pin: 'all' | 'admins';
+  /** New people joining by link wait for an admin to approve them. */
+  approveNew: boolean;
+}
+export const DEFAULT_GROUP_SETTINGS: GroupSettings = { editInfo: 'admins', send: 'all', addMembers: 'admins', pin: 'all', approveNew: false };
+export const MAX_GROUP_MEMBERS = 1024;
+export const MAX_GROUP_NAME = 100;
+export const MAX_GROUP_ABOUT = 512;
+
+export interface GroupMeta {
+  name: string;
+  about: string;
+  photoUrl: string | null;
+  memberCount: number;
+  /** former: I left or was removed; the history up to then stays readable. */
+  role: 'admin' | 'member' | 'former';
+  ownerId: string;
+  adminIds: string[];
+  settings: GroupSettings;
+}
+export interface GroupMember extends PublicProfile { admin: boolean; owner: boolean }
+export interface GroupInfo extends GroupMeta {
+  id: string;
+  members: GroupMember[];
+  /** Only admins (or anyone allowed to add members) see the invite code. */
+  inviteCode: string | null;
+  createdAt: string;
+  pendingRequests: number;
+}
+export interface InvitePreview { code: string; conversationId: string; name: string; about: string; photoUrl: string | null; memberCount: number; alreadyMember: boolean; needsApproval: boolean; requested: boolean }
+export interface JoinRequest { user: PublicProfile; requestedAt: string }
+export type JoinResult = { status: 'joined'; conversation: ConversationSummary } | { status: 'requested' };
 
 export interface MemberReceipt { deliveredSeq: number; readSeq: number }
 
@@ -25,6 +78,12 @@ export interface ConversationSummary {
   kind: 'direct' | 'group';
   /** The other person in a direct chat. */
   peer: PublicProfile | null;
+  /** Name, photo, my role and settings for a group. */
+  group: GroupMeta | null;
+  /** Whether I can write here right now (not a former member; not an admins-only group). */
+  canSend: boolean;
+  /** Display name of whoever sent the last message, for "Ali: see you" in group rows. */
+  lastSenderName: string | null;
   memberIds: string[];
   lastSeq: number;
   lastMessage: ChatMessage | null;
@@ -68,6 +127,31 @@ export const socketReceiptSchema = receiptSchema.extend({ conversationId: object
 export const typingSchema = z.object({ conversationId: objectIdSchema, on: z.boolean() });
 export const presenceWatchSchema = z.object({ userIds: z.array(objectIdSchema).max(50) });
 export const openDirectSchema = z.object({ userId: objectIdSchema });
+const groupName = z.string().transform((v, ctx) => {
+  const t = v.replace(/\s+/g, ' ').trim();
+  if (!t) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Give the group a name.' }); return z.NEVER; }
+  if (textLength(t) > MAX_GROUP_NAME) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Group names can be up to ${MAX_GROUP_NAME} characters.` }); return z.NEVER; }
+  return t;
+});
+const groupAbout = z.string().transform((v, ctx) => {
+  const t = v.trim();
+  if (textLength(t) > MAX_GROUP_ABOUT) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: `The description can be up to ${MAX_GROUP_ABOUT} characters.` }); return z.NEVER; }
+  return t;
+});
+export const createGroupSchema = z.object({
+  name: groupName,
+  about: groupAbout.optional(),
+  memberIds: z.array(objectIdSchema).max(MAX_GROUP_MEMBERS - 1, `A group can have up to ${MAX_GROUP_MEMBERS} members.`),
+  settings: z.object({ send: z.enum(['all', 'admins']).optional() }).optional(),
+});
+export const updateGroupSchema = z.object({ name: groupName.optional(), about: groupAbout.optional(), photoKey: z.string().max(512).nullable().optional() })
+  .refine((v) => v.name !== undefined || v.about !== undefined || v.photoKey !== undefined, { message: 'Nothing to change.' });
+export const groupSettingsSchema = z.object({
+  editInfo: z.enum(['all', 'admins']).optional(), send: z.enum(['all', 'admins']).optional(),
+  addMembers: z.enum(['all', 'admins']).optional(), pin: z.enum(['all', 'admins']).optional(), approveNew: z.boolean().optional(),
+}).refine((v) => Object.keys(v).length > 0, { message: 'Nothing to change.' });
+export const addMembersSchema = z.object({ userIds: z.array(objectIdSchema).min(1, 'Pick at least one person.').max(MAX_GROUP_MEMBERS) });
+export const inviteCodeSchema = z.string().regex(/^[A-Za-z0-9]{10,32}$/, 'That invite link is not valid.');
 
 /** Server → client socket events. */
 export interface ServerEvents {
@@ -75,6 +159,8 @@ export interface ServerEvents {
   receipt: (p: { conversationId: string; userId: string } & MemberReceipt) => void;
   typing: (p: { conversationId: string; userId: string; on: boolean }) => void;
   presence: (p: Presence) => void;
+  /** Something about a chat changed (members, name, settings): fetch its summary again. */
+  'conv:update': (p: { conversationId: string }) => void;
 }
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: { status: number; code: string; message: string; details?: Record<string, unknown> } };
 /** Client → server socket events. Every one answers through the acknowledgement callback. */

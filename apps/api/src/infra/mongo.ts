@@ -18,6 +18,7 @@ export const C = {
   conversations: 'yc_conversations',
   messages: 'yc_messages',
   receipts: 'yc_receipts',
+  joinRequests: 'yc_join_requests',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -32,7 +33,10 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
   await db.collection(C.conversations).createIndexes([
     { key: { members: 1, lastAt: -1, _id: -1 }, name: 'member_recent' },
     { key: { directKey: 1 }, name: 'direct_pair_unique', unique: true, partialFilterExpression: { directKey: { $type: 'string' } } },
+    { key: { former: 1, lastAt: -1, _id: -1 }, name: 'former_recent' },
+    { key: { inviteCode: 1 }, name: 'invite_code_unique', unique: true, partialFilterExpression: { inviteCode: { $type: 'string' } } },
   ]);
+  await db.collection(C.joinRequests).createIndexes([{ key: { convId: 1, createdAt: 1 }, name: 'conv_time' }]);
   await db.collection(C.messages).createIndexes([
     { key: { convId: 1, seq: 1 }, name: 'conv_seq_unique', unique: true },
     { key: { senderId: 1, clientId: 1 }, name: 'sender_client_unique', unique: true },

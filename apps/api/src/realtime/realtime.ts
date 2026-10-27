@@ -164,10 +164,14 @@ export class Realtime implements ChatEvents {
 
   // ---- ChatEvents ----
   messageCreated(members: ObjectId[], message: ChatMessage) {
-    this.io?.to(members.map((m) => room.user(m.toHexString()))).emit('msg:new', { message });
+    if (members.length) this.io?.to(members.map((m) => room.user(m.toHexString()))).emit('msg:new', { message });
   }
   receiptChanged(members: ObjectId[], conversationId: string, userId: string, r: MemberReceipt) {
     this.io?.to(members.map((m) => room.user(m.toHexString()))).emit('receipt', { conversationId, userId, ...r });
+  }
+
+  conversationChanged(userIds: ObjectId[], conversationId: string) {
+    if (userIds.length) this.io?.to(userIds.map((m) => room.user(m.toHexString()))).emit('conv:update', { conversationId });
   }
 
   /** A device that was signed out loses its live connection right away, on whichever server holds it. */
