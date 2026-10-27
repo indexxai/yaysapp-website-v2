@@ -41,9 +41,17 @@ export class ChatPrefsService {
     const upTo = Math.min(c.seq, untilSeq);
     await this.chat.receipts.updateOne({ _id: rKey(c._id, me) }, { $max: { fromSeq: upTo, readSeq: upTo, deliveredSeq: upTo }, $set: { updatedAt: new Date() }, $setOnInsert: { convId: c._id, userId: me } }, { upsert: true });
     await this.chat.prefs.updateOne({ _id: rKey(c._id, me) }, { $unset: { markedUnread: '' } });
-    await this.chat.stars.deleteMany({ userId: me, convId: c._id });
     this.chat.events.conversationChanged([me], c._id.toHexString());
     return this.chat.one(me, convId);
+  }
+
+  /** "Delete chat": clears it and takes it off my list until someone writes again. */
+  async deleteChat(me: ObjectId, convId: string): Promise<void> {
+    const { c } = await this.chat.access(convId, me);
+    if (c.kind === 'group' && c.members.some((m) => m.equals(me))) throw AppError.validation('Leave the group first, then delete it.');
+    await this.clear(me, convId);
+    await this.chat.prefs.updateOne({ _id: rKey(c._id, me) }, { $set: { deletedSeq: c.seq, pinnedAt: null, archived: false, updatedAt: new Date() }, $setOnInsert: { convId: c._id, userId: me } }, { upsert: true });
+    this.chat.events.conversationChanged([me], c._id.toHexString());
   }
 
   private filter(tab: SharedTab, convId: ObjectId, me: ObjectId, from: number, until: number, before?: number): Record<string, unknown> {

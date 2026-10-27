@@ -1,13 +1,13 @@
 import { randomBytes } from 'crypto';
 import { ObjectId, type ClientSession, type Collection, type Db } from 'mongodb';
 import {
-  DEFAULT_GROUP_SETTINGS, MAX_GROUP_MEMBERS,
+  DEFAULT_GROUP_SETTINGS, MAX_GROUP_MEMBERS, listNames,
   type ConversationSummary, type GroupInfo, type GroupSettings, type InvitePreview, type JoinRequest, type JoinResult, type SystemEvent,
 } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { C } from '../infra/mongo';
 import { toMessage, has, rKey, type ChatService, type ConversationDoc, type MessageDoc } from './chat.service';
-import { toPublic, type UserDoc } from '../users/users.repo';
+import { displayNameOf, privacyOf, toPublic, type UserDoc } from '../users/users.repo';
 
 export interface JoinRequestDoc { _id: string; convId: ObjectId; userId: ObjectId; createdAt: Date }
 
@@ -33,8 +33,15 @@ export class GroupsService {
   private async realPeople(me: ObjectId, raw: string[]) {
     const wanted = [...new Set(raw.map((x) => x.toLowerCase()))].filter((x) => x !== me.toHexString()).map((x) => new ObjectId(x));
     if (!wanted.length) return [];
-    const found = await this.chat.users.find({ _id: { $in: wanted }, 'yc.disabledAt': { $exists: false } }, { projection: { _id: 1 } }).toArray();
+    const found = await this.chat.users.find({ _id: { $in: wanted }, 'yc.disabledAt': { $exists: false } }).toArray();
     if (found.length !== wanted.length) throw AppError.validation('Some of the people you picked are not on YaysApp.');
+    // People who only let their contacts add them to groups.
+    const picky = found.filter((u) => privacyOf(u).groups === 'contacts');
+    if (picky.length) {
+      const contacts = await this.chat.contactsOf(me, picky.map((u) => u._id));
+      const no = picky.filter((u) => !contacts.has(u._id.toHexString()));
+      if (no.length) throw AppError.forbidden(`${listNames(no.map(displayNameOf))} can only be added by people they chat with. Send them the invite link instead.`);
+    }
     return wanted;
   }
 
@@ -70,9 +77,10 @@ export class GroupsService {
     const people = await this.chat.users.find({ _id: { $in: c.members } }).toArray();
     const byId = new Map(people.map((u) => [u._id.toHexString(), u]));
     const owner = c.ownerId ?? c.createdBy;
+    const seen = await this.chat.profilesFor(me, people);
     const members = await Promise.all(c.members.map(async (u) => {
       const doc = byId.get(u.toHexString());
-      const p = doc ? await toPublic(doc, this.chat.photo) : { id: u.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null };
+      const p = doc ? seen.get(u.toHexString())! : { id: u.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null };
       return { ...p, admin: this.chat.isAdmin(c, u), owner: u.equals(owner) };
     }));
     // Admins first, then by name; me first of all.
@@ -287,7 +295,7 @@ export class GroupsService {
     const rows = await this.requests.find({ convId: c._id }).sort({ createdAt: 1 }).limit(500).toArray();
     const people = new Map((await this.chat.users.find({ _id: { $in: rows.map((r) => r.userId) } }).toArray()).map((u) => [u._id.toHexString(), u]));
     const out: JoinRequest[] = [];
-    for (const r of rows) { const u = people.get(r.userId.toHexString()); if (u && !u.yc?.disabledAt) out.push({ user: await toPublic(u, this.chat.photo), requestedAt: r.createdAt.toISOString() }); }
+    for (const r of rows) { const u = people.get(r.userId.toHexString()); if (u && !u.yc?.disabledAt) out.push({ user: await this.chat.profileFor(me, u), requestedAt: r.createdAt.toISOString() }); }
     return out;
   }
 

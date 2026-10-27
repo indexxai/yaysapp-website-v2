@@ -4,7 +4,7 @@ import {
   type ChatMessage, type MessageInfo, type PublicProfile, type ReceiptDetail, type SendResult, type StarredItem,
 } from '@yays/shared';
 import { AppError } from '../common/app-error';
-import { displayNameOf, toPublic } from '../users/users.repo';
+import { displayNameOf } from '../users/users.repo';
 import { has, rKey, toMessage, type ChatService, type ConversationDoc, type MessageDoc, type ReceiptDoc } from './chat.service';
 
 const minutesSince = (d: Date) => (Date.now() - d.getTime()) / 60000;
@@ -122,12 +122,14 @@ export class MessagesService {
     const others = c.members.filter((u) => !u.equals(me));
     const recs = new Map((await this.chat.receipts.find({ _id: { $in: others.map((u) => rKey(c._id, u)) } }).toArray()).map((r) => [r.userId.toHexString(), r as ReceiptDoc]));
     const people = new Map((await this.chat.users.find({ _id: { $in: others } }).toArray()).map((u) => [u._id.toHexString(), u]));
-    const profile = async (u: ObjectId): Promise<PublicProfile> => { const d = people.get(u.toHexString()); return d ? toPublic(d, this.chat.photo) : { id: u.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null }; };
+    const seen = await this.chat.profilesFor(me, [...people.values()]);
+    const profile = async (u: ObjectId): Promise<PublicProfile> => seen.get(u.toHexString()) ?? { id: u.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null };
     const readBy: ReceiptDetail[] = [], deliveredTo: ReceiptDetail[] = [], waiting: PublicProfile[] = [];
     for (const u of others) {
       const r = recs.get(u.toHexString());
       if ((r?.fromSeq ?? 0) >= m.seq) continue;
       if (m.heldFrom?.equals(u)) { waiting.push(await profile(u)); continue; }
+      if (c.kind === 'direct' && r && r.readSeq >= m.seq && !(await this.chat.receiptsShared(me, u))) { deliveredTo.push({ user: await profile(u), at: reachedAt(r.readMarks, m.seq, r.updatedAt).toISOString() }); continue; }
       if (r && r.readSeq >= m.seq) readBy.push({ user: await profile(u), at: reachedAt(r.readMarks, m.seq, r.updatedAt).toISOString() });
       else if (r && r.deliveredSeq >= m.seq) deliveredTo.push({ user: await profile(u), at: reachedAt(r.deliveredMarks, m.seq, r.updatedAt).toISOString() });
       else waiting.push(await profile(u));
@@ -156,8 +158,8 @@ export class MessagesService {
     return out;
   }
 
-  async starred(me: ObjectId, before?: string, limit = 50): Promise<{ items: StarredItem[]; next: string | null }> {
-    const filter: Record<string, unknown> = { userId: me };
+  async starred(me: ObjectId, before?: string, limit = 50, convId?: string): Promise<{ items: StarredItem[]; next: string | null }> {
+    const filter: Record<string, unknown> = { userId: me, ...(convId ? { convId: new ObjectId(convId) } : {}) };
     if (before) { const t = Number(before); if (!Number.isFinite(t)) throw AppError.validation('That page link is not valid.'); filter.at = { $lt: new Date(t) }; }
     const rows = await this.chat.stars.find(filter).sort({ at: -1 }).limit(limit + 1).toArray();
     const page = rows.slice(0, limit);

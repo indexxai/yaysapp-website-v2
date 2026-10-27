@@ -58,3 +58,30 @@ export const addPhoneStartSchema = phoneStartSchema;
 export const addPhoneVerifySchema = z.object({ phone: phoneSchema, code: codeSchema });
 export const refreshSchema = z.object({ refreshToken: z.string().min(20).max(4096) });
 export const contactsMatchSchema = z.object({ phones: z.array(z.string().max(32)).max(5000) });
+
+// ---- two-step verification, account, privacy, notifications ----
+/** Six digits, like WhatsApp; never all the same digit or a straight run. */
+export const pinSchema = z.string().regex(/^\d{6}$/, 'The PIN has 6 digits.')
+  .refine((p) => !/^(\d)\1{5}$/.test(p) && !'0123456789'.includes(p) && !'9876543210'.includes(p), 'Pick a PIN that is harder to guess.');
+export const setPinSchema = z.object({ pin: pinSchema, currentPin: z.string().regex(/^\d{6}$/).optional() });
+export const pinCheckSchema = z.object({ pin: z.string().regex(/^\d{6}$/, 'The PIN has 6 digits.') });
+export const pinSignInSchema = z.object({ pinToken: z.string().min(20).max(200), pin: z.string().regex(/^\d{6}$/, 'The PIN has 6 digits.') });
+export const pinForgotSchema = z.object({ pinToken: z.string().min(20).max(200) });
+export const pinResetSchema = z.object({ pinToken: z.string().min(20).max(200), code: codeSchema });
+export const deleteAccountSchema = z.object({ code: codeSchema, reason: z.string().max(200).optional() });
+
+const audience = z.enum(['everyone', 'contacts', 'nobody']);
+export const privacySchema = z.object({
+  lastSeen: audience.optional(), photo: audience.optional(), about: audience.optional(),
+  groups: z.enum(['everyone', 'contacts']).optional(), readReceipts: z.boolean().optional(),
+}).refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 23:00.');
+export const notificationsSchema = z.object({
+  preview: z.boolean().optional(), groups: z.boolean().optional(),
+  quietHours: z.object({ on: z.boolean(), from: hhmm, to: hhmm }).optional(),
+  timeZone: z.string().max(64).refine((tz) => { try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true; } catch { return false; } }, 'Unknown time zone.').optional(),
+}).refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
+export const problemReportSchema = z.object({
+  text: z.string().trim().min(10, 'Tell us a bit more (at least 10 characters).').max(2000),
+  screenshotKey: z.string().max(512).optional(), userAgent: z.string().max(400).optional(), appVersion: z.string().max(40).optional(), page: z.string().max(200).optional(),
+});

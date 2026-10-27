@@ -253,6 +253,7 @@ export class ChatEngine {
     s.on('receipt', (r) => this.onReceipt(r.conversationId, r.userId, { deliveredSeq: r.deliveredSeq, readSeq: r.readSeq }));
     s.on('typing', ({ conversationId, userId, on }) => this.onTyping(conversationId, userId, on));
     s.on('presence', (p) => this.set({ presence: { ...this.state.presence, [p.userId]: p } }));
+    s.on('presence:recheck', () => this.rewatch());
     s.on('conv:update', ({ conversationId }) => { void this.refreshConv(conversationId); });
     s.on('msg:update', ({ message }) => this.applyMessage(message));
     s.on('msg:mine', (p) => {

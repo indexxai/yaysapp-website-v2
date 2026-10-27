@@ -22,6 +22,9 @@ export class ChatPrefsController {
   @Post('conversations/:id/clear') @HttpCode(200)
   clear(@Auth() a: AuthCtx, @Param('id') id: string) { return this.prefs.clear(a.userId, id); }
 
+  @Delete('conversations/:id') @HttpCode(204)
+  async remove(@Auth() a: AuthCtx, @Param('id') id: string) { await this.prefs.deleteChat(a.userId, id); }
+
   @Get('conversations/:id/overview')
   overview(@Auth() a: AuthCtx, @Param('id') id: string) { return this.prefs.overview(a.userId, id); }
 

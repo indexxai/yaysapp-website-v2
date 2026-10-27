@@ -105,6 +105,12 @@ export class SessionService {
     await this.revoke(sid, 'user_revoked');
   }
 
+  /** Every device of this account (deleting the account). */
+  async revokeAll(userId: ObjectId, reason: string) {
+    const rows = await this.col.find({ userId, revokedAt: { $exists: false } }).project<{ _id: string }>({ _id: 1 }).toArray();
+    for (const r of rows) await this.revoke(r._id, reason);
+  }
+
   async revokeOthers(userId: ObjectId, keepSid: string) {
     const rows = await this.col.find({ userId, _id: { $ne: keepSid }, revokedAt: { $exists: false } }).project<{ _id: string }>({ _id: 1 }).toArray();
     for (const r of rows) await this.revoke(r._id, 'user_revoked_all');

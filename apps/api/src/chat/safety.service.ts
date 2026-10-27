@@ -38,7 +38,8 @@ export class SafetyService {
   async list(me: ObjectId): Promise<PublicProfile[]> {
     const rows = await this.chat.blocks.find({ by: me }).sort({ at: -1 }).limit(MAX_BLOCKS).toArray();
     const users = new Map((await this.chat.users.find({ _id: { $in: rows.map((r) => r.target) } }).toArray()).map((u) => [u._id.toHexString(), u]));
-    return Promise.all(rows.map(async (r) => { const u = users.get(r.target.toHexString()); return u ? toPublic(u, this.chat.photo) : { id: r.target.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null }; }));
+    const seen = await this.chat.profilesFor(me, [...users.values()]);
+    return Promise.all(rows.map(async (r) => { const u = users.get(r.target.toHexString()); return u ? seen.get(u._id.toHexString())! : { id: r.target.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null }; }));
   }
 
   /** My devices refresh our direct chat (the composer locks or unlocks). They aren't told anything. */

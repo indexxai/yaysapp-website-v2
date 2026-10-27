@@ -286,6 +286,8 @@ export interface ServerEvents {
   'msg:update': (p: { message: ChatMessage }) => void;
   /** Only to my own devices: I deleted a message for me, or starred / unstarred it. */
   'msg:mine': (p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean }) => void;
+  /** Someone changed who sees their online status: ask again. */
+  'presence:recheck': (p: { userId: string }) => void;
 }
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: { status: number; code: string; message: string; details?: Record<string, unknown> } };
 /** Client → server socket events. Every one answers through the acknowledgement callback. */

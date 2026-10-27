@@ -24,6 +24,8 @@ export const C = {
   chatPrefs: 'yc_chat_prefs',
   blocks: 'yc_blocks',
   reports: 'yc_reports',
+  accountDeletions: 'yc_account_deletions',
+  problemReports: 'yc_problem_reports',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict

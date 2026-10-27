@@ -53,7 +53,7 @@ export class ChatController {
 @Controller('v1/users')
 @UseGuards(AuthGuard)
 export class PeopleController {
-  constructor(@Inject(USERS) private users: UsersRepo, @Inject(STORAGE) private storage: Storage, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
+  constructor(@Inject(USERS) private users: UsersRepo, @Inject(STORAGE) private storage: Storage, @Inject(RATE_LIMITER) private limiter: RateLimiter, @Inject(CHAT) private chat: ChatService) {}
 
   /** Names and photos for people already known by id (group members, senders). Ids are random, so this can't be used to browse. */
   @Get('profiles')
@@ -64,7 +64,7 @@ export class PeopleController {
     if (ids.some((x) => !/^[a-f0-9]{24}$/.test(x))) throw AppError.validation('Not a valid id.');
     await this.limiter.hit(`profiles:${a.userId}`, 120, 60);
     const docs = await this.users.col.find({ _id: { $in: ids.map((x) => new ObjectId(x)) } }).toArray();
-    return Promise.all(docs.map((u) => toPublic(u, (k) => this.storage.downloadUrl(k))));
+    return [...(await this.chat.profilesFor(a.userId, docs)).values()];
   }
 
   /** Exact match only (username, phone or email), so the directory can't be browsed. */
@@ -83,6 +83,6 @@ export class PeopleController {
     else throw AppError.validation('Type a username, phone number or email.');
     if (!u || u.yc?.disabledAt) throw AppError.notFound('No one on YaysApp matches that.');
     if (u._id.equals(a.userId)) throw AppError.validation("That's you.");
-    return toPublic(u, (k) => this.storage.downloadUrl(k));
+    return this.chat.profileFor(a.userId, u);
   }
 }

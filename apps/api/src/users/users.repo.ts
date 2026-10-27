@@ -1,5 +1,5 @@
 import { MongoServerError, ObjectId, type Collection, type Db } from 'mongodb';
-import type { MeProfile, PublicProfile } from '@yays/shared';
+import { DEFAULT_NOTIFICATIONS, DEFAULT_PRIVACY, type MeProfile, type NotificationSettings, type PrivacySettings, type PublicProfile } from '@yays/shared';
 import { C } from '../infra/mongo';
 
 /** v2's own fields, kept under `yc` so nothing BTCY or the old app reads ever changes. */
@@ -19,6 +19,12 @@ export interface YcFields {
   disabledAt?: Date;
   /** When the last live connection closed. */
   lastSeenAt?: Date;
+  /** Two-step verification PIN (scrypt). */
+  twoStep?: { hash: string; salt: string; setAt: Date };
+  /** The person deleted their YaysApp account. Signing in again starts a fresh profile. */
+  deletedAt?: Date;
+  privacy?: Partial<PrivacySettings>;
+  notify?: Partial<NotificationSettings>;
 }
 /** Only the legacy fields v2 reads. Everything else on the document is left alone. */
 export interface UserDoc {
@@ -99,6 +105,7 @@ export class UsersRepo {
 }
 
 export function displayNameOf(u: UserDoc) {
+  if (u.yc?.deletedAt) return 'Deleted account';
   return u.yc?.displayName || [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.username || (u.email ? u.email.split('@')[0] : '') || 'YaysApp user';
 }
 
@@ -120,11 +127,18 @@ export async function toMe(u: UserDoc, photoUrl: (key: string) => Promise<string
     createdAt: (yc.joinedAt ?? u.createdAt ?? u._id.getTimestamp()).toISOString(),
     migrated: !!yc.legacy,
     pending,
+    twoStep: !!yc.twoStep,
+    privacy: privacyOf(u),
+    notifications: notifyOf(u),
   };
 }
 
+export const privacyOf = (u: UserDoc): PrivacySettings => ({ ...DEFAULT_PRIVACY, ...(u.yc?.privacy ?? {}) });
+export const notifyOf = (u: UserDoc): NotificationSettings => ({ ...DEFAULT_NOTIFICATIONS, ...(u.yc?.notify ?? {}), quietHours: { ...DEFAULT_NOTIFICATIONS.quietHours, ...(u.yc?.notify?.quietHours ?? {}) } });
+
 export async function toPublic(u: UserDoc, photoUrl: (key: string) => Promise<string>): Promise<PublicProfile> {
   const yc = u.yc ?? {};
+  if (yc.deletedAt) return { id: u._id.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null };
   return { id: u._id.toHexString(), displayName: displayNameOf(u), username: yc.username ?? null, about: yc.about ?? '', photoUrl: yc.photoKey ? await photoUrl(yc.photoKey) : (u.profilePic || null) };
 }
 export const USERS = Symbol('USERS');

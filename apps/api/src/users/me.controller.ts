@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { addPhoneStartSchema, addPhoneVerifySchema, ErrorCode, profileSchema, USERNAME_RE } from '@yays/shared';
+import { addPhoneStartSchema, addPhoneVerifySchema, deleteAccountSchema, ErrorCode, notificationsSchema, pinCheckSchema, privacySchema, profileSchema, setPinSchema, USERNAME_RE } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { parse } from '../common/zod';
 import { Auth, AuthGuard, type AuthCtx } from '../auth/auth.guard';
@@ -10,6 +10,7 @@ import { RATE_LIMITER } from '../infra/tokens';
 import type { RateLimiter } from '../infra/rate-limit';
 import { STORAGE, type Storage } from '../infra/storage';
 import { isDuplicate, toMe, USERS, type UsersRepo } from './users.repo';
+import { ACCOUNT, type AccountService } from './account.service';
 
 /** Names people might confuse with staff or the brand. */
 const RESERVED = new Set(['admin', 'administrator', 'support', 'help', 'yaysapp', 'yays', 'indexx', 'jack', 'jacks.ai', 'official', 'staff', 'moderator', 'system', 'security', 'root', 'null', 'undefined', 'me']);
@@ -20,7 +21,7 @@ const AVATAR_MAX = 5 * 1024 * 1024;
 @UseGuards(AuthGuard)
 export class MeController {
   constructor(@Inject(USERS) private users: UsersRepo, @Inject(STORAGE) private storage: Storage, @Inject(AUTH) private auth: AuthService,
-    @Inject(SESSIONS) private sessions: SessionService, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
+    @Inject(SESSIONS) private sessions: SessionService, @Inject(RATE_LIMITER) private limiter: RateLimiter, @Inject(ACCOUNT) private account: AccountService) {}
   private photo = (k: string) => this.storage.downloadUrl(k);
 
   @Get()
@@ -84,4 +85,28 @@ export class MeController {
 
   @Post('devices/revoke-others') @HttpCode(200)
   async revokeOthers(@Auth() a: AuthCtx) { return { revoked: await this.sessions.revokeOthers(a.userId, a.sid) }; }
+
+  @Put('two-step')
+  setPin(@Auth() a: AuthCtx, @Body() b: unknown) { const v = parse(setPinSchema, b); return this.account.setPin(a.userId, v.pin, v.currentPin); }
+
+  @Delete('two-step')
+  removePin(@Auth() a: AuthCtx, @Body() b: unknown) { return this.account.removePin(a.userId, parse(pinCheckSchema, b).pin); }
+
+  @Put('privacy')
+  privacy(@Auth() a: AuthCtx, @Body() b: unknown) { return this.account.setPrivacy(a.userId, parse(privacySchema, b)); }
+
+  @Put('notifications')
+  notifications(@Auth() a: AuthCtx, @Body() b: unknown) { return this.account.setNotifications(a.userId, parse(notificationsSchema, b)); }
+
+  @Post('delete/start') @HttpCode(200)
+  startDelete(@Auth() a: AuthCtx, @Req() r: Request) { return this.account.startDelete(a.userId, r.ip ?? 'unknown'); }
+
+  @Post('delete') @HttpCode(204)
+  async remove(@Auth() a: AuthCtx, @Body() b: unknown) { const v = parse(deleteAccountSchema, b); await this.account.delete(a.userId, v.code, v.reason); }
+
+  @Get('export')
+  async exportData(@Auth() a: AuthCtx) {
+    await this.limiter.hit(`export:${a.userId}`, 5, 3600, 'You can download your data a few times an hour. Try again later.');
+    return this.account.export(a.userId);
+  }
 }

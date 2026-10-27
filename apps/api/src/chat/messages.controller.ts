@@ -47,5 +47,8 @@ export class MessageActionsController {
 @UseGuards(AuthGuard)
 export class StarredController {
   constructor(@Inject(MESSAGES) private m: MessagesService) {}
-  @Get() list(@Auth() a: AuthCtx, @Query('before') before?: string) { return this.m.starred(a.userId, before); }
+  @Get() list(@Auth() a: AuthCtx, @Query('before') before?: string, @Query('conversationId') conv?: string) {
+    if (conv && !/^[a-f0-9]{24}$/i.test(conv)) throw AppError.validation('Not a valid id.');
+    return this.m.starred(a.userId, before, 50, conv);
+  }
 }

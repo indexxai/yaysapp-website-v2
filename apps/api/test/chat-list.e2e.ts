@@ -94,7 +94,8 @@ describe('Chat list: mute, pin, archive, unread, clear', () => {
     expect(cleared).toMatchObject({ visibleFrom: m1.seq + 1, lastMessage: null, unread: 0, pins: [] });
     expect((await t.http.get(`/v1/conversations/${c}/messages`).set(ali.auth).expect(200)).body.items).toEqual([]);
     expect((await t.http.get('/v1/search').query({ q: 'mango' }).set(ali.auth).expect(200)).body.messages).toEqual([]);
-    expect((await t.http.get('/v1/starred').set(ali.auth).expect(200)).body.items).toEqual([]);
+    // Starred messages stay, even after clearing.
+    expect((await t.http.get('/v1/starred').set(ali.auth).expect(200)).body.items.map((x: { message: { text: string } }) => x.message.text)).toEqual(['old secret mango']);
     await say(omar, c, 'new one');
     expect((await t.http.get(`/v1/conversations/${c}/messages`).set(ali.auth).expect(200)).body.items.map((m: { text: string }) => m.text)).toEqual(['new one']);
     expect((await t.http.get(`/v1/conversations/${c}/messages`).set(omar.auth).expect(200)).body.items.map((m: { text: string }) => m.text)).toContain('old secret mango');

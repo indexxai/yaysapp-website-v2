@@ -1,5 +1,5 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
-import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, PublicProfile, Tokens } from './types';
+import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
 import type { AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
@@ -13,7 +13,8 @@ export interface DeviceInfo { deviceId: string; platform: 'ios' | 'android' | 'w
 
 export type PhoneVerifyResult =
   | ({ status: 'signed_in' } & AuthResult)
-  | { status: 'email_required'; signupToken: string; phone: string };
+  | { status: 'email_required'; signupToken: string; phone: string }
+  | PinRequired;
 
 export interface ClientOptions {
   baseUrl: string;
@@ -85,7 +86,8 @@ export class YaysClient {
     return this.refreshing;
   }
 
-  private async signedIn(r: AuthResult): Promise<AuthResult> { await this.o.tokens.set(r.tokens); return r; }
+  /** Keeps the tokens when the sign-in finished; a PIN step returns without them. */
+  private async signedIn<R extends SignInResult>(r: R): Promise<R> { if ('tokens' in r) await this.o.tokens.set(r.tokens); return r; }
 
   // ---- endpoints ----
   health() { return this.request<HealthReport>('GET', '/v1/health', undefined, { auth: false }); }
@@ -98,21 +100,42 @@ export class YaysClient {
   }
   startSignupEmail(signupToken: string, email: string) { return this.request<CodeSent>('POST', '/v1/auth/signup/email/start', { signupToken, email }, { auth: false }); }
   async verifySignupEmail(signupToken: string, email: string, code: string) {
-    return this.signedIn(await this.request<AuthResult>('POST', '/v1/auth/signup/email/verify', { signupToken, email, code, device: this.o.device }, { auth: false }));
+    return this.signedIn(await this.request<SignInResult>('POST', '/v1/auth/signup/email/verify', { signupToken, email, code, device: this.o.device }, { auth: false }));
   }
   startEmail(email: string) { return this.request<CodeSent>('POST', '/v1/auth/email/start', { email }, { auth: false }); }
   async verifyEmail(email: string, code: string) {
-    return this.signedIn(await this.request<AuthResult>('POST', '/v1/auth/email/verify', { email, code, device: this.o.device }, { auth: false }));
+    return this.signedIn(await this.request<SignInResult>('POST', '/v1/auth/email/verify', { email, code, device: this.o.device }, { auth: false }));
   }
   async google(idToken: string) {
-    return this.signedIn(await this.request<AuthResult>('POST', '/v1/auth/google', { idToken, device: this.o.device }, { auth: false }));
+    return this.signedIn(await this.request<SignInResult>('POST', '/v1/auth/google', { idToken, device: this.o.device }, { auth: false }));
   }
+  /** Two-step verification: the PIN after the code. */
+  async signInWithPin(pinToken: string, pin: string) { return this.signedIn(await this.request<AuthResult>('POST', '/v1/auth/pin', { pinToken, pin, device: this.o.device }, { auth: false })); }
+  /** Forgot the PIN: a code goes to the account's other address (email if you used your phone, and the other way round). */
+  forgotPin(pinToken: string) { return this.request<CodeSent>('POST', '/v1/auth/pin/forgot', { pinToken }, { auth: false }); }
+  /** Turns two-step off and signs in. */
+  async resetPin(pinToken: string, code: string) { return this.signedIn(await this.request<AuthResult>('POST', '/v1/auth/pin/reset', { pinToken, code }, { auth: false })); }
   async logout() {
     try { await this.request<void>('POST', '/v1/auth/logout', {}); } finally { await this.o.tokens.set(null); }
   }
 
   me() { return this.request<MeProfile>('GET', '/v1/me'); }
   updateMe(patch: { displayName?: string; username?: string; about?: string; photoKey?: string | null }) { return this.request<MeProfile>('PATCH', '/v1/me', patch); }
+  setPin(pin: string, currentPin?: string) { return this.request<MeProfile>('PUT', '/v1/me/two-step', { pin, ...(currentPin ? { currentPin } : {}) }); }
+  removePin(pin: string) { return this.request<MeProfile>('DELETE', '/v1/me/two-step', { pin }); }
+  setPrivacy(p: Partial<PrivacySettings>) { return this.request<MeProfile>('PUT', '/v1/me/privacy', p); }
+  setNotifications(n: Partial<NotificationSettings>) { return this.request<MeProfile>('PUT', '/v1/me/notifications', n); }
+  /** Deleting the account: a code goes to the phone (or email) first. */
+  startDeleteAccount() { return this.request<CodeSent>('POST', '/v1/me/delete/start', {}); }
+  async deleteAccount(code: string, reason?: string) { await this.request<void>('POST', '/v1/me/delete', { code, ...(reason ? { reason } : {}) }); await this.o.tokens.set(null); }
+  /** Everything YaysApp keeps about me, as JSON. */
+  storageReport() { return this.request<StorageReport>('GET', '/v1/me/storage'); }
+  /** Opens (or creates) the chat with YaysApp Support. */
+  supportChat() { return this.request<ConversationSummary>('POST', '/v1/support/chat', {}); }
+  reportProblem(r: { text: string; screenshotKey?: string; userAgent?: string; appVersion?: string; page?: string }) { return this.request<void>('POST', '/v1/support/problems', r); }
+  /** "Delete chat": clears it and takes it off my list until someone writes again. */
+  deleteChat(id: string) { return this.request<void>('DELETE', `/v1/conversations/${encodeURIComponent(id)}`); }
+  exportData() { return this.request<Record<string, unknown>>('GET', '/v1/me/export'); }
   checkUsername(username: string) { return this.request<{ available: boolean; reason?: string }>('GET', `/v1/me/username-available?u=${encodeURIComponent(username)}`); }
   startAddPhone(phone: string, channel: 'sms' | 'whatsapp' = 'sms') { return this.request<CodeSent>('POST', '/v1/me/phone/start', { phone, channel }); }
   verifyAddPhone(phone: string, code: string) { return this.request<MeProfile>('POST', '/v1/me/phone/verify', { phone, code }); }
@@ -169,7 +192,13 @@ export class YaysClient {
   forward(c: string, m: string, body: { targets: Array<{ conversationId: string; clientId: string; commentClientId?: string }>; comment?: string }) {
     return this.request<Array<{ conversationId: string; ok: boolean; message?: ChatMessage; error?: string }>>('POST', this.msgUrl(c, m, '/forward'), body);
   }
-  starred(before?: string) { return this.request<{ items: StarredItem[]; next: string | null }>('GET', `/v1/starred${before ? `?before=${encodeURIComponent(before)}` : ''}`); }
+  starred(before?: string, conversationId?: string) {
+    const q = new URLSearchParams();
+    if (before) q.set('before', before);
+    if (conversationId) q.set('conversationId', conversationId);
+    const s = q.toString();
+    return this.request<{ items: StarredItem[]; next: string | null }>('GET', `/v1/starred${s ? `?${s}` : ''}`);
+  }
   markDelivered(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/delivered`, { seq }); }
   markRead(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/read`, { seq }); }
   /** Public profiles by id (names and photos for group members, past and present). */

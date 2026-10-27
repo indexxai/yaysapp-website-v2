@@ -7,7 +7,17 @@ import { messagePreview, systemText, type ChatMessage } from '@yays/shared';
 import type { Config } from '../config';
 import type { Logger } from '../common/logger';
 import { C } from '../infra/mongo';
-import { displayNameOf, type UserDoc } from '../users/users.repo';
+import type { NotificationSettings } from '@yays/shared';
+import { displayNameOf, notifyOf, type UserDoc } from '../users/users.repo';
+
+/** True when it's inside the person's quiet hours, in their time zone (a range may cross midnight). */
+export function inQuietHours(n: NotificationSettings, now = new Date()) {
+  if (!n.quietHours.on) return false;
+  let hm: string;
+  try { hm = new Intl.DateTimeFormat('en-GB', { timeZone: n.timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(now); } catch { return false; }
+  const { from, to } = n.quietHours;
+  return from <= to ? hm >= from && hm < to : hm >= from || hm < to;
+}
 import type { ChatPrefDoc, ConversationDoc } from '../chat/chat.service';
 
 export interface PushSubDoc { _id: string; userId: ObjectId; sid: string; endpoint: string; keys: { p256dh: string; auth: string }; createdAt: Date; lastOkAt?: Date; userAgent?: string }
@@ -114,17 +124,22 @@ export class PushService {
     const ids = [...new Set([m.senderId, ...(m.system?.kind === 'added' ? m.system.userIds : [])])].map((x) => new ObjectId(x));
     const names = new Map((await this.users.find({ _id: { $in: ids } }, { projection: { firstName: 1, lastName: 1, username: 1, email: 1, 'yc.displayName': 1 } }).toArray()).map((u) => [u._id.toHexString(), displayNameOf(u)]));
     const sender = names.get(m.senderId) ?? 'Someone';
+    const settings = new Map((await this.users.find({ _id: { $in: [...new Set(subs.map((s) => s.userId.toHexString()))].map((x) => new ObjectId(x)) } }, { projection: { 'yc.notify': 1 } }).toArray()).map((u) => [u._id.toHexString(), notifyOf(u as UserDoc)]));
     const byUser = new Map<string, PushSubDoc[]>();
     for (const s of subs) byUser.set(s.userId.toHexString(), [...(byUser.get(s.userId.toHexString()) ?? []), s]);
     for (const [uid, list] of byUser) {
       if (await this.inFront(uid)) continue;
       if (await this.isMuted(c._id, new ObjectId(uid))) continue;
+      const n = settings.get(uid);
+      if (n && c.kind === 'group' && !n.groups && m.type !== 'system') continue;
+      if (n && inQuietHours(n)) continue;
       const name = (id: string) => (id === uid ? 'You' : names.get(id) ?? 'Someone');
       const preview = m.type === 'system' && m.system ? systemText(m.system, m.senderId, name) : messagePreview(m);
       const payload: PushPayload = {
         type: 'message', conversationId: m.conversationId, messageId: m.id, tag: `c:${m.conversationId}`, url: `/chats?c=${m.conversationId}`,
         title: c.kind === 'group' ? c.name ?? 'Group' : sender,
-        body: c.kind === 'group' && m.type !== 'system' ? `${sender.split(' ')[0]}: ${preview}` : preview,
+        body: n && !n.preview && m.type !== 'system' ? (c.kind === 'group' ? `${sender.split(' ')[0]} sent a message` : 'New message')
+          : c.kind === 'group' && m.type !== 'system' ? `${sender.split(' ')[0]}: ${preview}` : preview,
       };
       await Promise.all(list.map((s) => this.deliver(s, payload)));
     }

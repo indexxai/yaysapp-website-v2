@@ -15,7 +15,8 @@ import type { Config } from '../config';
 import type { RateLimiter } from '../infra/rate-limit';
 import type { SessionService } from '../auth/sessions';
 import type { TokenService } from '../auth/tokens';
-import type { UserDoc } from '../users/users.repo';
+import { privacyOf, type UserDoc } from '../users/users.repo';
+import { sees } from '../chat/chat.service';
 import { SEND_LIMIT } from '../chat/chat.controller';
 import type { PushService } from '../push/push.service';
 import type { ChatEvents, ChatService } from '../chat/chat.service';
@@ -118,10 +119,18 @@ export class Realtime implements ChatEvents {
       const allowed = await this.d.chat.sharesChatWith(s.data.userId, asked.map((i) => new ObjectId(i)));
       // Blocking hides online status both ways.
       for (const id of await this.d.chat.blockedEitherWay(s.data.userId, [...allowed].map((i) => new ObjectId(i)))) allowed.delete(id);
-      for (const id of s.data.watching) if (!allowed.has(id)) void s.leave(room.presence(id));
-      for (const id of allowed) void s.join(room.presence(id));
-      s.data.watching = allowed;
-      return this.presenceOf([...allowed]);
+      // Each person's "last seen and online" setting decides who sees it.
+      const { visible, iHide } = await this.presenceRules(s.data.userId, [...allowed]);
+      for (const id of s.data.watching) if (!visible.has(id)) void s.leave(room.presence(id));
+      for (const id of visible) void s.join(room.presence(id));
+      s.data.watching = visible;
+      const shown = await this.presenceOf([...visible]);
+      return [...allowed].map((id) => {
+        const p = shown.find((x) => x.userId === id);
+        if (!p) return { userId: id, online: false, lastSeenAt: null };
+        // Hiding my own last seen means I don't see other people's either.
+        return iHide ? { ...p, lastSeenAt: null } : p;
+      });
     });
   }
 
@@ -189,6 +198,25 @@ export class Realtime implements ChatEvents {
 
   conversationChanged(userIds: ObjectId[], conversationId: string) {
     if (userIds.length) this.io?.to(userIds.map((m) => room.user(m.toHexString()))).emit('conv:update', { conversationId });
+  }
+
+  private async presenceRules(viewer: ObjectId, ids: string[]) {
+    const docs = (await this.d.users.find({ _id: { $in: [viewer, ...ids.map((i) => new ObjectId(i))] } }, { projection: { 'yc.privacy': 1 } }).toArray()) as UserDoc[];
+    const others = docs.filter((d) => !d._id.equals(viewer));
+    const contacts = await this.d.chat.contactsOf(viewer, others.map((d) => d._id));
+    const me = docs.find((d) => d._id.equals(viewer));
+    return {
+      visible: new Set(others.filter((d) => sees(privacyOf(d).lastSeen, contacts.has(d._id.toHexString()))).map((d) => d._id.toHexString())),
+      iHide: !!me && privacyOf(me).lastSeen === 'nobody',
+    };
+  }
+
+  /** Someone changed who sees their online status: everyone watching them checks again. */
+  privacyChanged(uid: ObjectId) {
+    const id = uid.toHexString();
+    this.io?.to(room.presence(id)).emit('presence', { userId: id, online: false, lastSeenAt: null });
+    this.io?.to(room.presence(id)).emit('presence:recheck', { userId: id });
+    this.io?.in(room.presence(id)).socketsLeave(room.presence(id));
   }
 
   /** After a block, neither side keeps watching the other's online status. */

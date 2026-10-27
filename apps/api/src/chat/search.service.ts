@@ -72,12 +72,13 @@ export class SearchService {
     }
 
     if (want('people')) {
-      const list: Array<PublicProfile & { stranger: boolean }> = await Promise.all(matchedPeople.slice(0, type === 'all' ? 5 : 50).map(async (u) => ({ ...(await toPublic(u, this.chat.photo)), stranger: false })));
+      const seen = await this.chat.profilesFor(me, matchedPeople.slice(0, type === 'all' ? 5 : 50));
+      const list: Array<PublicProfile & { stranger: boolean }> = [...seen.values()].map((p) => ({ ...p, stranger: false }));
       // An exact username finds someone I don't share a chat with yet.
       const uname = term.toLowerCase();
       if (USERNAME_RE.test(uname) && !list.some((p) => p.username === uname)) {
         const u = await this.chat.users.findOne({ 'yc.username': uname, 'yc.disabledAt': { $exists: false } });
-        if (u && !u._id.equals(me)) list.push({ ...(await toPublic(u, this.chat.photo)), stranger: !memberIds.some((m) => m.equals(u._id)) });
+        if (u && !u._id.equals(me)) list.push({ ...(await this.chat.profileFor(me, u)), stranger: !memberIds.some((m) => m.equals(u._id)) });
       }
       out.people = list;
     }
@@ -113,7 +114,7 @@ export class SearchService {
     if (c.kind === 'group') return { id: c._id.toHexString(), kind: 'group', name: c.name ?? 'Group', photoUrl: c.photoKey ? await this.chat.photo(c.photoKey) : null, memberCount: c.members.length };
     let p = peer;
     if (!p) { const id = c.members.find((m) => !m.equals(me)); p = id ? (await this.chat.users.findOne({ _id: id })) ?? undefined : undefined; }
-    return { id: c._id.toHexString(), kind: 'direct', name: p ? displayNameOf(p) : 'Deleted account', photoUrl: p ? (await toPublic(p, this.chat.photo)).photoUrl : null, memberCount: 2 };
+    return { id: c._id.toHexString(), kind: 'direct', name: p ? displayNameOf(p) : 'Deleted account', photoUrl: p ? (await this.chat.profileFor(me, p)).photoUrl : null, memberCount: 2 };
   }
 
   private async describe(me: ObjectId, rows: MessageDoc[], chats: Array<{ c: ConversationDoc }>): Promise<SearchMessage[]> {

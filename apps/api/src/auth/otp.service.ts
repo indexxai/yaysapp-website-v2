@@ -6,7 +6,7 @@ import type { Config } from '../config';
 import type { RateLimiter } from '../infra/rate-limit';
 import type { EmailSender, PhoneSender } from './senders';
 
-export type OtpPurpose = 'phone_login' | 'email_login' | 'signup_email' | 'add_phone';
+export type OtpPurpose = 'phone_login' | 'email_login' | 'signup_email' | 'add_phone' | 'pin_reset' | 'delete_account';
 type Target = { kind: 'phone'; value: string; channel: 'sms' | 'whatsapp' } | { kind: 'email'; value: string };
 
 const mask = (t: Target) => t.kind === 'phone'

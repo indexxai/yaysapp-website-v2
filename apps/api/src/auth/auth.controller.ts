@@ -1,6 +1,6 @@
 import { Body, Controller, HttpCode, Inject, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { emailStartSchema, emailVerifySchema, googleSchema, phoneStartSchema, phoneVerifySchema, refreshSchema, emailSchema, codeSchema, deviceSchema } from '@yays/shared';
+import { emailStartSchema, emailVerifySchema, googleSchema, phoneStartSchema, phoneVerifySchema, refreshSchema, emailSchema, codeSchema, deviceSchema, pinForgotSchema, pinResetSchema, pinSignInSchema } from '@yays/shared';
 import { z } from 'zod';
 import { parse } from '../common/zod';
 import { Auth, AuthGuard, type AuthCtx } from './auth.guard';
@@ -35,6 +35,15 @@ export class AuthController {
 
   @Post('google') @HttpCode(200)
   google(@Body() b: unknown, @Req() r: Request) { const v = parse(googleSchema, b); return this.auth.google(v.idToken, v.device, ipOf(r)); }
+
+  @Post('pin') @HttpCode(200)
+  pin(@Body() b: unknown) { const v = parse(pinSignInSchema, b); return this.auth.verifyPin(v.pinToken, v.pin); }
+
+  @Post('pin/forgot') @HttpCode(200)
+  pinForgot(@Body() b: unknown, @Req() r: Request) { return this.auth.forgotPin(parse(pinForgotSchema, b).pinToken, ipOf(r)); }
+
+  @Post('pin/reset') @HttpCode(200)
+  pinReset(@Body() b: unknown) { const v = parse(pinResetSchema, b); return this.auth.resetPin(v.pinToken, v.code); }
 
   @Post('refresh') @HttpCode(200)
   refresh(@Body() b: unknown) { return this.sessions.refresh(parse(refreshSchema, b).refreshToken); }

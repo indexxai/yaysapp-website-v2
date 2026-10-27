@@ -1,3 +1,4 @@
+import { ACCOUNT, type AccountService } from './users/account.service';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -51,6 +52,7 @@ export async function createApp(env: Record<string, string | undefined> = proces
     blocked: (...a) => realtime.blocked(...a),
   };
   chat.msgEvents = realtime;
+  app.get<AccountService>(ACCOUNT).onPrivacyChanged = (u) => realtime.privacyChanged(u);
   chat.onRead = (u, conv) => push.read(u, conv);
   sessions.onRevoked = (sid) => { realtime.kickSession(sid); void push.forgetSession(sid).catch(() => undefined); };
 
