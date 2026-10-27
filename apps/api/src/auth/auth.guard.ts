@@ -24,7 +24,7 @@ export class AuthGuard implements CanActivate {
     if (!u) throw AppError.unauthenticated();
     if (u.yc?.disabledAt) throw new AppError(403, ErrorCode.ACCOUNT_DISABLED, 'This account is turned off. Contact support.');
     req.auth = { userId, sid: claims.sid };
-    void this.sessions.touch(claims.sid);
+    void this.sessions.touch(claims.sid).catch(() => undefined);
     return true;
   }
 }

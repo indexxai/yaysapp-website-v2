@@ -17,6 +17,8 @@ export interface YcFields {
   /** The account existed in the old app before it first signed in to v2. */
   legacy?: boolean;
   disabledAt?: Date;
+  /** When the last live connection closed. */
+  lastSeenAt?: Date;
 }
 /** Only the legacy fields v2 reads. Everything else on the document is left alone. */
 export interface UserDoc {

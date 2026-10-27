@@ -32,6 +32,8 @@ export interface DeviceInput { deviceId: string; platform: 'ios' | 'android' | '
  */
 export class SessionService {
   private col: Collection<SessionDoc>;
+  /** Set by the real-time layer so a signed-out device also loses its live connection. */
+  onRevoked: (sid: string) => void = () => undefined;
   constructor(db: Db, private readonly redis: Redis, private readonly tokens: TokenService, private readonly c: Config) { this.col = db.collection<SessionDoc>(C.sessions); }
 
   private revokedKey(sid: string) { return `sess:revoked:${sid}`; }
@@ -89,6 +91,7 @@ export class SessionService {
     await this.col.updateOne({ _id: sid, revokedAt: { $exists: false } }, { $set: { revokedAt: new Date(), revokedReason: reason } });
     // Access tokens are short-lived; remembering the revocation for that long blocks them immediately.
     await this.redis.set(this.revokedKey(sid), '1', 'EX', this.c.ACCESS_TTL_SECONDS + 60);
+    this.onRevoked(sid);
   }
 
   async list(userId: ObjectId, currentSid: string): Promise<DeviceSession[]> {

@@ -1,5 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
-import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, Tokens } from './types';
+import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, PublicProfile, Tokens } from './types';
+import type { ConversationPage, ConversationSummary, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -117,4 +118,41 @@ export class YaysClient {
   revokeDevice(id: string) { return this.request<void>('DELETE', `/v1/me/devices/${encodeURIComponent(id)}`); }
   revokeOtherDevices() { return this.request<{ revoked: number }>('POST', '/v1/me/devices/revoke-others', {}); }
   matchContacts(phones: string[]) { return this.request<ContactMatch[]>('POST', '/v1/contacts/match', { phones }); }
+
+  // ---- chats ----
+  /** Finds a person by exact username (@name), phone number or email. */
+  lookupUser(q: string) { return this.request<PublicProfile>('GET', `/v1/users/lookup?q=${encodeURIComponent(q)}`); }
+  conversations(opts: { before?: string; limit?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.before) q.set('before', opts.before);
+    if (opts.limit) q.set('limit', String(opts.limit));
+    const s = q.toString();
+    return this.request<ConversationPage>('GET', `/v1/conversations${s ? `?${s}` : ''}`);
+  }
+  conversation(id: string) { return this.request<ConversationSummary>('GET', `/v1/conversations/${encodeURIComponent(id)}`); }
+  openDirect(userId: string) { return this.request<ConversationSummary>('POST', '/v1/conversations/direct', { userId }); }
+  messages(conversationId: string, opts: { before?: number; after?: number; limit?: number } = {}) {
+    const q = new URLSearchParams();
+    if (opts.before !== undefined) q.set('before', String(opts.before));
+    if (opts.after !== undefined) q.set('after', String(opts.after));
+    if (opts.limit) q.set('limit', String(opts.limit));
+    const s = q.toString();
+    return this.request<MessagePage>('GET', `/v1/conversations/${encodeURIComponent(conversationId)}/messages${s ? `?${s}` : ''}`);
+  }
+  sendMessage(conversationId: string, clientId: string, text: string) {
+    return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/messages`, { clientId, text });
+  }
+  markDelivered(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/delivered`, { seq }); }
+  markRead(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/read`, { seq }); }
+  /** The current access token, refreshed first when it is about to expire. Used to open the real-time connection. */
+  async accessToken(forceRefresh = false): Promise<string | null> {
+    let t = await this.o.tokens.get();
+    if (!t) return null;
+    const expiresSoon = Date.parse(t.accessExpiresAt) - Date.now() < 30_000;
+    if (forceRefresh || expiresSoon) { if (!(await this.refresh())) return null; t = await this.o.tokens.get(); }
+    return t?.accessToken ?? null;
+  }
+  /** True while this device still holds tokens (they may need refreshing). */
+  async hasSession() { return !!(await this.o.tokens.get()); }
+  get baseUrl() { return this.o.baseUrl.replace(/\/$/, ''); }
 }

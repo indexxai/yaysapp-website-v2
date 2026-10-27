@@ -15,6 +15,9 @@ export async function connectMongo(c: Config): Promise<MongoClient> {
 export const C = {
   users: 'users', // shared with BTCY and the old app: v2 only adds fields under `yc`
   sessions: 'yc_sessions',
+  conversations: 'yc_conversations',
+  messages: 'yc_messages',
+  receipts: 'yc_receipts',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -26,6 +29,15 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { userId: 1, deviceId: 1 }, name: 'user_device' },
     { key: { expiresAt: 1 }, name: 'expires_ttl', expireAfterSeconds: 0 },
   ]);
+  await db.collection(C.conversations).createIndexes([
+    { key: { members: 1, lastAt: -1, _id: -1 }, name: 'member_recent' },
+    { key: { directKey: 1 }, name: 'direct_pair_unique', unique: true, partialFilterExpression: { directKey: { $type: 'string' } } },
+  ]);
+  await db.collection(C.messages).createIndexes([
+    { key: { convId: 1, seq: 1 }, name: 'conv_seq_unique', unique: true },
+    { key: { senderId: 1, clientId: 1 }, name: 'sender_client_unique', unique: true },
+  ]);
+  await db.collection(C.receipts).createIndexes([{ key: { convId: 1 }, name: 'conv' }]);
   if (!c.USERS_INDEXES_ON_BOOT) return;
   // Partial indexes only touch documents that have the v2 field, so existing BTCY users are unaffected.
   const users = db.collection(C.users);

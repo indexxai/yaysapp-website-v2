@@ -22,6 +22,8 @@ import { USERS, UsersRepo } from './users/users.repo';
 import { ContactsController } from './contacts/contacts.controller';
 import { MediaController } from './media/media.controller';
 import { TestController } from './testing/test.controller';
+import { CHAT, ChatService } from './chat/chat.service';
+import { ChatController, PeopleController } from './chat/chat.controller';
 
 export interface Infra { config: Config; log: Logger; mongo: MongoClient; db: Db; redis: Redis; storage: Storage }
 
@@ -37,15 +39,16 @@ export class AppModule {
     const otp = new OtpService(redis, c, limiter, senders.phone, senders.email);
     const google = createGoogleVerifier(c);
     const auth = new AuthService(users, otp, sessions, tokens, google, storage, redis);
+    const chat = new ChatService(i.mongo, db, storage);
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
-      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth },
+      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }

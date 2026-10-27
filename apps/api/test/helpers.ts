@@ -8,10 +8,10 @@ import type Redis from 'ioredis';
 import { normalizeEmail } from '@yays/shared';
 import { createApp } from '../src/app';
 
-export interface TestApp { app: INestApplication; http: ReturnType<typeof request>; db: Db; redis: Redis; env: Record<string, string>; close(): Promise<void> }
+export interface TestApp { app: INestApplication; http: ReturnType<typeof request>; db: Db; redis: Redis; env: Record<string, string>; url: string; close(): Promise<void>; /** Stops the server but keeps its database. */ stop(): Promise<void> }
 
 let seq = 0;
-export async function startApp(overrides: Record<string, string> = {}): Promise<TestApp> {
+export async function startApp(overrides: Record<string, string> = {}, opts: { keepRedis?: boolean; keepDb?: boolean } = {}): Promise<TestApp> {
   const infra = JSON.parse(readFileSync(path.join(tmpdir(), 'yays-e2e-env.json'), 'utf8')) as { MONGO_URI: string; REDIS_URL: string };
   const env: Record<string, string> = {
     NODE_ENV: 'test', LOG_LEVEL: 'silent', TEST_OUTBOX: '1',
@@ -21,10 +21,11 @@ export async function startApp(overrides: Record<string, string> = {}): Promise<
     ...overrides,
   };
   const { app, db, redis, shutdown } = await createApp(env);
-  await app.init();
-  await redis.flushdb();
+  await app.listen(0, '127.0.0.1');
+  if (!opts.keepRedis) await redis.flushdb();
   const http = request(app.getHttpServer());
-  return { app, http, db, redis, env, close: async () => { await db.dropDatabase().catch(() => undefined); await shutdown(); } };
+  const url = await app.getUrl();
+  return { app, http, db, redis, env, url: url.replace('[::1]', '127.0.0.1'), close: async () => { if (!opts.keepDb) await db.dropDatabase().catch(() => undefined); await shutdown(); }, stop: shutdown };
 }
 
 export const device = (n = 1, platform: 'ios' | 'android' | 'web' = 'web') => ({ deviceId: `device-${n}-abcdefgh`, platform, name: `Test ${platform} ${n}` });

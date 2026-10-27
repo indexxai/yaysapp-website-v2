@@ -12,6 +12,12 @@ import { connectMongo, ensureIndexes } from './infra/mongo';
 import { connectRedis } from './infra/redis';
 import { createStorage } from './infra/storage';
 import { AppModule } from './app.module';
+import { SESSIONS, type SessionService } from './auth/sessions';
+import { TOKENS, type TokenService } from './auth/tokens';
+import { CHAT, type ChatService } from './chat/chat.service';
+import { RateLimiter } from './infra/rate-limit';
+import { C } from './infra/mongo';
+import { Realtime } from './realtime/realtime';
 
 export async function createApp(env: Record<string, string | undefined> = process.env) {
   const config: Config = loadConfig(env);
@@ -31,11 +37,19 @@ export async function createApp(env: Record<string, string | undefined> = proces
   app.useBodyParser('json', { limit: '256kb' });
   app.enableCors({ origin: config.corsOrigins, credentials: false, exposedHeaders: ['x-request-id', 'retry-after'] });
   app.useGlobalFilters(new AllExceptionsFilter(log));
-  /** Stops HTTP, then the database and Redis connections, so the process can exit. */
+
+  const sessions = app.get<SessionService>(SESSIONS), chat = app.get<ChatService>(CHAT);
+  const realtime = new Realtime({ config, log, redis, sessions, chat, tokens: app.get<TokenService>(TOKENS), limiter: new RateLimiter(redis), users: db.collection(C.users) });
+  realtime.attach(app.getHttpServer());
+  chat.events = realtime;
+  sessions.onRevoked = (sid) => realtime.kickSession(sid);
+
+  /** Stops sockets and HTTP, then the database and Redis connections, so the process can exit. */
   const shutdown = async () => {
+    await realtime.close().catch(() => undefined);
     await app.close().catch(() => undefined);
     await mongo.close(true).catch(() => undefined);
     redis.disconnect();
   };
-  return { app, config, db, redis, log, shutdown };
+  return { app, config, db, redis, log, realtime, shutdown };
 }
