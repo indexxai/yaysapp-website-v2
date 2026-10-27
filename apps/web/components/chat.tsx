@@ -1,7 +1,8 @@
 'use client';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MutableRefObject } from 'react';
 import { ApiError, MAX_TEXT, listNames, systemText, textLength, tickFor, type ConversationSummary, type PublicProfile, type ThreadItem, type Tick } from '@yays/shared';
 import { memberLine } from './group';
+import { ActionBar, ActionsCtx, DeleteDialog, ForwardDialog, MessageInfoPanel, PinnedBar, Quote, Reactions, useActions, type Actions } from './message-actions';
 import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
@@ -173,6 +174,18 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
   const c = s.conversations[id];
   const thread = s.threads[id];
   const [error, setError] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<ThreadItem | null>(null);
+  const [editing, setEditing] = useState<ThreadItem | null>(null);
+  const [forwarding, setForwarding] = useState<ThreadItem | null>(null);
+  const [deleting, setDeleting] = useState<ThreadItem | null>(null);
+  const [infoOf, setInfoOf] = useState<ThreadItem | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const jump = useRef<(seq: number) => void>(() => undefined);
+  const actions = useMemo<Actions>(() => ({
+    reply: (m) => { setEditing(null); setReplyTo(m); }, edit: (m) => { setReplyTo(null); setEditing(m); },
+    forward: setForwarding, remove: setDeleting, info: setInfoOf, jumpTo: (seq) => jump.current(seq), error: setActionError,
+  }), []);
+  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); }, [id]);
   useEffect(() => {
     setError(null);
     void engine.open(id).then(() => { if (engine.getState().conversations[id]?.kind === 'group') return engine.loadGroup(id); }).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
@@ -189,6 +202,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
   const p = peer ? s.presence[peer.id] : undefined;
   const status = typing ?? (c.kind === 'group' ? memberLine(s.groups[id], me, '') : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : peer?.username ? `@${peer.username}` : '');
   return (
+    <ActionsCtx.Provider value={actions}>
     <section className="convo" aria-label={`Chat with ${name}`}>
       <header className="convo__head">
         <span className="convo__back"><OvalButton icon="arrow-left" label="Chats" size="sm" variant="ghost" onClick={onBack} /></span>
@@ -201,13 +215,19 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
         </button>
         {c.kind === 'group' && onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'soft' : 'ghost'} onClick={onInfo} />}
       </header>
-      <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} />
-      {c.canSend ? <Composer id={id} /> : <LockedComposer c={c} onGone={onBack} />}
+      <PinnedBar c={c} />
+      {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
+      <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} />
+      {c.canSend ? <Composer id={id} replyTo={replyTo} editing={editing} onDone={() => { setReplyTo(null); setEditing(null); }} /> : <LockedComposer c={c} onGone={onBack} />}
     </section>
+    {forwarding && <ForwardDialog m={forwarding} from={id} onClose={() => setForwarding(null)} />}
+    {deleting && <DeleteDialog m={deleting} c={c} onClose={() => setDeleting(null)} />}
+    {infoOf && <MessageInfoPanel convId={id} m={infoOf} onClose={() => setInfoOf(null)} />}
+    </ActionsCtx.Provider>
   );
 }
 
-function Thread({ id, items, me, typing, loading, hasMore, group }: { id: string; items: ThreadItem[]; me: string; typing: boolean; loading: boolean; hasMore: boolean; group: boolean }) {
+function Thread({ id, items, me, typing, loading, hasMore, group, c, jump }: { id: string; items: ThreadItem[]; me: string; typing: boolean; loading: boolean; hasMore: boolean; group: boolean; c: ConversationSummary; jump: MutableRefObject<(seq: number) => void> }) {
   const engine = useEngine();
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -223,6 +243,19 @@ function Thread({ id, items, me, typing, loading, hasMore, group }: { id: string
     prevFirst.current = first; prevHeight.current = el.scrollHeight;
   }, [items, typing]);
   useEffect(() => { stick.current = true; prevFirst.current = null; }, [id]);
+  // Scrolls to a message (a quote or a pin), loading older pages until it is there.
+  jump.current = (seq: number) => {
+    void (async () => {
+      for (let i = 0; i < 20; i++) {
+        const el = box.current?.querySelector<HTMLElement>(`[data-seq="${seq}"]`);
+        if (el) { stick.current = false; el.scrollIntoView({ block: 'center' }); el.classList.add('msg--flash'); setTimeout(() => el.classList.remove('msg--flash'), 1600); return; }
+        const t = engine.getState().threads[id];
+        if (!t?.hasMore || (t.items[0]?.seq ?? 0) <= seq) return;
+        await engine.loadOlder(id);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    })();
+  };
   const onScroll = () => {
     const el = box.current; if (!el) return;
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
@@ -245,7 +278,7 @@ function Thread({ id, items, me, typing, loading, hasMore, group }: { id: string
               {sep && <div className="day-sep">{day}</div>}
               {m.type === 'system' && m.system
                 ? <div className="sys-line" data-testid="system-line">{systemText(m.system, m.senderId, (u) => engine.nameOf(u))}</div>
-                : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} />}
+                : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} c={c} />}
             </div>
           );
         })}
@@ -255,19 +288,28 @@ function Thread({ id, items, me, typing, loading, hasMore, group }: { id: string
   );
 }
 
-function Bubble({ m, mine, sender }: { m: ThreadItem; mine: boolean; sender?: string | null }) {
+function Bubble({ m, mine, sender, c }: { m: ThreadItem; mine: boolean; sender?: string | null; c: ConversationSummary }) {
   const engine = useEngine();
+  const act = useActions();
   const failed = m.tick === 'failed';
   return (
-    <div className={`msg ${mine ? 'msg--me' : 'msg--them'}`} data-testid="message" data-tick={m.tick ?? undefined}>
-      <div className={`ys-bubble ys-bubble--${mine ? 'me' : 'them'}`} style={m.tick === 'pending' || failed ? { opacity: 0.75 } : undefined}>
+    <div className={`msg ${mine ? 'msg--me' : 'msg--them'}`} data-testid="message" data-tick={m.tick ?? undefined} data-seq={m.seq ?? undefined}>
+      <div className="msg__row">
+      <div className={`ys-bubble ys-bubble--${mine ? 'me' : 'them'}${m.deleted ? ' ys-bubble--deleted' : ''}`} style={m.tick === 'pending' || failed ? { opacity: 0.75 } : undefined}>
         {sender && <span className="msg__sender" style={{ color: senderColor(m.senderId) }}>{sender}</span>}
-        <span className="msg__text">{m.text}</span>
+        {m.forwarded && !m.deleted && <span className="msg__fwd"><Icon name="forward" size={12} /> Forwarded</span>}
+        {m.replyTo && !m.deleted && <Quote r={m.replyTo} onClick={() => act.jumpTo(m.replyTo!.seq)} />}
+        <span className="msg__text">{m.deleted ? <em><Icon name="slash" size={14} /> {mine ? 'You deleted this message' : 'This message was deleted'}</em> : m.text}</span>
         <span className="ys-bubble__meta">
+          {m.starred && <Icon name="star" size={12} title="Starred" />}
+          {m.editedAt && <span>Edited</span>}
           <span>{clock(m.createdAt)}</span>
-          {mine && m.tick && <TickIcon tick={m.tick} />}
+          {mine && m.tick && !m.deleted && <TickIcon tick={m.tick} />}
         </span>
       </div>
+      <ActionBar m={m} c={c} />
+      </div>
+      <Reactions m={m} c={c} />
       {failed && (
         <span className="msg__failed">
           <button type="button" onClick={() => void engine.retry(m.clientId)}><Icon name="refresh" size={14} /> Not sent. Retry</button>
@@ -293,34 +335,52 @@ function LockedComposer({ c, onGone }: { c: ConversationSummary; onGone: () => v
   );
 }
 
-function Composer({ id }: { id: string }) {
+function Composer({ id, replyTo, editing, onDone }: { id: string; replyTo: ThreadItem | null; editing: ThreadItem | null; onDone: () => void }) {
   const engine = useEngine();
   const drafts = useRef<Record<string, string>>({});
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { setText(drafts.current[id] ?? ''); setError(null); ta.current?.focus(); }, [id]);
+  // Editing puts the message's text in the box; leaving edit mode brings the draft back.
+  useEffect(() => { if (editing) setText(editing.text); else setText(drafts.current[id] ?? ''); ta.current?.focus(); }, [editing, id]);
+  useEffect(() => { if (replyTo) ta.current?.focus(); }, [replyTo]);
   useLayoutEffect(() => { const el = ta.current; if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 160)}px`; } }, [text]);
   const len = textLength(text.trim());
   const tooLong = len > MAX_TEXT;
   const submit = async () => {
     if (!text.trim() || tooLong) return;
     const t = text;
+    if (editing) {
+      try { await engine.editMessage(id, editing.id!, t); onDone(); setText(drafts.current[id] ?? ''); }
+      catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save the edit. Check your connection.'); }
+      return;
+    }
     setText(''); drafts.current[id] = '';
-    try { await engine.send(id, t); } catch (e) { setText(t); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
+    const reply = replyTo?.id ?? undefined;
+    onDone();
+    try { await engine.send(id, t, { replyToId: reply }); } catch (e) { setText(t); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); }
+    if (e.key === 'Escape' && (editing || replyTo)) { e.preventDefault(); onDone(); }
   };
   return (
     <form className="composer" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+      {(replyTo || editing) && (
+        <div className="composer__context" role="status">
+          <span><strong>{editing ? 'Editing message' : `Replying to ${engine.nameOf((replyTo ?? editing)!.senderId)}`}</strong><br />
+            <span className="muted">{editing ? 'You can edit for 15 minutes after sending · Esc to cancel' : replyTo!.text}</span></span>
+          <button type="button" className="icon-btn" aria-label={editing ? 'Cancel edit' : 'Cancel reply'} onClick={() => { onDone(); }}><Icon name="close" size={18} /></button>
+        </div>
+      )}
       {(error || tooLong) && <span className="composer__error" role="alert">{tooLong ? `Messages can be up to ${MAX_TEXT} characters (${len} now).` : error}</span>}
       <div className="composer__row">
         <label htmlFor="composer" className="sr-only">Message</label>
         <textarea id="composer" ref={ta} rows={1} value={text} placeholder="Message" maxLength={MAX_TEXT * 2 + 10}
           onChange={(e) => { setText(e.target.value); drafts.current[id] = e.target.value; setError(null); engine.typing(id, e.target.value.trim().length > 0); }}
           onKeyDown={onKey} onBlur={() => engine.typing(id, false)} />
-        <OvalButton type="submit" icon="send" label="Send" size="md" disabled={!text.trim() || tooLong} />
+        <OvalButton type="submit" icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} size="md" disabled={!text.trim() || tooLong} />
       </div>
     </form>
   );

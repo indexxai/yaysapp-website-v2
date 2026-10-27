@@ -55,6 +55,8 @@ export function systemText(e: SystemEvent, actorId: string, name: (id: string) =
       return `${a} changed the group settings: ${parts.join('; ')}`;
     }
     case 'invite_reset': return `${a} reset the invite link`;
+    case 'pinned': return `${a} pinned a message`;
+    case 'unpinned': return `${a} unpinned a message`;
     default: return '';
   }
 }

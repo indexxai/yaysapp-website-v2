@@ -2,7 +2,7 @@ import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
 import type { YaysClient } from './client';
 import type { PublicProfile } from './types';
-import { tickFor, type Ack, type ChatMessage, type GroupInfo, type GroupSettings, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
+import { tickFor, type Ack, type ChatMessage, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
 
 /** A message typed on this device that the server has not confirmed yet. Kept on the device until it has. */
 export interface PendingMessage {
@@ -13,6 +13,7 @@ export interface PendingMessage {
   attempts: number;
   status: 'pending' | 'failed';
   error?: string;
+  replyToId?: string;
 }
 
 /** Where the unsent queue survives an app restart: localStorage on web, AsyncStorage on mobile. */
@@ -42,7 +43,12 @@ export interface ChatState {
   people: Record<string, PublicProfile>;
 }
 
-export interface ThreadItem { key: string; mine: boolean; type: 'text' | 'system'; text: string; system?: SystemEvent; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string }
+export interface ThreadItem {
+  key: string; mine: boolean; type: 'text' | 'system'; text: string; system?: SystemEvent; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string;
+  /** The server's id; null while still waiting to send. */
+  id: string | null;
+  replyTo?: ReplyPreview | null; forwarded?: boolean; editedAt?: string; deleted?: boolean; reactions?: Record<string, string[]>; starred?: boolean;
+}
 
 /** What the app keeps on the device so chats open with no connection. */
 export interface ChatSnapshot { v: 1; conversations: Record<string, ConversationSummary>; listNext: string | null; threads: Record<string, { items: ChatMessage[]; hasMore: boolean }> }
@@ -201,6 +207,11 @@ export class ChatEngine {
     s.on('typing', ({ conversationId, userId, on }) => this.onTyping(conversationId, userId, on));
     s.on('presence', (p) => this.set({ presence: { ...this.state.presence, [p.userId]: p } }));
     s.on('conv:update', ({ conversationId }) => { void this.refreshConv(conversationId); });
+    s.on('msg:update', ({ message }) => this.applyMessage(message));
+    s.on('msg:mine', (p) => {
+      if (p.hidden) this.removeLocal(p.conversationId, p.messageId);
+      else if (p.starred !== undefined) this.patchLocal(p.conversationId, p.messageId, { starred: p.starred });
+    });
   }
 
   /** After a refused connection: refresh the access token and reconnect, or report sign-out. */
@@ -400,24 +411,26 @@ export class ChatEngine {
     const t = this.state.threads[id];
     const me = this.o.me;
     const items: ThreadItem[] = (t?.items ?? []).map((m) => ({
-      key: m.clientId, mine: m.senderId === me && m.type !== 'system', type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}),
+      key: m.clientId, id: m.id, mine: m.senderId === me && m.type !== 'system', type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}),
+      replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred,
       createdAt: m.createdAt, seq: m.seq, senderId: m.senderId, clientId: m.clientId,
       tick: m.senderId === me && m.type !== 'system' && conv ? tickFor(m, conv) : null,
     }));
     const confirmed = new Set(items.map((i) => i.clientId));
     for (const p of this.state.outbox) {
       if (p.conversationId !== id || confirmed.has(p.clientId)) continue;
-      items.push({ key: p.clientId, mine: true, type: 'text', text: p.text, createdAt: p.createdAt, seq: null, senderId: me, clientId: p.clientId, tick: p.status === 'failed' ? 'failed' : 'pending' });
+      const quoted = p.replyToId ? t?.items.find((x) => x.id === p.replyToId) : undefined;
+      items.push({ key: p.clientId, id: null, replyTo: quoted ? { id: quoted.id, seq: quoted.seq, senderId: quoted.senderId, type: quoted.type, text: quoted.text, deleted: !!quoted.deleted } : null, mine: true, type: 'text', text: p.text, createdAt: p.createdAt, seq: null, senderId: me, clientId: p.clientId, tick: p.status === 'failed' ? 'failed' : 'pending' });
     }
     return items;
   }
 
   // ---------- sending ----------
   /** Queues a message and sends it as soon as there is a connection. Returns its clientId. */
-  async send(conversationId: string, text: string): Promise<string> {
+  async send(conversationId: string, text: string, opts: { replyToId?: string } = {}): Promise<string> {
     const t = text.replace(/\u0000/g, '').trim();
     if (!t) throw new ApiError(400, 'validation_failed', 'The message is empty.');
-    const p: PendingMessage = { clientId: uuid(), conversationId, text: t, createdAt: new Date().toISOString(), attempts: 0, status: 'pending' };
+    const p: PendingMessage = { clientId: uuid(), conversationId, text: t, createdAt: new Date().toISOString(), attempts: 0, status: 'pending', ...(opts.replyToId ? { replyToId: opts.replyToId } : {}) };
     await this.setOutbox([...this.state.outbox, p]);
     this.typing(conversationId, false);
     void this.flush(true);
@@ -467,18 +480,61 @@ export class ChatEngine {
     const s = this.socket;
     if (s?.connected) {
       try {
-        const r = (await s.timeout(this.ackTimeout).emitWithAck('msg:send', { conversationId: p.conversationId, clientId: p.clientId, text: p.text })) as Ack<SendResult>;
+        const r = (await s.timeout(this.ackTimeout).emitWithAck('msg:send', { conversationId: p.conversationId, clientId: p.clientId, text: p.text, ...(p.replyToId ? { replyToId: p.replyToId } : {}) })) as Ack<SendResult>;
         if (r.ok) return { kind: 'sent', message: r.data.message };
         return classify(r.error.status, r.error.code, r.error.message, r.error.details?.retryAfter as number | undefined);
       } catch { return { kind: 'later' }; } // no answer in time: same clientId next time, so no double
     }
     try {
-      const r = await this.o.client.sendMessage(p.conversationId, p.clientId, p.text);
+      const r = await this.o.client.sendMessage(p.conversationId, p.clientId, p.text, p.replyToId);
       return { kind: 'sent', message: r.message };
     } catch (e) {
       if (e instanceof ApiError) return e.status === 0 ? { kind: 'later' } : classify(e.status, e.code, e.message, e.retryAfter);
       return { kind: 'later' };
     }
+  }
+
+  // ---------- message actions ----------
+  /** Puts a changed message (edited, deleted, reacted) in place, keeping my own star on it. */
+  applyMessage(m: ChatMessage) {
+    const t = this.state.threads[m.conversationId];
+    if (t?.loaded) {
+      const i = t.items.findIndex((x) => x.id === m.id);
+      if (i >= 0) {
+        const items = [...t.items];
+        items[i] = { ...m, starred: m.starred ?? t.items[i].starred };
+        // Quotes of this message elsewhere in the thread follow it.
+        for (let j = 0; j < items.length; j++) if (items[j].replyTo?.id === m.id) items[j] = { ...items[j], replyTo: { ...items[j].replyTo!, text: m.deleted ? '' : m.text.slice(0, 200), deleted: !!m.deleted } };
+        this.setThread(m.conversationId, { items });
+      }
+    }
+    const c = this.state.conversations[m.conversationId];
+    if (c?.lastMessage?.id === m.id) this.setConv({ ...c, lastMessage: { ...m } });
+  }
+  private patchLocal(convId: string, msgId: string, patch: Partial<ChatMessage>) {
+    const t = this.state.threads[convId];
+    if (!t?.loaded) return;
+    this.setThread(convId, { items: t.items.map((x) => (x.id === msgId ? { ...x, ...patch } : x)) });
+  }
+  private removeLocal(convId: string, msgId: string) {
+    const t = this.state.threads[convId];
+    if (t?.loaded) this.setThread(convId, { items: t.items.filter((x) => x.id !== msgId) });
+    const c = this.state.conversations[convId];
+    if (c?.lastMessage?.id === msgId) this.setConv({ ...c, lastMessage: { ...c.lastMessage, text: '', deleted: true } });
+  }
+  async editMessage(convId: string, msgId: string, text: string) { const m = await this.o.client.editMessage(convId, msgId, text); this.applyMessage(m); return m; }
+  async deleteForEveryone(convId: string, msgId: string) { const m = await this.o.client.deleteMessage(convId, msgId, 'everyone') as ChatMessage; this.applyMessage(m); }
+  async deleteForMe(convId: string, msgId: string) { await this.o.client.deleteMessage(convId, msgId, 'me'); this.removeLocal(convId, msgId); }
+  async react(convId: string, msgId: string, emoji: string | null) { this.applyMessage(await this.o.client.react(convId, msgId, emoji)); }
+  async pin(convId: string, msgId: string, on: boolean) { const c = await this.o.client.pinMessage(convId, msgId, on); this.setConv(this.mergeConv(this.state.conversations[convId], c)); }
+  async star(convId: string, msgId: string, on: boolean) { const m = await this.o.client.starMessage(convId, msgId, on); this.patchLocal(convId, msgId, { starred: m.starred }); }
+  messageInfo(convId: string, msgId: string) { return this.o.client.messageInfo(convId, msgId); }
+  starred(before?: string) { return this.o.client.starred(before); }
+  /** Forwards to several chats at once. Needs a connection (not queued). */
+  async forward(convId: string, msgId: string, to: string[], comment?: string) {
+    const c = comment?.trim();
+    const res = await this.o.client.forward(convId, msgId, { targets: to.map((conversationId) => ({ conversationId, clientId: uuid(), ...(c ? { commentClientId: uuid() } : {}) })), ...(c ? { comment: c } : {}) });
+    return res;
   }
 
   // ---------- incoming ----------

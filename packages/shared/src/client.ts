@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, PublicProfile, Tokens } from './types';
-import type { ConversationPage, ConversationSummary, GroupInfo, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { ChatMessage, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -139,9 +139,20 @@ export class YaysClient {
     const s = q.toString();
     return this.request<MessagePage>('GET', `/v1/conversations/${encodeURIComponent(conversationId)}/messages${s ? `?${s}` : ''}`);
   }
-  sendMessage(conversationId: string, clientId: string, text: string) {
-    return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/messages`, { clientId, text });
+  sendMessage(conversationId: string, clientId: string, text: string, replyToId?: string) {
+    return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/messages`, { clientId, text, ...(replyToId ? { replyToId } : {}) });
   }
+  private msgUrl(c: string, m: string, tail = '') { return `/v1/conversations/${encodeURIComponent(c)}/messages/${encodeURIComponent(m)}${tail}`; }
+  editMessage(c: string, m: string, text: string) { return this.request<ChatMessage>('PATCH', this.msgUrl(c, m), { text }); }
+  deleteMessage(c: string, m: string, forWho: 'me' | 'everyone') { return this.request<ChatMessage | { hidden: true }>('DELETE', this.msgUrl(c, m, `?for=${forWho}`)); }
+  react(c: string, m: string, emoji: string | null) { return emoji ? this.request<ChatMessage>('PUT', this.msgUrl(c, m, '/reaction'), { emoji }) : this.request<ChatMessage>('DELETE', this.msgUrl(c, m, '/reaction')); }
+  pinMessage(c: string, m: string, on: boolean) { return this.request<ConversationSummary>(on ? 'POST' : 'DELETE', this.msgUrl(c, m, '/pin'), on ? {} : undefined); }
+  starMessage(c: string, m: string, on: boolean) { return this.request<ChatMessage>(on ? 'PUT' : 'DELETE', this.msgUrl(c, m, '/star'), on ? {} : undefined); }
+  messageInfo(c: string, m: string) { return this.request<MessageInfo>('GET', this.msgUrl(c, m, '/info')); }
+  forward(c: string, m: string, body: { targets: Array<{ conversationId: string; clientId: string; commentClientId?: string }>; comment?: string }) {
+    return this.request<Array<{ conversationId: string; ok: boolean; message?: ChatMessage; error?: string }>>('POST', this.msgUrl(c, m, '/forward'), body);
+  }
+  starred(before?: string) { return this.request<{ items: StarredItem[]; next: string | null }>('GET', `/v1/starred${before ? `?before=${encodeURIComponent(before)}` : ''}`); }
   markDelivered(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/delivered`, { seq }); }
   markRead(conversationId: string, seq: number) { return this.request<MemberReceipt>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/read`, { seq }); }
   /** Public profiles by id (names and photos for group members, past and present). */
