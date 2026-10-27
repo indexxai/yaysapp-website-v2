@@ -19,6 +19,7 @@ export const C = {
   messages: 'yc_messages',
   receipts: 'yc_receipts',
   joinRequests: 'yc_join_requests',
+  stars: 'yc_stars',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -36,6 +37,7 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { former: 1, lastAt: -1, _id: -1 }, name: 'former_recent' },
     { key: { inviteCode: 1 }, name: 'invite_code_unique', unique: true, partialFilterExpression: { inviteCode: { $type: 'string' } } },
   ]);
+  await db.collection(C.stars).createIndexes([{ key: { userId: 1, at: -1 }, name: 'user_recent' }, { key: { userId: 1, msgId: 1 }, name: 'user_msg' }]);
   await db.collection(C.joinRequests).createIndexes([{ key: { convId: 1, createdAt: 1 }, name: 'conv_time' }]);
   await db.collection(C.messages).createIndexes([
     { key: { convId: 1, seq: 1 }, name: 'conv_seq_unique', unique: true },

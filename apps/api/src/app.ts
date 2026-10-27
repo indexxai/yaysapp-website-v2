@@ -42,6 +42,7 @@ export async function createApp(env: Record<string, string | undefined> = proces
   const realtime = new Realtime({ config, log, redis, sessions, chat, tokens: app.get<TokenService>(TOKENS), limiter: new RateLimiter(redis), users: db.collection(C.users) });
   realtime.attach(app.getHttpServer());
   chat.events = realtime;
+  chat.msgEvents = realtime;
   sessions.onRevoked = (sid) => realtime.kickSession(sid);
 
   /** Stops sockets and HTTP, then the database and Redis connections, so the process can exit. */

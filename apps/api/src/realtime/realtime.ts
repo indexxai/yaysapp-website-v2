@@ -90,7 +90,7 @@ export class Realtime implements ChatEvents {
 
     this.on(s, 'msg:send', socketSendSchema, async (v) => {
       await this.d.limiter.hit(`send:${uid}`, SEND_LIMIT.count, SEND_LIMIT.windowSeconds, 'You are sending messages too fast. Wait a moment.');
-      return this.d.chat.send(s.data.userId, v.conversationId, v.clientId, v.text);
+      return this.d.chat.send(s.data.userId, v.conversationId, v.clientId, v.text, { replyToId: v.replyToId });
     });
     this.on(s, 'receipt:delivered', socketReceiptSchema, (v) => this.d.chat.receipt(s.data.userId, v.conversationId, 'delivered', v.seq));
     this.on(s, 'receipt:read', socketReceiptSchema, (v) => this.d.chat.receipt(s.data.userId, v.conversationId, 'read', v.seq));
@@ -168,6 +168,13 @@ export class Realtime implements ChatEvents {
   }
   receiptChanged(members: ObjectId[], conversationId: string, userId: string, r: MemberReceipt) {
     this.io?.to(members.map((m) => room.user(m.toHexString()))).emit('receipt', { conversationId, userId, ...r });
+  }
+
+  messageUpdated(userIds: ObjectId[], message: ChatMessage) {
+    if (userIds.length) this.io?.to(userIds.map((m) => room.user(m.toHexString()))).emit('msg:update', { message });
+  }
+  mine(userId: ObjectId, p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean }) {
+    this.io?.to(room.user(userId.toHexString())).emit('msg:mine', p);
   }
 
   conversationChanged(userIds: ObjectId[], conversationId: string) {

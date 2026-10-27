@@ -26,6 +26,8 @@ import { CHAT, ChatService } from './chat/chat.service';
 import { ChatController, PeopleController } from './chat/chat.controller';
 import { GROUPS, GroupsService } from './chat/groups.service';
 import { GroupsController, InvitesController } from './chat/groups.controller';
+import { MESSAGES, MessagesService } from './chat/messages.service';
+import { MessageActionsController, StarredController } from './chat/messages.controller';
 
 export interface Infra { config: Config; log: Logger; mongo: MongoClient; db: Db; redis: Redis; storage: Storage }
 
@@ -43,15 +45,16 @@ export class AppModule {
     const auth = new AuthService(users, otp, sessions, tokens, google, storage, redis);
     const chat = new ChatService(i.mongo, db, storage);
     const groups = new GroupsService(chat, db);
+    const messages = new MessagesService(chat);
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
-      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups },
+      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }

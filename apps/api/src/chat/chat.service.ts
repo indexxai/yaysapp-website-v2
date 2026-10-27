@@ -1,7 +1,7 @@
 import { MongoServerError, ObjectId, type ClientSession, type Collection, type Db, type MongoClient } from 'mongodb';
 import {
   DEFAULT_GROUP_SETTINGS,
-  type ChatMessage, type ConversationPage, type ConversationSummary, type GroupMeta, type GroupSettings, type MemberReceipt, type MessagePage, type PublicProfile, type SendResult, type SystemEvent,
+  type ChatMessage, type ConversationPage, type ConversationSummary, type GroupMeta, type GroupSettings, type MemberReceipt, type MessagePage, type PinnedMessage, type PublicProfile, type ReplyPreview, type SendResult, type SystemEvent,
 } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { C } from '../infra/mongo';
@@ -30,6 +30,8 @@ export interface ConversationDoc {
   ownerId?: ObjectId;
   settings?: GroupSettings;
   inviteCode?: string | null;
+  /** Pinned messages, newest last. */
+  pins?: Array<{ msgId: ObjectId; seq: number; by: ObjectId; at: Date }>;
 }
 export interface MessageDoc {
   _id: ObjectId;
@@ -41,12 +43,26 @@ export interface MessageDoc {
   text: string;
   system?: SystemEvent;
   createdAt: Date;
+  replyToId?: ObjectId;
+  forwarded?: boolean;
+  editedAt?: Date;
+  /** Deleted for everyone. The text is cleared when this is set. */
+  deletedAt?: Date;
+  deletedBy?: ObjectId;
+  reactions?: Array<{ u: ObjectId; e: string; at: Date }>;
+  /** People who deleted it for themselves. */
+  hiddenFor?: ObjectId[];
 }
 /**
  * One row per person per conversation: how far they have received and read, and which part of the history they
  * can see (fromSeq: joined after this message; leftSeq: left at this message).
  */
-export interface ReceiptDoc { _id: string; convId: ObjectId; userId: ObjectId; deliveredSeq: number; readSeq: number; updatedAt: Date; fromSeq?: number; leftSeq?: number }
+export interface ReceiptDoc {
+  _id: string; convId: ObjectId; userId: ObjectId; deliveredSeq: number; readSeq: number; updatedAt: Date; fromSeq?: number; leftSeq?: number;
+  /** When the read / delivered point moved, so message info can say "read at 11:47". Last 300 moves. */
+  readMarks?: Array<{ s: number; t: Date }>;
+  deliveredMarks?: Array<{ s: number; t: Date }>;
+}
 
 /** What the real-time layer needs to hear about. Kept as an interface so the service has no socket code in it. */
 export interface ChatEvents {
@@ -63,12 +79,37 @@ export const isDup = (e: unknown) => e instanceof MongoServerError && e.code ===
 export const has = (list: ObjectId[] | undefined, id: ObjectId) => !!list?.some((x) => x.equals(id));
 const DELETED: PublicProfile = { id: '', displayName: 'Deleted account', username: null, about: '', photoUrl: null };
 
-export function toMessage(m: MessageDoc): ChatMessage {
-  return {
-    id: m._id.toHexString(), conversationId: m.convId.toHexString(), seq: m.seq, senderId: m.senderId.toHexString(), clientId: m.clientId,
-    type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}), createdAt: m.createdAt.toISOString(),
-  };
+export interface MessageEvents {
+  messageUpdated(userIds: ObjectId[], message: ChatMessage): void;
+  mine(userId: ObjectId, p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean }): void;
 }
+
+export const replyPreview = (t: MessageDoc): ReplyPreview => ({
+  id: t._id.toHexString(), seq: t.seq, senderId: t.senderId.toHexString(), type: t.type, deleted: !!t.deletedAt,
+  text: t.deletedAt ? '' : t.text.length > 200 ? `${t.text.slice(0, 200)}…` : t.text,
+});
+
+/** A message as apps see it. Deleted messages lose their text, reactions and quote. */
+export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, viewer?: { id: ObjectId; starred: Set<string> }): ChatMessage {
+  const out: ChatMessage = {
+    id: m._id.toHexString(), conversationId: m.convId.toHexString(), seq: m.seq, senderId: m.senderId.toHexString(), clientId: m.clientId,
+    type: m.type, text: m.deletedAt ? '' : m.text, ...(m.system ? { system: m.system } : {}), createdAt: m.createdAt.toISOString(),
+  };
+  if (m.forwarded) out.forwarded = true;
+  if (m.editedAt && !m.deletedAt) out.editedAt = m.editedAt.toISOString();
+  const hiddenForViewer = viewer && has(m.hiddenFor, viewer.id);
+  if (m.deletedAt || hiddenForViewer) { out.deleted = true; out.text = ''; return out; }
+  if (m.replyToId) { const t = replies?.get(m.replyToId.toHexString()); out.replyTo = t ? replyPreview(t) : null; }
+  if (m.reactions?.length) {
+    const r: Record<string, string[]> = {};
+    for (const x of [...m.reactions].sort((a, b) => a.at.getTime() - b.at.getTime())) (r[x.e] ??= []).push(x.u.toHexString());
+    out.reactions = r;
+  }
+  if (viewer) out.starred = viewer.starred.has(m._id.toHexString());
+  return out;
+}
+
+export interface StarDoc { _id: string; userId: ObjectId; msgId: ObjectId; convId: ObjectId; at: Date }
 
 /** What one person may see of a conversation. */
 export interface Access { c: ConversationDoc; member: boolean; fromSeq: number; untilSeq: number }
@@ -79,8 +120,11 @@ export class ChatService {
   readonly receipts: Collection<ReceiptDoc>;
   readonly users: Collection<UserDoc>;
   events: ChatEvents = noEvents;
+  msgEvents: MessageEvents = { messageUpdated() {}, mine() {} };
+  readonly stars: Collection<StarDoc>;
 
   constructor(readonly client: MongoClient, db: Db, readonly storage: Storage) {
+    this.stars = db.collection(C.stars);
     this.convs = db.collection(C.conversations);
     this.msgs = db.collection(C.messages);
     this.receipts = db.collection(C.receipts);
@@ -225,34 +269,53 @@ export class ChatService {
         peer: peerId ? (peerDoc ? await toPublic(peerDoc, this.photo) : { ...DELETED, id: peerId.toHexString() }) : null,
         group: c.kind === 'group' ? await this.groupMeta(c, me) : null,
         canSend: member && this.may(c, me, 'send'),
-        memberIds: c.members.map((m) => m.toHexString()), lastSeq, lastMessage: last && last.seq > (my?.fromSeq ?? 0) ? toMessage(last) : null, unread, receipts,
+        memberIds: c.members.map((m) => m.toHexString()), lastSeq, lastMessage: last && last.seq > (my?.fromSeq ?? 0) ? toMessage(last, undefined, { id: me, starred: new Set() }) : null, unread, receipts,
         lastSenderName: last ? (last.senderId.equals(me) ? 'You' : sender ? displayNameOf(sender) : DELETED.displayName) : null,
+        pins: await this.pinsOf(c),
         lastActivityAt: (member ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
       };
     }));
   }
 
+  /** Turns stored messages into what one person sees: quotes resolved, their stars, their deletions. */
+  async present(rows: MessageDoc[], viewer?: ObjectId): Promise<ChatMessage[]> {
+    const replyIds = [...new Set(rows.map((m) => m.replyToId?.toHexString()).filter((x): x is string => !!x))];
+    const replies = new Map(replyIds.length ? (await this.msgs.find({ _id: { $in: replyIds.map((x) => new ObjectId(x)) } }).toArray()).map((t) => [t._id.toHexString(), t]) : []);
+    const starred = new Set(viewer && rows.length ? (await this.stars.find({ userId: viewer, msgId: { $in: rows.map((m) => m._id) } }, { projection: { msgId: 1 } }).toArray()).map((x) => x.msgId.toHexString()) : []);
+    return rows.map((m) => toMessage(m, replies, viewer ? { id: viewer, starred } : undefined));
+  }
+
   async messages(me: ObjectId, convId: string, q: { before?: number; after?: number; limit: number }): Promise<MessagePage> {
     const { c, fromSeq, untilSeq } = await this.access(convId, me);
-    const range = (extra: Record<string, number>) => ({ convId: c._id, seq: { $gt: fromSeq, $lte: untilSeq, ...extra } });
+    // Messages I deleted for myself are left out entirely.
+    const range = (extra: Record<string, number>) => ({ convId: c._id, seq: { $gt: fromSeq, $lte: untilSeq, ...extra }, hiddenFor: { $ne: me } });
     if (q.after !== undefined) {
       // Catching up after being offline: oldest first from the point the device already has.
       const rows = await this.msgs.find(range({ $gt: Math.max(q.after, fromSeq) })).sort({ seq: 1 }).limit(q.limit + 1).toArray();
-      return { items: rows.slice(0, q.limit).map(toMessage), hasMore: rows.length > q.limit };
+      return { items: await this.present(rows.slice(0, q.limit), me), hasMore: rows.length > q.limit };
     }
     const rows = await this.msgs.find(q.before !== undefined ? range({ $lt: q.before }) : range({})).sort({ seq: -1 }).limit(q.limit + 1).toArray();
-    return { items: rows.slice(0, q.limit).reverse().map(toMessage), hasMore: rows.length > q.limit };
+    return { items: await this.present(rows.slice(0, q.limit).reverse(), me), hasMore: rows.length > q.limit };
   }
 
   /**
    * Stores a message exactly once. The number, the message and the sender's own receipt are written in one
    * transaction, so a retry with the same clientId returns the first copy and the numbers have no gaps.
    */
-  async send(me: ObjectId, convId: string, clientId: string, text: string): Promise<SendResult> {
+  async send(me: ObjectId, convId: string, clientId: string, text: string, opts: { replyToId?: string; forwarded?: boolean } = {}): Promise<SendResult> {
     const existing = await this.msgs.findOne({ senderId: me, clientId });
-    if (existing) return this.duplicate(existing, convId);
+    if (existing) return this.duplicate(existing, convId, me);
     const pre = await this.memberConv(convId, me);
     if (!this.may(pre, me, 'send')) throw AppError.forbidden('Only admins can send messages in this group.');
+    let replyToId: ObjectId | undefined;
+    if (opts.replyToId) {
+      const t = await this.msgs.findOne({ _id: new ObjectId(opts.replyToId), convId: pre._id });
+      const from = (await this.receipts.findOne({ _id: rKey(pre._id, me) }))?.fromSeq ?? 0;
+      if (!t || t.seq <= from || has(t.hiddenFor, me)) throw AppError.validation('The message you’re replying to isn’t in this chat.');
+      if (t.type === 'system') throw AppError.validation('You can’t reply to that.');
+      if (t.deletedAt) throw AppError.validation('You can’t reply to a deleted message.');
+      replyToId = t._id;
+    }
     let created: MessageDoc | null = null;
     let conv: ConversationDoc | null = null;
     try {
@@ -264,28 +327,28 @@ export class ChatService {
         const id = new ObjectId();
         const c = await this.convs.findOneAndUpdate({ _id: pre._id, members: me }, { $inc: { seq: 1 }, $set: { lastAt: now, lastMessageId: id } }, { session, returnDocument: 'after' });
         if (!c) throw AppError.notFound('Chat not found.');
-        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: 'text', text, createdAt: now };
+        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: 'text', text, createdAt: now, ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}) };
         await this.msgs.insertOne(m, { session });
         await this.receipts.updateOne({ _id: rKey(c._id, me) }, { $max: { deliveredSeq: c.seq, readSeq: c.seq }, $set: { updatedAt: now }, $setOnInsert: { convId: c._id, userId: me } }, { upsert: true, session });
         created = m; conv = c;
       });
     } catch (e) {
-      if (isDup(e)) { const first = await this.msgs.findOne({ senderId: me, clientId }); if (first) return this.duplicate(first, convId); }
+      if (isDup(e)) { const first = await this.msgs.findOne({ senderId: me, clientId }); if (first) return this.duplicate(first, convId, me); }
       throw e;
     }
     const m = created as MessageDoc | null, c = conv as ConversationDoc | null;
     if (!m) throw new Error('send finished without a message');
-    if (!c) return this.duplicate(m, convId);
-    const message = toMessage(m);
+    if (!c) return this.duplicate(m, convId, me);
+    const [message] = await this.present([m]);
     this.events.messageCreated(c.members, message);
     this.events.receiptChanged(c.members, message.conversationId, me.toHexString(), { deliveredSeq: m.seq, readSeq: m.seq });
     return { message, duplicate: false };
   }
 
-  private duplicate(m: MessageDoc, convId: string): SendResult {
+  private async duplicate(m: MessageDoc, convId: string, me: ObjectId): Promise<SendResult> {
     // The same clientId used for a different chat is a client bug, not a retry.
     if (m.convId.toHexString() !== convId.toLowerCase()) throw AppError.conflict('That message id was already used in another chat.');
-    return { message: toMessage(m), duplicate: true };
+    return { message: (await this.present([m]))[0], duplicate: true };
   }
 
   /** Moves this person's delivered/read point forward, never back, and never past what they can see. */
@@ -301,10 +364,24 @@ export class ChatService {
     const pr = before?.readSeq ?? 0, pd = Math.max(before?.deliveredSeq ?? 0, pr);
     const next = { readSeq: Math.max(pr, kind === 'read' ? upTo : 0), deliveredSeq: Math.max(pd, upTo) };
     if (next.readSeq !== pr || next.deliveredSeq !== pd) {
+      const now = new Date();
+      const push: Record<string, unknown> = {};
+      if (next.readSeq !== pr) push.readMarks = { $each: [{ s: next.readSeq, t: now }], $slice: -300 };
+      if (next.deliveredSeq !== pd) push.deliveredMarks = { $each: [{ s: next.deliveredSeq, t: now }], $slice: -300 };
+      await this.receipts.updateOne({ _id: rKey(c._id, me) }, { $push: push } as never);
       // A former member's reading only matters to their own devices.
       this.events.receiptChanged(member ? c.members : [me], c._id.toHexString(), me.toHexString(), next);
     }
     return next;
+  }
+
+  async pinsOf(c: ConversationDoc): Promise<PinnedMessage[]> {
+    if (!c.pins?.length) return [];
+    const docs = new Map((await this.msgs.find({ _id: { $in: c.pins.map((p) => p.msgId) } }).toArray()).map((m) => [m._id.toHexString(), m]));
+    return [...c.pins].reverse().map((p) => {
+      const m = docs.get(p.msgId.toHexString());
+      return { messageId: p.msgId.toHexString(), seq: p.seq, senderId: m?.senderId.toHexString() ?? '', text: m && !m.deletedAt ? m.text.slice(0, 200) : '', pinnedBy: p.by.toHexString(), pinnedAt: p.at.toISOString() };
+    });
   }
 
   /** User ids that share at least one chat with me, out of the ones asked about. */

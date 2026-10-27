@@ -17,7 +17,12 @@ export type SystemEvent =
   | { kind: 'photo'; removed: boolean }
   | { kind: 'admin'; userId: string; on: boolean }
   | { kind: 'settings'; changes: Partial<GroupSettings> }
-  | { kind: 'invite_reset' };
+  | { kind: 'invite_reset' }
+  | { kind: 'pinned'; messageId: string; seq: number }
+  | { kind: 'unpinned'; messageId: string; seq: number };
+
+/** The quoted message shown above a reply. */
+export interface ReplyPreview { id: string; seq: number; senderId: string; type: 'text' | 'system'; text: string; deleted: boolean }
 
 export interface ChatMessage {
   id: string;
@@ -31,7 +36,28 @@ export interface ChatMessage {
   text: string;
   system?: SystemEvent;
   createdAt: string;
+  replyTo?: ReplyPreview | null;
+  forwarded?: boolean;
+  editedAt?: string;
+  /** Deleted for everyone: the text is gone; only the fact remains. */
+  deleted?: boolean;
+  /** emoji → the people who reacted with it. */
+  reactions?: Record<string, string[]>;
+  /** Only in answers to the person asking: whether they starred it. */
+  starred?: boolean;
 }
+
+/** Rules for message actions. */
+export const EDIT_WINDOW_MINUTES = 15;
+export const DELETE_FOR_EVERYONE_MINUTES = 15;
+export const MAX_PINS = 3;
+export const MAX_FORWARD_TARGETS = 5;
+export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏'] as const;
+
+export interface PinnedMessage { messageId: string; seq: number; senderId: string; text: string; pinnedBy: string; pinnedAt: string }
+export interface ReceiptDetail { user: PublicProfile; at: string }
+export interface MessageInfo { messageId: string; readBy: ReceiptDetail[]; deliveredTo: ReceiptDetail[]; waiting: PublicProfile[] }
+export interface StarredItem { message: ChatMessage; conversationId: string; conversationName: string; starredAt: string }
 
 /** Who may do what in a group. Admins can always do everything. */
 export interface GroupSettings {
@@ -84,6 +110,8 @@ export interface ConversationSummary {
   canSend: boolean;
   /** Display name of whoever sent the last message, for "Ali: see you" in group rows. */
   lastSenderName: string | null;
+  /** Pinned messages, newest pin first (up to 3). */
+  pins: PinnedMessage[];
   memberIds: string[];
   lastSeq: number;
   lastMessage: ChatMessage | null;
@@ -120,7 +148,15 @@ export const messageTextSchema = z.string().transform((v, ctx) => {
   if (textLength(t) > MAX_TEXT) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Messages can be up to ${MAX_TEXT} characters.` }); return z.NEVER; }
   return t;
 });
-export const sendMessageSchema = z.object({ clientId: clientIdSchema, text: messageTextSchema });
+export const sendMessageSchema = z.object({ clientId: clientIdSchema, text: messageTextSchema, replyToId: objectIdSchema.optional() });
+export const editMessageSchema = z.object({ text: messageTextSchema });
+/** One emoji (with skin tones, flags or joined sequences), nothing else. */
+export const emojiSchema = z.string().refine((v) => v.length > 0 && v.length <= 16 && (/^[0-9#*]\u{FE0F}?\u{20E3}$/u.test(v) || /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:[\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}\u{20E3}]|\p{Extended_Pictographic}|\p{Regional_Indicator})*$/u.test(v)), 'React with a single emoji.');
+export const reactSchema = z.object({ emoji: emojiSchema });
+export const forwardSchema = z.object({
+  targets: z.array(z.object({ conversationId: objectIdSchema, clientId: clientIdSchema, commentClientId: clientIdSchema.optional() })).min(1, 'Pick a chat.').max(MAX_FORWARD_TARGETS, `Forward to up to ${MAX_FORWARD_TARGETS} chats at a time.`),
+  comment: messageTextSchema.optional(),
+});
 export const socketSendSchema = sendMessageSchema.extend({ conversationId: objectIdSchema });
 export const receiptSchema = z.object({ seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) });
 export const socketReceiptSchema = receiptSchema.extend({ conversationId: objectIdSchema });
@@ -161,11 +197,15 @@ export interface ServerEvents {
   presence: (p: Presence) => void;
   /** Something about a chat changed (members, name, settings): fetch its summary again. */
   'conv:update': (p: { conversationId: string }) => void;
+  /** A message was edited, deleted for everyone, or its reactions changed. */
+  'msg:update': (p: { message: ChatMessage }) => void;
+  /** Only to my own devices: I deleted a message for me, or starred / unstarred it. */
+  'msg:mine': (p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean }) => void;
 }
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: { status: number; code: string; message: string; details?: Record<string, unknown> } };
 /** Client → server socket events. Every one answers through the acknowledgement callback. */
 export interface ClientEvents {
-  'msg:send': (p: { conversationId: string; clientId: string; text: string }, ack: (r: Ack<SendResult>) => void) => void;
+  'msg:send': (p: { conversationId: string; clientId: string; text: string; replyToId?: string }, ack: (r: Ack<SendResult>) => void) => void;
   'receipt:delivered': (p: { conversationId: string; seq: number }, ack: (r: Ack<MemberReceipt>) => void) => void;
   'receipt:read': (p: { conversationId: string; seq: number }, ack: (r: Ack<MemberReceipt>) => void) => void;
   typing: (p: { conversationId: string; on: boolean }, ack?: (r: Ack<null>) => void) => void;

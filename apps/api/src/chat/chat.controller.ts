@@ -40,7 +40,7 @@ export class ChatController {
   async send(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) {
     const v = parse(sendMessageSchema, b);
     await this.limiter.hit(`send:${a.userId}`, SEND_LIMIT.count, SEND_LIMIT.windowSeconds, 'You are sending messages too fast. Wait a moment.');
-    return this.chat.send(a.userId, id, v.clientId, v.text);
+    return this.chat.send(a.userId, id, v.clientId, v.text, { replyToId: v.replyToId });
   }
 
   @Post(':id/delivered') @HttpCode(200)
