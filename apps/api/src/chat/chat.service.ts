@@ -125,6 +125,9 @@ export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, view
   return out;
 }
 
+/** Per person per chat: muted, archived, pinned to the top. */
+export interface ChatPrefDoc { _id: string; convId: ObjectId; userId: ObjectId; mutedUntil?: Date | null; archived?: boolean; pinnedAt?: Date | null; updatedAt: Date }
+
 export interface StarDoc { _id: string; userId: ObjectId; msgId: ObjectId; convId: ObjectId; at: Date }
 
 /** What one person may see of a conversation. */
@@ -137,10 +140,14 @@ export class ChatService {
   readonly users: Collection<UserDoc>;
   events: ChatEvents = noEvents;
   msgEvents: MessageEvents = { messageUpdated() {}, mine() {} };
+  /** Called when someone's read point moves (to clear notifications on their other devices). */
+  onRead: (userId: ObjectId, conversationId: string) => void = () => undefined;
   readonly stars: Collection<StarDoc>;
+  readonly prefs: Collection<ChatPrefDoc>;
 
   constructor(readonly client: MongoClient, db: Db, readonly storage: Storage) {
     this.stars = db.collection(C.stars);
+    this.prefs = db.collection(C.chatPrefs);
     this.convs = db.collection(C.conversations);
     this.msgs = db.collection(C.messages);
     this.receipts = db.collection(C.receipts);
@@ -266,7 +273,9 @@ export class ChatService {
     const people = await this.users.find({ _id: { $in: [...peerIds, ...senderIds] } }).toArray();
     const byId = new Map(people.map((u) => [u._id.toHexString(), u]));
     const recs = await this.receipts.find({ convId: { $in: ids } }).toArray();
+    const prefs = new Map((await this.prefs.find({ _id: { $in: ids.map((i) => rKey(i, me)) } }).toArray()).map((p) => [p.convId.toHexString(), p]));
     return Promise.all(convs.map(async (c, i) => {
+      const pref = prefs.get(c._id.toHexString());
       const member = has(c.members, me);
       const receipts: Record<string, MemberReceipt> = {};
       for (const m of c.members) receipts[m.toHexString()] = { deliveredSeq: 0, readSeq: 0 };
@@ -288,6 +297,8 @@ export class ChatService {
         memberIds: c.members.map((m) => m.toHexString()), lastSeq, lastMessage: last && last.seq > (my?.fromSeq ?? 0) ? toMessage(last, undefined, { id: me, starred: new Set() }, await this.urlsFor([last])) : null, unread, receipts,
         lastSenderName: last ? (last.senderId.equals(me) ? 'You' : sender ? displayNameOf(sender) : DELETED.displayName) : null,
         pins: await this.pinsOf(c),
+        mutedUntil: pref?.mutedUntil && pref.mutedUntil.getTime() > Date.now() ? pref.mutedUntil.toISOString() : null,
+        archived: !!pref?.archived, pinnedAt: pref?.pinnedAt ? pref.pinnedAt.toISOString() : null,
         lastActivityAt: (member ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
       };
     }));
@@ -426,6 +437,7 @@ export class ChatService {
       if (next.readSeq !== pr) push.readMarks = { $each: [{ s: next.readSeq, t: now }], $slice: -300 };
       if (next.deliveredSeq !== pd) push.deliveredMarks = { $each: [{ s: next.deliveredSeq, t: now }], $slice: -300 };
       await this.receipts.updateOne({ _id: rKey(c._id, me) }, { $push: push } as never);
+      if (next.readSeq !== pr) this.onRead(me, c._id.toHexString());
       // A former member's reading only matters to their own devices.
       this.events.receiptChanged(member ? c.members : [me], c._id.toHexString(), me.toHexString(), next);
     }

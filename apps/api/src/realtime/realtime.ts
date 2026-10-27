@@ -5,7 +5,7 @@ import { Server, type Socket } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import type { ZodTypeAny, z } from 'zod';
 import {
-  ErrorCode, presenceWatchSchema, socketReceiptSchema, socketSendSchema, typingSchema,
+  ErrorCode, focusSchema, presenceWatchSchema, socketReceiptSchema, socketSendSchema, typingSchema,
   type Ack, type ChatMessage, type ClientEvents, type MemberReceipt, type Presence, type ServerEvents,
 } from '@yays/shared';
 import { AppError } from '../common/app-error';
@@ -17,6 +17,7 @@ import type { SessionService } from '../auth/sessions';
 import type { TokenService } from '../auth/tokens';
 import type { UserDoc } from '../users/users.repo';
 import { SEND_LIMIT } from '../chat/chat.controller';
+import type { PushService } from '../push/push.service';
 import type { ChatEvents, ChatService } from '../chat/chat.service';
 
 interface SocketData { userId: ObjectId; uid: string; sid: string; watching: Set<string>; typingAt: Map<string, number>; heartbeat?: NodeJS.Timeout; joined?: Promise<void> }
@@ -24,7 +25,7 @@ type IoServer = Server<ClientEvents, ServerEvents, Record<string, never>, Socket
 type IoSocket = Socket<ClientEvents, ServerEvents, Record<string, never>, SocketData>;
 
 export interface RealtimeDeps {
-  config: Config; log: Logger; redis: Redis; tokens: TokenService; sessions: SessionService; chat: ChatService; limiter: RateLimiter; users: Collection<UserDoc>;
+  config: Config; log: Logger; redis: Redis; tokens: TokenService; sessions: SessionService; chat: ChatService; limiter: RateLimiter; users: Collection<UserDoc>; push: PushService;
 }
 
 /** How long a socket counts as online without a heartbeat (covers servers that die without saying goodbye). */
@@ -81,9 +82,13 @@ export class Realtime implements ChatEvents {
     const { uid, sid } = s.data;
     void s.join([room.user(uid), room.session(sid)]);
     s.data.joined = this.markOnline(s);
-    s.data.heartbeat = setInterval(() => { void this.d.redis.zadd(pKey(uid), Date.now() + PRESENCE_TTL_MS, s.id).then(() => this.d.redis.pexpire(pKey(uid), PRESENCE_TTL_MS)).catch(() => undefined); }, HEARTBEAT_MS);
+    s.data.heartbeat = setInterval(() => {
+      void this.d.redis.zadd(pKey(uid), Date.now() + PRESENCE_TTL_MS, s.id).then(() => this.d.redis.pexpire(pKey(uid), PRESENCE_TTL_MS)).catch(() => undefined);
+      void this.d.push.touchFocus(uid, s.id).catch(() => undefined);
+    }, HEARTBEAT_MS);
     s.on('disconnect', () => {
       clearInterval(s.data.heartbeat);
+      void this.d.push.clearFocus(uid, s.id).catch(() => undefined);
       const p = (s.data.joined ?? Promise.resolve()).then(() => this.markOffline(s));
       this.pending.add(p); void p.finally(() => this.pending.delete(p));
     });
@@ -104,6 +109,7 @@ export class Realtime implements ChatEvents {
       if (others.length) this.io!.to(others).emit('typing', { conversationId: v.conversationId, userId: uid, on: v.on });
       return null;
     });
+    this.on(s, 'focus', focusSchema, async (v) => { await this.d.push.setFocus(uid, s.id, v.conversationId, v.visible); return null; });
     this.on(s, 'presence:watch', presenceWatchSchema, async (v) => {
       // Only people you share a chat with: online status is not public.
       const asked = [...new Set(v.userIds)].filter((id) => id !== uid);

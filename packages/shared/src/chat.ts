@@ -158,6 +158,11 @@ export interface ConversationSummary {
   lastSenderName: string | null;
   /** Pinned messages, newest pin first (up to 3). */
   pins: PinnedMessage[];
+  /** My own settings for this chat. */
+  mutedUntil: string | null;
+  archived: boolean;
+  /** Pinned to the top of my chat list. */
+  pinnedAt: string | null;
   memberIds: string[];
   lastSeq: number;
   lastMessage: ChatMessage | null;
@@ -226,6 +231,8 @@ export const socketSendSchema = z.intersection(sendMessageSchema, z.object({ con
 export const receiptSchema = z.object({ seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) });
 export const socketReceiptSchema = receiptSchema.extend({ conversationId: objectIdSchema });
 export const typingSchema = z.object({ conversationId: objectIdSchema, on: z.boolean() });
+export const focusSchema = z.object({ conversationId: objectIdSchema.nullable(), visible: z.boolean() });
+export const pushSubscriptionSchema = z.object({ endpoint: z.string().url().max(2000).refine((u) => u.startsWith('https://') || u.startsWith('http://127.0.0.1') || u.startsWith('http://localhost'), 'Push endpoints must use https.'), keys: z.object({ p256dh: z.string().min(20).max(200), auth: z.string().min(8).max(100) }) });
 export const presenceWatchSchema = z.object({ userIds: z.array(objectIdSchema).max(50) });
 export const openDirectSchema = z.object({ userId: objectIdSchema });
 const groupName = z.string().transform((v, ctx) => {
@@ -275,4 +282,6 @@ export interface ClientEvents {
   'receipt:read': (p: { conversationId: string; seq: number }, ack: (r: Ack<MemberReceipt>) => void) => void;
   typing: (p: { conversationId: string; on: boolean }, ack?: (r: Ack<null>) => void) => void;
   'presence:watch': (p: { userIds: string[] }, ack: (r: Ack<Presence[]>) => void) => void;
+  /** Which chat this device shows, and whether the app is in front. Decides who gets push notifications. */
+  focus: (p: { conversationId: string | null; visible: boolean }) => void;
 }

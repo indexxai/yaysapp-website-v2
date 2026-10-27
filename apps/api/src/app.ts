@@ -18,6 +18,7 @@ import { CHAT, type ChatService } from './chat/chat.service';
 import { RateLimiter } from './infra/rate-limit';
 import { C } from './infra/mongo';
 import { Realtime } from './realtime/realtime';
+import { PUSH, type PushService } from './push/push.service';
 
 export async function createApp(env: Record<string, string | undefined> = process.env) {
   const config: Config = loadConfig(env);
@@ -39,11 +40,18 @@ export async function createApp(env: Record<string, string | undefined> = proces
   app.useGlobalFilters(new AllExceptionsFilter(log));
 
   const sessions = app.get<SessionService>(SESSIONS), chat = app.get<ChatService>(CHAT);
-  const realtime = new Realtime({ config, log, redis, sessions, chat, tokens: app.get<TokenService>(TOKENS), limiter: new RateLimiter(redis), users: db.collection(C.users) });
+  const push = app.get<PushService>(PUSH);
+  const realtime = new Realtime({ config, log, redis, sessions, chat, push, tokens: app.get<TokenService>(TOKENS), limiter: new RateLimiter(redis), users: db.collection(C.users) });
   realtime.attach(app.getHttpServer());
-  chat.events = realtime;
+  // Live events go to sockets; new messages also go to notifications for people who aren't looking.
+  chat.events = {
+    messageCreated: (users, m) => { realtime.messageCreated(users, m); void chat.convs.findOne({ _id: chat.parseId(m.conversationId) }).then((c) => { if (c) push.messageCreated(c, m); }); },
+    receiptChanged: (...a) => realtime.receiptChanged(...a),
+    conversationChanged: (...a) => realtime.conversationChanged(...a),
+  };
   chat.msgEvents = realtime;
-  sessions.onRevoked = (sid) => realtime.kickSession(sid);
+  chat.onRead = (u, conv) => push.read(u, conv);
+  sessions.onRevoked = (sid) => { realtime.kickSession(sid); void push.forgetSession(sid).catch(() => undefined); };
 
   /** Stops sockets and HTTP, then the database and Redis connections, so the process can exit. */
   const shutdown = async () => {

@@ -33,6 +33,13 @@ const schema = z.object({
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  /** dev: pushes are kept in Redis for tests. webpush: real Web Push with the VAPID keys below. */
+  PUSH_DRIVER: z.enum(['dev', 'webpush']).default('dev'),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:support@yays.app'),
+  /** Tests only: accept a self-signed certificate from a stand-in push service. Refused in production. */
+  PUSH_INSECURE_TLS: bool.default('false'),
   TEST_OUTBOX: bool.default('false'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
@@ -53,10 +60,13 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (c.GOOGLE_DRIVER === 'dev') problems.push('GOOGLE_DRIVER=dev is not allowed in production');
     if (c.STORAGE_DRIVER === 'local') problems.push('STORAGE_DRIVER=local is not allowed in production');
     if (c.TEST_OUTBOX) problems.push('TEST_OUTBOX must be off in production');
+    if (c.PUSH_DRIVER === 'dev') problems.push('PUSH_DRIVER=dev is not allowed in production');
+    if (c.PUSH_INSECURE_TLS) problems.push('PUSH_INSECURE_TLS must be off in production');
   }
   if (c.SMS_DRIVER === 'twilio' && !(c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN && c.TWILIO_VERIFY_SID)) problems.push('SMS_DRIVER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SID');
   if (c.EMAIL_DRIVER === 'ses' && !(c.SES_REGION && c.SES_FROM)) problems.push('EMAIL_DRIVER=ses needs SES_REGION and SES_FROM');
   if (c.STORAGE_DRIVER === 's3' && !(c.S3_BUCKET && c.S3_REGION)) problems.push('STORAGE_DRIVER=s3 needs S3_BUCKET and S3_REGION');
+  if (c.PUSH_DRIVER === 'webpush' && c.NODE_ENV === 'production' && !(c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY)) problems.push('PUSH_DRIVER=webpush needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys)');
   if (c.GOOGLE_DRIVER === 'google' && !c.GOOGLE_CLIENT_IDS) problems.push('GOOGLE_DRIVER=google needs GOOGLE_CLIENT_IDS');
   if (problems.length) throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);
   return {

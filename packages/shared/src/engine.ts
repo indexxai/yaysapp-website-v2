@@ -215,7 +215,10 @@ export class ChatEngine {
   }
 
   /** Tell the engine whether the window/app is in front. Read ticks are only sent while it is. */
-  setVisible(v: boolean) { this.visible = v; if (v && this.state.active) void this.markActiveRead(); }
+  setVisible(v: boolean) { this.visible = v; this.reportFocus(); if (v && this.state.active) void this.markActiveRead(); }
+
+  /** Tells the server what this device shows, so it doesn't push notifications for a chat I'm looking at. */
+  private reportFocus() { if (this.socket?.connected) this.socket.emit('focus', { conversationId: this.state.active, visible: this.visible }); }
 
   private connect() {
     const s: Socket<ServerEvents, ClientEvents> = ioConnect(this.o.client.baseUrl, {
@@ -224,7 +227,7 @@ export class ChatEngine {
       ...this.o.socketOptions,
     });
     this.socket = s;
-    s.on('connect', () => { this.set({ connection: 'online' }); void this.catchUpAll(); void this.flush(true); this.rewatch(); });
+    s.on('connect', () => { this.set({ connection: 'online' }); this.reportFocus(); void this.catchUpAll(); void this.flush(true); this.rewatch(); });
     s.on('disconnect', (reason) => {
       this.set({ connection: 'offline', typing: {} });
       // The server only closes us on purpose when this device was signed out; check, then reconnect.
@@ -379,6 +382,7 @@ export class ChatEngine {
   /** The chat on screen: loads it, keeps it read, and follows the other person's online status. */
   async open(conversationId: string | null) {
     this.set({ active: conversationId });
+    this.reportFocus();
     this.rewatch();
     if (!conversationId) return;
     if (!this.state.conversations[conversationId]) {
@@ -645,6 +649,17 @@ export class ChatEngine {
     }
   }
 
+  // ---------- incoming, for banners ----------
+  private incoming = new Set<(m: ChatMessage, c: ConversationSummary) => void>();
+  /** New messages from others that I'm not looking at right now (for an in-app banner). */
+  onIncoming(fn: (m: ChatMessage, c: ConversationSummary) => void) { this.incoming.add(fn); return () => { this.incoming.delete(fn); }; }
+
+  private announce(m: ChatMessage, c: ConversationSummary | undefined) {
+    if (!c || (this.state.active === c.id && this.visible)) return;
+    if (m.type === 'system' && !(m.system?.kind === 'added' && m.system.userIds.includes(this.o.me))) return;
+    for (const fn of this.incoming) { try { fn(m, c); } catch { /* a broken listener must not stop delivery */ } }
+  }
+
   // ---------- message actions ----------
   /** Puts a changed message (edited, deleted, reacted) in place, keeping my own star on it. */
   applyMessage(m: ChatMessage) {
@@ -692,7 +707,16 @@ export class ChatEngine {
   private onMessage(m: ChatMessage) {
     const id = m.conversationId;
     const conv = this.state.conversations[id];
-    if (!conv) { void this.o.client.conversation(id).then((c) => { this.setConv(this.mergeConv(this.state.conversations[id], c)); this.ackDelivered(c); this.onMessage(m); }).catch(() => undefined); return; }
+    if (!conv) {
+      // A chat this device hasn't seen yet (a new chat, or one I was just added to): fetch it first.
+      void this.o.client.conversation(id).then((c) => {
+        this.setConv(this.mergeConv(this.state.conversations[id], c));
+        this.ackDelivered(c);
+        this.onMessage(m);
+        if (m.senderId !== this.o.me) this.announce(m, this.state.conversations[id]);
+      }).catch(() => undefined);
+      return;
+    }
     const mine = m.senderId === this.o.me;
     const isNew = m.seq > conv.lastSeq;
     const readingNow = this.state.active === id && this.visible;
@@ -709,6 +733,7 @@ export class ChatEngine {
       else void this.catchUp(id); // something in between was missed
     }
     if (this.state.outbox.some((p) => p.clientId === m.clientId) && mine) void this.setOutbox(this.state.outbox.filter((p) => p.clientId !== m.clientId));
+    if (!mine && isNew) this.announce(m, next);
     if (!mine && isNew) {
       const ty = this.state.typing[id];
       if (ty?.[m.senderId]) { const { [m.senderId]: _gone, ...rest } = ty; this.set({ typing: { ...this.state.typing, [id]: rest } }); }

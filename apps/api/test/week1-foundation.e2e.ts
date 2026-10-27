@@ -97,8 +97,14 @@ describe('Week 1 · configuration', () => {
   it('needs Twilio credentials when Twilio is chosen', () => {
     expect(() => loadConfig({ ...base, SMS_DRIVER: 'twilio' })).toThrow(/TWILIO_ACCOUNT_SID/);
   });
+  it('production needs real Web Push with its own keys', () => {
+    const prod = { ...base, NODE_ENV: 'production' };
+    expect(() => loadConfig(prod)).toThrow(/PUSH_DRIVER=dev is not allowed in production/);
+    expect(() => loadConfig({ ...prod, PUSH_DRIVER: 'webpush' })).toThrow(/needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY/);
+    expect(() => loadConfig({ ...prod, PUSH_INSECURE_TLS: '1' })).toThrow(/PUSH_INSECURE_TLS must be off in production/);
+  });
   it('accepts a full production setup', () => {
-    const c = loadConfig({ ...base, NODE_ENV: 'production', SMS_DRIVER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_VERIFY_SID: 'VA1', EMAIL_DRIVER: 'ses', SES_REGION: 'us-east-1', SES_FROM: 'no-reply@yays.app', GOOGLE_DRIVER: 'google', GOOGLE_CLIENT_IDS: 'a,b', STORAGE_DRIVER: 's3', S3_BUCKET: 'b', S3_REGION: 'us-east-1', CORS_ORIGINS: 'https://web.yays.app, https://yays.app' });
+    const c = loadConfig({ ...base, NODE_ENV: 'production', SMS_DRIVER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_VERIFY_SID: 'VA1', EMAIL_DRIVER: 'ses', SES_REGION: 'us-east-1', SES_FROM: 'no-reply@yays.app', GOOGLE_DRIVER: 'google', GOOGLE_CLIENT_IDS: 'a,b', STORAGE_DRIVER: 's3', S3_BUCKET: 'b', S3_REGION: 'us-east-1', CORS_ORIGINS: 'https://web.yays.app, https://yays.app', PUSH_DRIVER: 'webpush', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' });
     expect(c.corsOrigins).toEqual(['https://web.yays.app', 'https://yays.app']);
     expect(c.googleClientIds).toEqual(['a', 'b']);
   });

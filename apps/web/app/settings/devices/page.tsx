@@ -1,4 +1,5 @@
 'use client';
+import { disablePush } from '@/lib/push';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, type DeviceSession } from '@yays/shared';
@@ -53,7 +54,7 @@ export default function Devices() {
         </section>
         <div className="row center" style={{ gap: 32 }}>
           {list && list.length > 1 && <OvalButton icon="logout" label="Log out all other devices" size="sm" variant="danger" loading={busy === 'others'} onClick={() => act('others', () => api().revokeOtherDevices(), 'All other devices were logged out.')} />}
-          <OvalButton icon="logout" label="Log out of this browser" size="sm" variant="ghost" loading={busy === 'me'} onClick={async () => { setBusy('me'); await api().logout().catch(() => undefined); router.replace('/sign-in'); }} />
+          <OvalButton icon="logout" label="Log out of this browser" size="sm" variant="ghost" loading={busy === 'me'} onClick={async () => { setBusy('me'); await disablePush().catch(() => undefined); await api().logout().catch(() => undefined); router.replace('/sign-in'); }} />
         </div>
       </div>
     </AppShell>

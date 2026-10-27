@@ -274,3 +274,13 @@ span.chip { cursor: default; }
 .rec-wave { flex: 1; height: 36px; display: flex; align-items: center; gap: 2px; overflow: hidden; color: var(--ember); }
 .rec-wave span { width: 3px; flex: none; border-radius: 2px; background: currentColor; }
 @media (max-width: 560px) { .voice { min-width: 200px; } .viewer__nav { display: none; } }
+
+/* ---- Notifications ---- */
+.notify-banner { margin: 0 12px 8px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 18px; background: var(--surface); font-size: 13px; line-height: 18px; }
+.notify-banner__text { flex: 1; }
+.toasts { position: fixed; top: 16px; right: 16px; z-index: 70; display: flex; flex-direction: column; gap: 8px; width: min(360px, calc(100vw - 32px)); }
+.toast { appearance: none; border: 1px solid var(--line); background: var(--raised); color: var(--ink); border-radius: 18px; padding: 10px 14px; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; box-shadow: var(--shadow-raise); font: inherit; animation: ys-toast .2s ease; }
+.toast__text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
+.toast__text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+@keyframes ys-toast { from { transform: translateY(-8px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }

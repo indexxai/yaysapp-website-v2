@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { ChatList, ConnectionNotice, Conversation, NewChat } from '@/components/chat';
 import { GroupInfoPanel, NewGroup } from '@/components/group';
+import { Attention, NotifyBanner } from '@/components/notify';
 import { Banner, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
 import { ChatProvider, useChatState } from '@/lib/chat';
@@ -56,6 +57,7 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
                 </div>
               </div>
               <ConnectionNotice />
+              <NotifyBanner />
               <ChatList activeId={active} onOpen={open} onNewChat={() => setPanel('chat')} />
             </>
           )}
@@ -69,6 +71,7 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
           </div>
         )}
       </main>
+      <Attention />
       {active && isGroup && info && <GroupInfoPanel id={active} onClose={() => setInfo(false)} onLeft={() => setInfo(false)} />}
     </div>
   );
