@@ -1,7 +1,8 @@
 'use client';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type MutableRefObject } from 'react';
-import { ApiError, MAX_TEXT, listNames, systemText, textLength, tickFor, type ConversationSummary, type PublicProfile, type ThreadItem, type Tick } from '@yays/shared';
+import { ApiError, MAX_TEXT, listNames, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type PublicProfile, type ThreadItem, type Tick } from '@yays/shared';
 import { memberLine } from './group';
+import { AttachDialog, MediaContent, MediaViewer, RecorderBar } from './media';
 import { ActionBar, ActionsCtx, DeleteDialog, ForwardDialog, MessageInfoPanel, PinnedBar, Quote, Reactions, useActions, type Actions } from './message-actions';
 import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
@@ -95,7 +96,7 @@ function ChatRow({ c, me, active, typing, onOpen }: { c: ConversationSummary; me
   const last = c.lastMessage;
   const mine = last?.senderId === me && last.type !== 'system';
   const preview = !last ? '' : last.type === 'system' && last.system ? systemText(last.system, last.senderId, (u) => engine.nameOf(u) === '…' && u === last.senderId && c.lastSenderName ? c.lastSenderName : engine.nameOf(u))
-    : c.kind === 'group' && !mine ? `${senderFirst(engine, last.senderId, c.lastSenderName)}: ${last.text}` : last.text;
+    : c.kind === 'group' && !mine ? `${senderFirst(engine, last.senderId, c.lastSenderName)}: ${messagePreview(last)}` : messagePreview(last);
   return (
     <a href={`/chats?c=${c.id}`} className="ys-row-item" aria-current={active ? 'true' : undefined} data-testid="chat-row"
       onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); onOpen(c.id); }} style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -180,19 +181,22 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
   const [deleting, setDeleting] = useState<ThreadItem | null>(null);
   const [infoOf, setInfoOf] = useState<ThreadItem | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [attachFiles, setAttachFiles] = useState<File[] | null>(null);
+  const [viewerAt, setViewerAt] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const jump = useRef<(seq: number) => void>(() => undefined);
   const actions = useMemo<Actions>(() => ({
     reply: (m) => { setEditing(null); setReplyTo(m); }, edit: (m) => { setReplyTo(null); setEditing(m); },
     forward: setForwarding, remove: setDeleting, info: setInfoOf, jumpTo: (seq) => jump.current(seq), error: setActionError,
   }), []);
-  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); }, [id]);
+  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setAttachFiles(null); setViewerAt(null); }, [id]);
   useEffect(() => {
     setError(null);
     void engine.open(id).then(() => { if (engine.getState().conversations[id]?.kind === 'group') return engine.loadGroup(id); }).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
     return () => { if (engine.getState().active === id) void engine.open(null); };
   }, [engine, id]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => engine.thread(id), [engine, id, thread, s.outbox, c]);
+  const items = useMemo(() => engine.thread(id), [engine, id, thread, s.outbox, s.uploads, c]);
 
   if (error) return <div className="pane-center"><Banner>{error}</Banner><OvalButton icon="arrow-left" label="Back to chats" variant="ghost" onClick={onBack} /></div>;
   if (!c) return <div className="pane-center" aria-busy="true"><span className="ys-spin" aria-hidden /></div>;
@@ -203,7 +207,10 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
   const status = typing ?? (c.kind === 'group' ? memberLine(s.groups[id], me, '') : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : peer?.username ? `@${peer.username}` : '');
   return (
     <ActionsCtx.Provider value={actions}>
-    <section className="convo" aria-label={`Chat with ${name}`}>
+    <section className={`convo${dragging ? ' convo--drop' : ''}`} aria-label={`Chat with ${name}`}
+      onDragOver={(e) => { if (c.canSend && e.dataTransfer.types.includes('Files')) { e.preventDefault(); setDragging(true); } }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false); }}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); const fs = [...e.dataTransfer.files]; if (fs.length && c.canSend) setAttachFiles(fs); }}>
       <header className="convo__head">
         <span className="convo__back"><OvalButton icon="arrow-left" label="Chats" size="sm" variant="ghost" onClick={onBack} /></span>
         <button type="button" className="convo__whobtn" onClick={onInfo} disabled={!onInfo || c.kind !== 'group'} aria-expanded={c.kind === 'group' ? !!infoOpen : undefined} aria-label={c.kind === 'group' ? 'Group info' : undefined}>
@@ -217,9 +224,12 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
       </header>
       <PinnedBar c={c} />
       {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
-      <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} />
-      {c.canSend ? <Composer id={id} replyTo={replyTo} editing={editing} onDone={() => { setReplyTo(null); setEditing(null); }} /> : <LockedComposer c={c} onGone={onBack} />}
+      <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />
+      {c.canSend ? <Composer id={id} replyTo={replyTo} editing={editing} onDone={() => { setReplyTo(null); setEditing(null); }} onFiles={setAttachFiles} /> : <LockedComposer c={c} onGone={onBack} />}
+      {dragging && <div className="drop-hint" aria-hidden><Icon name="upload" size={32} /> Drop files to send them to {name}</div>}
     </section>
+    {attachFiles && <AttachDialog files={attachFiles} name={name} replyToId={replyTo?.id ?? undefined} onClose={() => setAttachFiles(null)} onAdded={() => setReplyTo(null)} />}
+    {viewerAt && <MediaViewer items={items} start={viewerAt} onClose={() => setViewerAt(null)} />}
     {forwarding && <ForwardDialog m={forwarding} from={id} onClose={() => setForwarding(null)} />}
     {deleting && <DeleteDialog m={deleting} c={c} onClose={() => setDeleting(null)} />}
     {infoOf && <MessageInfoPanel convId={id} m={infoOf} onClose={() => setInfoOf(null)} />}
@@ -227,7 +237,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
   );
 }
 
-function Thread({ id, items, me, typing, loading, hasMore, group, c, jump }: { id: string; items: ThreadItem[]; me: string; typing: boolean; loading: boolean; hasMore: boolean; group: boolean; c: ConversationSummary; jump: MutableRefObject<(seq: number) => void> }) {
+function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpenMedia }: { id: string; items: ThreadItem[]; me: string; typing: boolean; loading: boolean; hasMore: boolean; group: boolean; c: ConversationSummary; jump: MutableRefObject<(seq: number) => void>; onOpenMedia: (key: string) => void }) {
   const engine = useEngine();
   const box = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -272,13 +282,13 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump }: { i
           const sep = day !== lastDay; lastDay = day;
           const prev = items[i - 1];
           // In groups, others' messages carry the sender's name at the start of each run.
-          const showName = group && m.type === 'text' && m.senderId !== me && (sep || !prev || prev.type === 'system' || prev.senderId !== m.senderId);
+          const showName = group && m.type !== 'system' && m.senderId !== me && (sep || !prev || prev.type === 'system' || prev.senderId !== m.senderId);
           return (
             <div key={m.key} style={{ display: 'contents' }}>
               {sep && <div className="day-sep">{day}</div>}
               {m.type === 'system' && m.system
                 ? <div className="sys-line" data-testid="system-line">{systemText(m.system, m.senderId, (u) => engine.nameOf(u))}</div>
-                : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} c={c} />}
+                : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} c={c} onOpenMedia={onOpenMedia} />}
             </div>
           );
         })}
@@ -288,18 +298,19 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump }: { i
   );
 }
 
-function Bubble({ m, mine, sender, c }: { m: ThreadItem; mine: boolean; sender?: string | null; c: ConversationSummary }) {
+function Bubble({ m, mine, sender, c, onOpenMedia }: { m: ThreadItem; mine: boolean; sender?: string | null; c: ConversationSummary; onOpenMedia: (key: string) => void }) {
   const engine = useEngine();
   const act = useActions();
   const failed = m.tick === 'failed';
   return (
     <div className={`msg ${mine ? 'msg--me' : 'msg--them'}`} data-testid="message" data-tick={m.tick ?? undefined} data-seq={m.seq ?? undefined}>
       <div className="msg__row">
-      <div className={`ys-bubble ys-bubble--${mine ? 'me' : 'them'}${m.deleted ? ' ys-bubble--deleted' : ''}`} style={m.tick === 'pending' || failed ? { opacity: 0.75 } : undefined}>
+      <div className={`ys-bubble ys-bubble--${mine ? 'me' : 'them'}${m.deleted ? ' ys-bubble--deleted' : ''}${m.attachment && !m.deleted ? ` ys-bubble--media ys-bubble--${m.attachment.kind}` : ''}`} style={(m.tick === 'pending' && !m.upload) || failed ? { opacity: m.upload ? 1 : 0.75 } : undefined}>
         {sender && <span className="msg__sender" style={{ color: senderColor(m.senderId) }}>{sender}</span>}
         {m.forwarded && !m.deleted && <span className="msg__fwd"><Icon name="forward" size={12} /> Forwarded</span>}
         {m.replyTo && !m.deleted && <Quote r={m.replyTo} onClick={() => act.jumpTo(m.replyTo!.seq)} />}
-        <span className="msg__text">{m.deleted ? <em><Icon name="slash" size={14} /> {mine ? 'You deleted this message' : 'This message was deleted'}</em> : m.text}</span>
+        {m.attachment && !m.deleted && <MediaContent m={m} onOpen={() => onOpenMedia(m.key)} />}
+        {(m.deleted || m.text) && <span className="msg__text">{m.deleted ? <em><Icon name="slash" size={14} /> {mine ? 'You deleted this message' : 'This message was deleted'}</em> : m.text}</span>}
         <span className="ys-bubble__meta">
           {m.starred && <Icon name="star" size={12} title="Starred" />}
           {m.editedAt && <span>Edited</span>}
@@ -310,7 +321,7 @@ function Bubble({ m, mine, sender, c }: { m: ThreadItem; mine: boolean; sender?:
       <ActionBar m={m} c={c} />
       </div>
       <Reactions m={m} c={c} />
-      {failed && (
+      {failed && !m.upload && (
         <span className="msg__failed">
           <button type="button" onClick={() => void engine.retry(m.clientId)}><Icon name="refresh" size={14} /> Not sent. Retry</button>
           <button type="button" onClick={() => void engine.discard(m.clientId)}><Icon name="trash" size={14} /> Delete</button>
@@ -335,8 +346,10 @@ function LockedComposer({ c, onGone }: { c: ConversationSummary; onGone: () => v
   );
 }
 
-function Composer({ id, replyTo, editing, onDone }: { id: string; replyTo: ThreadItem | null; editing: ThreadItem | null; onDone: () => void }) {
+function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; replyTo: ThreadItem | null; editing: ThreadItem | null; onDone: () => void; onFiles: (f: File[]) => void }) {
   const engine = useEngine();
+  const [recording, setRecording] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const drafts = useRef<Record<string, string>>({});
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -361,6 +374,11 @@ function Composer({ id, replyTo, editing, onDone }: { id: string; replyTo: Threa
     onDone();
     try { await engine.send(id, t, { replyToId: reply }); } catch (e) { setText(t); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
   };
+  // A screenshot pasted into the box opens the send sheet.
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const fs = [...e.clipboardData.files];
+    if (fs.length && !editing) { e.preventDefault(); onFiles(fs); }
+  };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); }
     if (e.key === 'Escape' && (editing || replyTo)) { e.preventDefault(); onDone(); }
@@ -375,13 +393,18 @@ function Composer({ id, replyTo, editing, onDone }: { id: string; replyTo: Threa
         </div>
       )}
       {(error || tooLong) && <span className="composer__error" role="alert">{tooLong ? `Messages can be up to ${MAX_TEXT} characters (${len} now).` : error}</span>}
+      {recording ? <RecorderBar convId={id} replyToId={replyTo?.id ?? undefined} onDone={() => { setRecording(false); onDone(); }} /> : (
       <div className="composer__row">
+        {!editing && <OvalButton icon="paperclip" label="Attach" size="sm" variant="ghost" onClick={() => fileInput.current?.click()} />}
+        <input ref={fileInput} type="file" multiple hidden aria-label="Attach files" onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; if (fs.length) onFiles(fs); }} />
         <label htmlFor="composer" className="sr-only">Message</label>
         <textarea id="composer" ref={ta} rows={1} value={text} placeholder="Message" maxLength={MAX_TEXT * 2 + 10}
           onChange={(e) => { setText(e.target.value); drafts.current[id] = e.target.value; setError(null); engine.typing(id, e.target.value.trim().length > 0); }}
-          onKeyDown={onKey} onBlur={() => engine.typing(id, false)} />
-        <OvalButton type="submit" icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} size="md" disabled={!text.trim() || tooLong} />
-      </div>
+          onKeyDown={onKey} onPaste={onPaste} onBlur={() => engine.typing(id, false)} />
+        {!text.trim() && !editing
+          ? <OvalButton icon="mic" label="Record" size="md" onClick={() => setRecording(true)} />
+          : <OvalButton type="submit" icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} size="md" disabled={!text.trim() || tooLong} />}
+      </div>)}
     </form>
   );
 }

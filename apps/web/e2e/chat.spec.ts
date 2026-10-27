@@ -62,9 +62,11 @@ test.describe('Week 3 · chatting on the web', () => {
     const a = await pageAs(browser, ali);
     await startChat(a.page, sara);
     const box = a.page.getByLabel('Message', { exact: true });
-    await expect(a.page.getByRole('button', { name: 'Send' })).toBeDisabled();
+    // With nothing typed, the button records a voice message instead of sending.
+    await expect(a.page.getByRole('button', { name: 'Send' })).toHaveCount(0);
+    await expect(a.page.getByRole('button', { name: 'Record' })).toBeVisible();
     await box.fill('   ');
-    await expect(a.page.getByRole('button', { name: 'Send' })).toBeDisabled();
+    await expect(a.page.getByRole('button', { name: 'Send' })).toHaveCount(0);
     await box.press('Enter');
     await expect(messages(a.page)).toHaveCount(0);
     await box.fill('line one');

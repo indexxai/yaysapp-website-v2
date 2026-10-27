@@ -1,13 +1,13 @@
 'use client';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ApiError, DELETE_FOR_EVERYONE_MINUTES, EDIT_WINDOW_MINUTES, MAX_FORWARD_TARGETS, QUICK_REACTIONS, clock, type ConversationSummary, type MessageInfo, type ThreadItem } from '@yays/shared';
+import { ApiError, messagePreview, DELETE_FOR_EVERYONE_MINUTES, EDIT_WINDOW_MINUTES, MAX_FORWARD_TARGETS, QUICK_REACTIONS, clock, type ConversationSummary, type MessageInfo, type ThreadItem } from '@yays/shared';
 import { Icon, type IconName } from '@/lib/icons';
 import { useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
 
 const minutesSince = (iso: string) => (Date.now() - Date.parse(iso)) / 60000;
 export const canEdit = (m: ThreadItem) => m.mine && !!m.id && m.type === 'text' && !m.deleted && !m.forwarded && minutesSince(m.createdAt) <= EDIT_WINDOW_MINUTES;
-export const canDeleteForEveryone = (m: ThreadItem, c: ConversationSummary) => !!m.id && !m.deleted && m.type === 'text' && c.canSend !== undefined &&
+export const canDeleteForEveryone = (m: ThreadItem, c: ConversationSummary) => !!m.id && !m.deleted && m.type !== 'system' && c.canSend !== undefined &&
   ((m.mine && minutesSince(m.createdAt) <= DELETE_FOR_EVERYONE_MINUTES) || (!m.mine && c.group?.role === 'admin'));
 
 /** What the conversation is doing with a message: replying, editing, forwarding, deleting, or showing info. */
@@ -53,7 +53,8 @@ export function ActionBar({ m, c }: { m: ThreadItem; c: ConversationSummary }) {
   const canPin = member && (c.kind === 'direct' || c.group?.role === 'admin' || c.group?.settings.pin === 'all');
   const run = (fn: () => Promise<unknown>, f: string) => { setOpen(null); void fn().catch((e) => act.error(errText(e, f))); };
   const items: Array<[IconName, string, () => void, boolean?]> = [
-    ['copy', 'Copy', () => { void navigator.clipboard?.writeText(m.text).catch(() => undefined); setOpen(null); }],
+    ...(m.text ? [['copy', 'Copy', () => { void navigator.clipboard?.writeText(m.text).catch(() => undefined); setOpen(null); }] as [IconName, string, () => void]] : []),
+    ...(m.attachment?.url ? [['download', 'Download', () => { setOpen(null); const l = document.createElement('a'); l.href = m.attachment!.url; l.download = m.attachment!.name; l.click(); }] as [IconName, string, () => void]] : []),
     ...(canEdit(m) ? [['edit', 'Edit', () => { setOpen(null); act.edit(m); }] as [IconName, string, () => void]] : []),
     ...(canPin ? [['pin', pinned ? 'Unpin' : 'Pin', () => run(() => engine.pin(c.id, m.id!, !pinned), 'Could not pin.')] as [IconName, string, () => void]] : []),
     ['star', m.starred ? 'Unstar' : 'Star', () => run(() => engine.star(c.id, m.id!, !m.starred), 'Could not star.')],
@@ -111,8 +112,9 @@ export function Quote({ r, onClick }: { r: NonNullable<ThreadItem['replyTo']>; o
   const engine = useEngine();
   return (
     <button type="button" className="quote" onClick={onClick} aria-label={`Replying to ${engine.nameOf(r.senderId)}`}>
-      <strong>{engine.nameOf(r.senderId)}</strong>
-      <span>{r.deleted ? 'This message was deleted' : r.text}</span>
+      <span className="quote__body"><strong>{engine.nameOf(r.senderId)}</strong>
+      <span>{messagePreview({ text: r.text, deleted: r.deleted, attachment: r.attachment })}</span></span>
+      {r.attachment?.thumbUrl && !r.deleted && <img className="quote__thumb" src={r.attachment.thumbUrl} alt="" />}
     </button>
   );
 }
@@ -177,7 +179,7 @@ export function ForwardDialog({ m, from, onClose }: { m: ThreadItem; from: strin
   };
   return (
     <Modal title="Forward to…" onClose={onClose}>
-      <div className="fwd-preview"><Icon name="forward" size={16} /><span>{m.text}</span></div>
+      <div className="fwd-preview"><Icon name="forward" size={16} /><span>{messagePreview(m)}</span></div>
       <div className="ys-field ys-field--pill"><label className="ys-field__label sr-only" htmlFor="fwdq">Search chats</label>
         <div className="ys-field__box"><Icon name="search" size={18} /><input id="fwdq" className="ys-input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search chats" /></div></div>
       <div className="picker__list fwd-list" role="group" aria-label="Recent chats">

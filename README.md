@@ -37,8 +37,8 @@ In development no SMS or email is sent. The last code for a number or email is a
 Each week's work ships with end-to-end tests that run against a real MongoDB replica set and Redis.
 
 ```bash
-pnpm --filter @yays/api test:e2e        # backend and chat engine: 120 tests
-pnpm --filter @yays/web test:e2e        # browser: 29 tests (Playwright, desktop and phone)
+pnpm --filter @yays/api test:e2e        # backend and chat engine: 126 tests
+pnpm --filter @yays/web test:e2e        # browser: 35 tests (Playwright, desktop and phone)
 pnpm --filter @yays/landing test:e2e    # landing: 19 tests
 pnpm --filter @yays/mobile test         # mobile screens: 3 tests
 pnpm --filter @yays/mobile test:e2e     # mobile screens against the live API: 10 tests

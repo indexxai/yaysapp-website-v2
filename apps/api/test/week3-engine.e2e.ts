@@ -193,3 +193,50 @@ describe('Week 3 · chat engine (what web and mobile run) against the live serve
     await waitFor(() => texts(s, c.id).includes('sent while the server was down'), 'Sara gets it', 20000);
   });
 });
+
+describe('Media in the chat engine', () => {
+  let t: TestApp; let ali: TUser; let sara: TUser;
+  beforeAll(async () => { t = await startApp(); ali = await makeUser(t, 'Ali'); sara = await makeUser(t, 'Sara'); });
+  afterAll(async () => { await t.close(); });
+
+  it('uploads a file with progress, then sends it; a failed upload can be retried; cancelling leaves nothing', async () => {
+    const sw = await new NetSwitch(Number(new URL(t.url).port)).listen();
+    // PUBLIC_URL in tests is not reachable, so upload links are pointed at the switch.
+    const tokens = { v: ali.body.tokens as Tokens | null };
+    const client = new YaysClient({ baseUrl: sw.url, tokens: { get: () => tokens.v, set: (x) => { tokens.v = x; } }, device: device(9), timeoutMs: 4000 });
+    const progress: number[] = [];
+    const engine = new ChatEngine({ client, me: ali.id, ackTimeoutMs: 2000, uploader: async (tk, file, onProgress, signal) => {
+      const r = await fetch(sw.url + new URL(tk.uploadUrl).pathname, { method: 'PUT', headers: tk.headers, body: file, signal });
+      if (!r.ok) throw new Error('upload failed');
+      onProgress(file.size); progress.push(file.size);
+    } });
+    try {
+      await engine.start();
+      const c = await engine.startDirect(sara.id);
+      const png = new Blob([Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), Buffer.alloc(3000, 1)])], { type: 'image/png' });
+      const id = engine.sendFile(c.id, { file: png, kind: 'image', name: 'a.png', caption: 'look', width: 10, height: 10, thumb: new Blob([Buffer.from('ffd8ffe0', 'hex')], { type: 'image/jpeg' }) });
+      expect(engine.getState().uploads[id]).toMatchObject({ status: 'uploading', name: 'a.png', caption: 'look' });
+      await waitFor(() => !engine.getState().uploads[id] && engine.getState().outbox.length === 0, 'sent', 15000);
+      const got = (await t.http.get(`/v1/conversations/${c.id}/messages`).set(sara.auth).expect(200)).body.items;
+      expect(got[0]).toMatchObject({ type: 'media', text: 'look', clientId: id, attachment: { kind: 'image', name: 'a.png', thumbUrl: expect.any(String) } });
+      expect(progress.length).toBe(2); // the file and its preview
+
+      // No network: the upload fails, then works on retry.
+      sw.down();
+      const id2 = engine.sendFile(c.id, { file: png, kind: 'image', name: 'b.png' });
+      await waitFor(() => engine.getState().uploads[id2]?.status === 'failed', 'failed', 15000);
+      expect(engine.thread(c.id).find((x) => x.clientId === id2)).toMatchObject({ tick: 'failed', upload: { status: 'failed' } });
+      sw.up();
+      engine.retryUpload(id2);
+      await waitFor(() => !engine.getState().uploads[id2] && !engine.getState().outbox.some((p) => p.clientId === id2), 'retried', 20000);
+      const id3 = engine.sendFile(c.id, { file: png, kind: 'image', name: 'c.png' });
+      engine.cancelUpload(id3);
+      expect(engine.getState().uploads[id3]).toBeUndefined();
+      await sleep(500);
+      const all = (await t.http.get(`/v1/conversations/${c.id}/messages`).set(sara.auth).expect(200)).body.items.map((m: { attachment?: { name: string } }) => m.attachment?.name);
+      expect(all).toEqual(['a.png', 'b.png']);
+      // Too big is refused before uploading anything.
+      expect(() => engine.sendFile(c.id, { file: new Blob([new Uint8Array(17 * 1024 * 1024)], { type: 'image/png' }), kind: 'image', name: 'huge.png' })).toThrow('huge.png is 17 MB. The limit is 16 MB.');
+    } finally { engine.stop(); await sw.close(); }
+  });
+});

@@ -21,7 +21,7 @@ test('on a phone, the chat list and a chat each take the whole screen', async ({
   await expect(a.page.getByRole('navigation', { name: 'Chats' })).toBeHidden();
   await a.page.getByLabel('Message', { exact: true }).fill('from my phone');
   await a.page.getByLabel('Message', { exact: true }).press('Enter');
-  await expect(a.page.getByRole('button', { name: 'Send' })).toBeInViewport();
+  await expect(a.page.getByRole('button', { name: 'Record' })).toBeInViewport();
   const overflow = await a.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   await a.page.getByRole('button', { name: 'Chats' }).click();

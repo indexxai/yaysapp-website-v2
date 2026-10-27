@@ -174,7 +174,7 @@ test.describe('Groups on the web', () => {
     await a.page.getByRole('button', { name: 'Group info' }).click();
     await info(a.page).getByRole('button', { name: 'Leave group' }).click();
     await info(a.page).getByRole('button', { name: 'Leave', exact: true }).click();
-    await expect(a.page.getByRole('status').filter({ hasText: 'You’re no longer in this group.' })).toBeVisible();
+    await expect(a.page.locator('.composer--locked')).toContainText('You’re no longer in this group.');
     await expect(sys(s.page)).toContainText(['Ali left', 'You are now an admin']);
     await s.page.getByRole('button', { name: 'Group info' }).click();
     await expect(info(s.page).getByRole('button', { name: 'Edit' })).toBeVisible();

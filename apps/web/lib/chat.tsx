@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ChatEngine, type ChatCache, type ChatSnapshot, type ChatState, type OutboxStore, type PendingMessage } from '@yays/shared';
 import { api } from './api';
+import { xhrUploader } from './media';
 
 /** Chat list and recent messages kept in this browser, so chats show at once and offline. */
 function localCache(me: string): ChatCache {
@@ -27,7 +28,7 @@ function localOutbox(me: string): OutboxStore {
 export function ChatProvider({ me, onSignedOut, children }: { me: string; onSignedOut: () => void; children: ReactNode }) {
   const [engine, setEngine] = useState<ChatEngine | null>(null);
   useEffect(() => {
-    const e = new ChatEngine({ client: api(), me, outbox: localOutbox(me), cache: localCache(me), onSignedOut });
+    const e = new ChatEngine({ client: api(), me, outbox: localOutbox(me), cache: localCache(me), onSignedOut, uploader: xhrUploader });
     setEngine(e);
     void e.start();
     // A chat counts as read only while its tab is showing.

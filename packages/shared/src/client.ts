@@ -1,11 +1,13 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, PublicProfile, Tokens } from './types';
-import type { ChatMessage, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { AttachmentInput, AttachmentKind, ChatMessage, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
   set(tokens: Tokens | null): void | Promise<void>;
 }
+
+export interface UploadTicket { key: string; uploadUrl: string; method: 'PUT'; headers: Record<string, string>; expiresAt: string }
 
 export interface DeviceInfo { deviceId: string; platform: 'ios' | 'android' | 'web'; name?: string; appVersion?: string }
 
@@ -139,8 +141,12 @@ export class YaysClient {
     const s = q.toString();
     return this.request<MessagePage>('GET', `/v1/conversations/${encodeURIComponent(conversationId)}/messages${s ? `?${s}` : ''}`);
   }
-  sendMessage(conversationId: string, clientId: string, text: string, replyToId?: string) {
-    return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/messages`, { clientId, text, ...(replyToId ? { replyToId } : {}) });
+  sendMessage(conversationId: string, clientId: string, text: string, replyToId?: string, attachment?: AttachmentInput) {
+    return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/messages`, { clientId, text, ...(replyToId ? { replyToId } : {}), ...(attachment ? { attachment } : {}) });
+  }
+  /** A signed link to upload one file to. */
+  uploadTicket(body: { purpose: 'media' | 'thumb' | 'avatar'; kind?: AttachmentKind; contentType: string; size: number; name?: string }) {
+    return this.request<UploadTicket>('POST', '/v1/media/upload-url', body);
   }
   private msgUrl(c: string, m: string, tail = '') { return `/v1/conversations/${encodeURIComponent(c)}/messages/${encodeURIComponent(m)}${tail}`; }
   editMessage(c: string, m: string, text: string) { return this.request<ChatMessage>('PATCH', this.msgUrl(c, m), { text }); }

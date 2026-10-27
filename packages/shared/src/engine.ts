@@ -1,8 +1,8 @@
 import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
-import type { YaysClient } from './client';
+import type { UploadTicket, YaysClient } from './client';
 import type { PublicProfile } from './types';
-import { tickFor, type Ack, type Attachment, type ChatMessage, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
+import { MEDIA_LIMITS, baseMime, formatBytes, tickFor, type Ack, type Attachment, type AttachmentInput, type AttachmentKind, type ChatMessage, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
 
 /** A message typed on this device that the server has not confirmed yet. Kept on the device until it has. */
 export interface PendingMessage {
@@ -14,7 +14,36 @@ export interface PendingMessage {
   status: 'pending' | 'failed';
   error?: string;
   replyToId?: string;
+  /** The uploaded file this message carries. */
+  attachment?: AttachmentInput;
+  /** What to show while it waits: name, size, type (and a local picture while the app is open). */
+  preview?: { kind: AttachmentKind; name: string; size: number; mime: string; width?: number; height?: number; durationMs?: number; waveform?: number[] };
 }
+
+/** A file being uploaded before its message can be queued. Lives in memory only. */
+export interface Upload {
+  clientId: string; conversationId: string; createdAt: string;
+  kind: AttachmentKind; name: string; size: number; mime: string;
+  caption: string; replyToId?: string;
+  width?: number; height?: number; durationMs?: number; waveform?: number[];
+  /** Shown in the bubble until the server's links arrive: an object URL made by the app. */
+  localUrl?: string; localThumbUrl?: string;
+  sent: number; status: 'uploading' | 'failed'; error?: string;
+  /** Picking order, so a batch is sent in that order. */
+  order: number;
+}
+export interface FileToSend {
+  file: Blob; kind: AttachmentKind; name: string; caption?: string; replyToId?: string;
+  thumb?: Blob; width?: number; height?: number; durationMs?: number; waveform?: number[];
+  localUrl?: string; localThumbUrl?: string;
+}
+/** Sends a file to an upload link and reports progress. Apps supply one (the web uses XMLHttpRequest for progress). */
+export type Uploader = (t: UploadTicket, file: Blob, onProgress: (sent: number) => void, signal: AbortSignal) => Promise<void>;
+const fetchUploader: Uploader = async (t, file, onProgress, signal) => {
+  const r = await fetch(t.uploadUrl, { method: 'PUT', headers: t.headers, body: file, signal });
+  if (!r.ok) throw new ApiError(r.status, 'internal_error', 'The upload failed. Try again.');
+  onProgress(file.size);
+};
 
 /** Where the unsent queue survives an app restart: localStorage on web, AsyncStorage on mobile. */
 export interface OutboxStore { load(): Promise<PendingMessage[]> | PendingMessage[]; save(items: PendingMessage[]): Promise<void> | void }
@@ -41,10 +70,14 @@ export interface ChatState {
   groups: Record<string, GroupInfo>;
   /** Names and photos of people seen in groups, for sender names and "Ali added Sara" lines. */
   people: Record<string, PublicProfile>;
+  /** Files uploading right now, by clientId. */
+  uploads: Record<string, Upload>;
 }
 
 export interface ThreadItem {
-  key: string; mine: boolean; type: 'text' | 'system' | 'media'; text: string; system?: SystemEvent; attachment?: Attachment; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string;
+  key: string; mine: boolean; type: 'text' | 'system' | 'media'; text: string; system?: SystemEvent; attachment?: Attachment;
+  /** While the file is still uploading. */
+  upload?: { sent: number; total: number; status: 'uploading' | 'failed'; error?: string }; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string;
   /** The server's id; null while still waiting to send. */
   id: string | null;
   replyTo?: ReplyPreview | null; forwarded?: boolean; editedAt?: string; deleted?: boolean; reactions?: Record<string, string[]>; starred?: boolean;
@@ -67,6 +100,7 @@ export interface EngineOptions {
   /** How long to wait for the server to confirm a message before trying again. */
   ackTimeoutMs?: number;
   onSignedOut?: () => void;
+  uploader?: Uploader;
 }
 
 const TYPING_SHOWN_MS = 6000;
@@ -92,7 +126,7 @@ const byActivity = (cs: Record<string, ConversationSummary>) => Object.values(cs
  * ticks, typing and online status. Screens read `getState()` and re-render on `subscribe`.
  */
 export class ChatEngine {
-  private state: ChatState = { connection: 'connecting', conversations: {}, order: [], listLoaded: false, listNext: null, threads: {}, outbox: [], typing: {}, presence: {}, active: null, signedOut: false, groups: {}, people: {} };
+  private state: ChatState = { connection: 'connecting', conversations: {}, order: [], listLoaded: false, listNext: null, threads: {}, outbox: [], typing: {}, presence: {}, active: null, signedOut: false, groups: {}, people: {}, uploads: {} };
   private listeners = new Set<() => void>();
   private socket?: Socket<ServerEvents, ClientEvents>;
   private flushing = false;
@@ -175,6 +209,7 @@ export class ChatEngine {
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = undefined; this.saveNow(); }
     this.stopped = true;
     clearTimeout(this.flushTimer); clearInterval(this.typingTimer); clearTimeout(this.peopleTimer);
+    for (const c of this.uploadAborts.values()) c.abort();
     this.socket?.removeAllListeners(); this.socket?.disconnect(); this.socket = undefined;
     this.listeners.clear();
   }
@@ -420,7 +455,20 @@ export class ChatEngine {
     for (const p of this.state.outbox) {
       if (p.conversationId !== id || confirmed.has(p.clientId)) continue;
       const quoted = p.replyToId ? t?.items.find((x) => x.id === p.replyToId) : undefined;
-      items.push({ key: p.clientId, id: null, replyTo: quoted ? { id: quoted.id, seq: quoted.seq, senderId: quoted.senderId, type: quoted.type, text: quoted.text, deleted: !!quoted.deleted } : null, mine: true, type: 'text', text: p.text, createdAt: p.createdAt, seq: null, senderId: me, clientId: p.clientId, tick: p.status === 'failed' ? 'failed' : 'pending' });
+      const local = this.localUrls.get(p.clientId);
+      items.push({
+        key: p.clientId, id: null, replyTo: quoted ? { id: quoted.id, seq: quoted.seq, senderId: quoted.senderId, type: quoted.type, text: quoted.text, deleted: !!quoted.deleted } : null, mine: true,
+        type: p.preview ? 'media' : 'text', text: p.text, createdAt: p.createdAt, seq: null, senderId: me, clientId: p.clientId, tick: p.status === 'failed' ? 'failed' : 'pending',
+        ...(p.preview ? { attachment: { ...p.preview, url: local?.url ?? '', thumbUrl: local?.thumb ?? null } } : {}),
+      });
+    }
+    for (const u of Object.values(this.state.uploads)) {
+      if (u.conversationId !== id) continue;
+      items.push({
+        key: u.clientId, id: null, mine: true, type: 'media', text: u.caption, createdAt: u.createdAt, seq: null, senderId: me, clientId: u.clientId, tick: u.status === 'failed' ? 'failed' : 'pending',
+        attachment: { kind: u.kind, name: u.name, size: u.size, mime: u.mime, url: u.localUrl ?? '', thumbUrl: u.localThumbUrl ?? null, width: u.width, height: u.height, durationMs: u.durationMs, waveform: u.waveform },
+        upload: { sent: u.sent, total: u.size, status: u.status, error: u.error },
+      });
     }
     return items;
   }
@@ -437,11 +485,113 @@ export class ChatEngine {
     return p.clientId;
   }
 
+  // ---------- files ----------
+  private uploadFiles = new Map<string, FileToSend>();
+  private uploadCount = 0;
+  private uploadAborts = new Map<string, AbortController>();
+  /** Local pictures for my unsent files, kept while the app is open (clientId → object URLs). */
+  private localUrls = new Map<string, { url?: string; thumb?: string }>();
+
+  /** Uploads a file, then queues its message like any other. Returns its clientId. */
+  sendFile(conversationId: string, f: FileToSend): string {
+    const max = MEDIA_LIMITS[f.kind];
+    if (f.file.size > max) throw new ApiError(400, 'validation_failed', `${f.name} is ${formatBytes(f.file.size)}. The limit is ${formatBytes(max)}.`);
+    if (!f.file.size) throw new ApiError(400, 'validation_failed', `${f.name} is empty.`);
+    const clientId = uuid();
+    const u: Upload = {
+      clientId, conversationId, createdAt: new Date().toISOString(), kind: f.kind, name: f.name, size: f.file.size, mime: baseMime(f.file.type || 'application/octet-stream'),
+      caption: (f.caption ?? '').trim(), replyToId: f.replyToId, width: f.width, height: f.height, durationMs: f.durationMs, waveform: f.waveform,
+      localUrl: f.localUrl, localThumbUrl: f.localThumbUrl, sent: 0, status: 'uploading', order: ++this.uploadCount,
+    };
+    this.uploadFiles.set(clientId, f);
+    this.localUrls.set(clientId, { url: f.localUrl, thumb: f.localThumbUrl });
+    this.set({ uploads: { ...this.state.uploads, [clientId]: u } });
+    void this.runUpload(clientId);
+    return clientId;
+  }
+
+  private patchUpload(id: string, patch: Partial<Upload>) {
+    const cur = this.state.uploads[id];
+    if (cur) this.set({ uploads: { ...this.state.uploads, [id]: { ...cur, ...patch } } });
+  }
+
+  private async runUpload(id: string) {
+    const f = this.uploadFiles.get(id);
+    const u = this.state.uploads[id];
+    if (!f || !u) return;
+    const ctrl = new AbortController();
+    this.uploadAborts.set(id, ctrl);
+    const put = this.o.uploader ?? fetchUploader;
+    try {
+      const t = await this.o.client.uploadTicket({ purpose: 'media', kind: u.kind, contentType: u.mime, size: u.size, name: u.name });
+      let last = 0;
+      await put(t, f.file, (sent) => { if (sent - last > u.size / 50 || sent === u.size) { last = sent; this.patchUpload(id, { sent }); } }, ctrl.signal);
+      let thumbKey: string | undefined;
+      if (f.thumb) {
+        try {
+          const tt = await this.o.client.uploadTicket({ purpose: 'thumb', contentType: f.thumb.type || 'image/jpeg', size: f.thumb.size });
+          await put(tt, f.thumb, () => undefined, ctrl.signal);
+          thumbKey = tt.key;
+        } catch (e) { if (ctrl.signal.aborted) throw e; /* a missing preview is not worth failing the send */ }
+      }
+      if (ctrl.signal.aborted || !this.state.uploads[id]) return;
+      this.uploadFiles.delete(id);
+      this.ready.set(id, {
+        clientId: id, conversationId: u.conversationId, text: u.caption, createdAt: u.createdAt, attempts: 0, status: 'pending', ...(u.replyToId ? { replyToId: u.replyToId } : {}),
+        attachment: { kind: u.kind, key: t.key, ...(thumbKey ? { thumbKey } : {}), name: u.name, ...(u.width ? { width: u.width, height: u.height } : {}), ...(u.durationMs !== undefined ? { durationMs: u.durationMs } : {}), ...(u.waveform ? { waveform: u.waveform } : {}) },
+        preview: { kind: u.kind, name: u.name, size: u.size, mime: u.mime, width: u.width, height: u.height, durationMs: u.durationMs, waveform: u.waveform },
+      });
+      await this.releaseUploads();
+    } catch (e) {
+      if (ctrl.signal.aborted) return;
+      this.patchUpload(id, { status: 'failed', error: e instanceof ApiError && e.status !== 0 ? e.message : 'The upload failed. Check your connection and try again.' });
+      await this.releaseUploads();
+    } finally { this.uploadAborts.delete(id); }
+  }
+
+  /** Finished uploads, waiting for earlier ones so a batch arrives in the order it was picked. */
+  private ready = new Map<string, PendingMessage>();
+  private async releaseUploads() {
+    const out: PendingMessage[] = [];
+    // Per chat: an upload still running holds back later ones in the same chat only.
+    const byChat = new Map<string, Upload[]>();
+    for (const u of Object.values(this.state.uploads)) byChat.set(u.conversationId, [...(byChat.get(u.conversationId) ?? []), u]);
+    for (const list of byChat.values()) {
+      for (const u of list.sort((a, b) => a.order - b.order)) {
+        const p = this.ready.get(u.clientId);
+        if (p) { out.push(p); this.ready.delete(u.clientId); continue; }
+        if (u.status === 'failed') continue; // a failed upload doesn't hold the others back
+        break;
+      }
+    }
+    if (!out.length) return;
+    const gone = new Set(out.map((p) => p.clientId));
+    this.set({ uploads: Object.fromEntries(Object.entries(this.state.uploads).filter(([k]) => !gone.has(k))) });
+    await this.setOutbox([...this.state.outbox, ...out]);
+    void this.flush(true);
+  }
+
+  /** Stops an upload and removes it. */
+  cancelUpload(id: string) {
+    this.uploadAborts.get(id)?.abort();
+    this.uploadFiles.delete(id);
+    this.localUrls.delete(id);
+    this.ready.delete(id);
+    const { [id]: _gone, ...uploads } = this.state.uploads;
+    this.set({ uploads });
+    void this.releaseUploads();
+  }
+  retryUpload(id: string) {
+    if (!this.uploadFiles.has(id)) return;
+    this.patchUpload(id, { status: 'uploading', sent: 0, error: undefined });
+    void this.runUpload(id);
+  }
+
   async retry(clientId: string) {
     await this.setOutbox(this.state.outbox.map((p) => (p.clientId === clientId ? { ...p, status: 'pending', attempts: 0, error: undefined } : p)));
     void this.flush(true);
   }
-  async discard(clientId: string) { await this.setOutbox(this.state.outbox.filter((p) => p.clientId !== clientId)); }
+  async discard(clientId: string) { this.localUrls.delete(clientId); await this.setOutbox(this.state.outbox.filter((p) => p.clientId !== clientId)); }
 
   /** Sends the queue one message at a time, oldest first, so messages arrive in the order they were typed. */
   private async flush(now = false) {
@@ -455,6 +605,7 @@ export class ChatEngine {
         if (!p || this.stopped) break;
         const r = await this.sendOne(p);
         if (r.kind === 'sent') {
+          this.localUrls.delete(p.clientId);
           this.onMessage(r.message);
           await this.setOutbox(this.state.outbox.filter((x) => x.clientId !== p.clientId));
         } else if (r.kind === 'failed') {
@@ -480,13 +631,13 @@ export class ChatEngine {
     const s = this.socket;
     if (s?.connected) {
       try {
-        const r = (await s.timeout(this.ackTimeout).emitWithAck('msg:send', { conversationId: p.conversationId, clientId: p.clientId, text: p.text, ...(p.replyToId ? { replyToId: p.replyToId } : {}) })) as Ack<SendResult>;
+        const r = (await s.timeout(this.ackTimeout).emitWithAck('msg:send', { conversationId: p.conversationId, clientId: p.clientId, text: p.text, ...(p.replyToId ? { replyToId: p.replyToId } : {}), ...(p.attachment ? { attachment: p.attachment } : {}) })) as Ack<SendResult>;
         if (r.ok) return { kind: 'sent', message: r.data.message };
         return classify(r.error.status, r.error.code, r.error.message, r.error.details?.retryAfter as number | undefined);
       } catch { return { kind: 'later' }; } // no answer in time: same clientId next time, so no double
     }
     try {
-      const r = await this.o.client.sendMessage(p.conversationId, p.clientId, p.text, p.replyToId);
+      const r = await this.o.client.sendMessage(p.conversationId, p.clientId, p.text, p.replyToId, p.attachment);
       return { kind: 'sent', message: r.message };
     } catch (e) {
       if (e instanceof ApiError) return e.status === 0 ? { kind: 'later' } : classify(e.status, e.code, e.message, e.retryAfter);
