@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, PublicProfile, Tokens } from './types';
-import type { AttachmentInput, AttachmentKind, ChatMessage, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { AttachmentInput, AttachmentKind, ChatMessage, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -173,6 +173,13 @@ export class YaysClient {
     if (!r.ok) throw new ApiError(r.status, ErrorCode.INTERNAL, "The photo didn't upload. Try again.");
     return t.key;
   }
+
+  // ---- search ----
+  search(q: string, type: 'all' | 'chats' | 'people' | 'messages' | 'files' = 'all', before?: string) {
+    const p = new URLSearchParams({ q, type, ...(before ? { before } : {}) });
+    return this.request<SearchResults>('GET', `/v1/search?${p}`);
+  }
+  searchInChat(conversationId: string, q: string) { return this.request<{ seqs: number[] }>('GET', `/v1/conversations/${encodeURIComponent(conversationId)}/search?q=${encodeURIComponent(q)}`); }
 
   // ---- groups ----
   createGroup(v: { name: string; memberIds: string[]; about?: string; settings?: { send?: 'all' | 'admins' } }) { return this.request<ConversationSummary>('POST', '/v1/groups', v); }

@@ -7,6 +7,7 @@ import { ActionBar, ActionsCtx, DeleteDialog, ForwardDialog, MessageInfoPanel, P
 import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
+import { InChatSearch } from './search';
 
 const TICK_LABEL: Record<Tick, string> = { pending: 'Sending', failed: 'Not sent', sent: 'Sent', delivered: 'Delivered', read: 'Read' };
 
@@ -168,7 +169,7 @@ export function NewChat({ onClose, onOpened }: { onClose: () => void; onOpened: 
 }
 
 // ---------------- conversation ----------------
-export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onBack: () => void; onInfo?: () => void; infoOpen?: boolean }) {
+export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq }: { id: string; onBack: () => void; onInfo?: () => void; infoOpen?: boolean; jumpSeq?: number }) {
   const engine = useEngine();
   const s = useChatState();
   const me = useMe();
@@ -184,17 +185,27 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
   const [attachFiles, setAttachFiles] = useState<File[] | null>(null);
   const [viewerAt, setViewerAt] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [searching, setSearching] = useState(false);
   const jump = useRef<(seq: number) => void>(() => undefined);
+  const jumped = useRef<string | null>(null);
   const actions = useMemo<Actions>(() => ({
     reply: (m) => { setEditing(null); setReplyTo(m); }, edit: (m) => { setReplyTo(null); setEditing(m); },
     forward: setForwarding, remove: setDeleting, info: setInfoOf, jumpTo: (seq) => jump.current(seq), error: setActionError,
   }), []);
-  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setAttachFiles(null); setViewerAt(null); }, [id]);
+  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setAttachFiles(null); setViewerAt(null); setSearching(false); }, [id]);
   useEffect(() => {
     setError(null);
     void engine.open(id).then(() => { if (engine.getState().conversations[id]?.kind === 'group') return engine.loadGroup(id); }).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
     return () => { if (engine.getState().active === id) void engine.open(null); };
   }, [engine, id]);
+  // Opened from a search result: go to that message once the thread is there.
+  const loaded = !!thread?.loaded;
+  useEffect(() => {
+    const k = `${id}:${jumpSeq}`;
+    if (!jumpSeq || !loaded || jumped.current === k) return;
+    jumped.current = k;
+    setTimeout(() => jump.current(jumpSeq), 30);
+  }, [id, jumpSeq, loaded]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const items = useMemo(() => engine.thread(id), [engine, id, thread, s.outbox, s.uploads, c]);
 
@@ -220,8 +231,10 @@ export function Conversation({ id, onBack, onInfo, infoOpen }: { id: string; onB
             <span data-testid="peer-status" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>{status}</span>
           </span>
         </button>
+        <OvalButton icon="search" label="Search" size="sm" variant={searching ? 'soft' : 'ghost'} onClick={() => setSearching((v) => !v)} />
         {c.kind === 'group' && onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'soft' : 'ghost'} onClick={onInfo} />}
       </header>
+      {searching && <InChatSearch convId={id} onJump={(seq) => jump.current(seq)} onClose={() => setSearching(false)} />}
       <PinnedBar c={c} />
       {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
       <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />

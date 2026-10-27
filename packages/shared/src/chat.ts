@@ -285,3 +285,19 @@ export interface ClientEvents {
   /** Which chat this device shows, and whether the app is in front. Decides who gets push notifications. */
   focus: (p: { conversationId: string | null; visible: boolean }) => void;
 }
+
+// ---- search ----
+export interface SearchChat { id: string; kind: 'direct' | 'group'; name: string; photoUrl: string | null; memberCount: number }
+export interface SearchMessage { message: ChatMessage; chat: SearchChat; senderName: string }
+export interface SearchResults {
+  query: string;
+  chats: SearchChat[];
+  /** stranger: found by exact username, no chat with them yet. */
+  people: Array<PublicProfile & { stranger: boolean }>;
+  messages: SearchMessage[];
+  files: SearchMessage[];
+  /** Up to 100 ("99+" after that). */
+  counts: { messages: number; files: number };
+  /** For more messages or files: pass as `before`. */
+  next: string | null;
+}
