@@ -91,6 +91,9 @@ export class ChatEngine {
     this.ackTimeout = o.ackTimeoutMs ?? 8000;
   }
 
+  /** The signed-in user's id. */
+  get me() { return this.o.me; }
+
   // ---------- store ----------
   getState = () => this.state;
   subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };

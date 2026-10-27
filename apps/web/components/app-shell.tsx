@@ -11,7 +11,7 @@ const NAV: Array<{ href: string; icon: IconName; label: string }> = [
   { href: '/settings/profile', icon: 'settings', label: 'Settings' },
 ];
 
-export function AppShell({ me, children }: { me: MeProfile | null; children: ReactNode }) {
+export function AppShell({ me, children, bare }: { me: MeProfile | null; children: ReactNode; bare?: boolean }) {
   const path = usePathname();
   return (
     <div className="app-shell">
@@ -28,7 +28,7 @@ export function AppShell({ me, children }: { me: MeProfile | null; children: Rea
         <span style={{ flex: 1 }} />
         {me && <Link href="/settings/profile" aria-label="Your profile"><Avatar name={me.displayName} photoUrl={me.photoUrl} size={40} /></Link>}
       </nav>
-      <main className="page">{children}</main>
+      {bare ? <div className="page page--bare">{children}</div> : <main className="page">{children}</main>}
     </div>
   );
 }

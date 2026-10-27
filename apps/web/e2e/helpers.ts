@@ -47,5 +47,36 @@ export async function signInWithEmail(page: Page, email: string) {
   await page.getByRole('tab', { name: 'Email' }).click();
   await page.getByLabel('Email').fill(email);
   await page.getByRole('button', { name: 'Send code' }).click();
+  // Wait for the code screen, so the code read below is the one just sent and not an older one.
+  await expect(page.getByLabel('6-digit code')).toBeVisible();
   await typeCode(page, await codeFor(email));
 }
+
+export interface ApiUser { id: string; name: string; username: string; email: string; phone: string; tokens: Record<string, string> }
+async function call(path: string, body?: unknown, token?: string, method = body === undefined ? 'GET' : 'POST') {
+  const r = await fetch(`${API}${path}`, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const j = r.status === 204 ? null : await r.json();
+  if (!r.ok) throw new Error(`${method} ${path} → ${r.status} ${JSON.stringify(j)}`);
+  return j;
+}
+/** A signed-up user made straight through the API (faster than the UI), with a name and username. */
+export async function apiUser(name: string): Promise<ApiUser> {
+  const tag = name.toLowerCase().replace(/[^a-z]/g, '') || 'user';
+  const phone = freshPhone(), email = freshEmail(tag);
+  const dev = { deviceId: `web-${phone.slice(-7)}-device`, platform: 'web', name: 'Playwright' };
+  await call('/v1/auth/phone/start', { phone });
+  const v = await call('/v1/auth/phone/verify', { phone, code: await codeFor(phone), device: dev });
+  await call('/v1/auth/signup/email/start', { signupToken: v.signupToken, email });
+  const r = await call('/v1/auth/signup/email/verify', { signupToken: v.signupToken, email, code: await codeFor(email), device: dev });
+  const username = `${tag}_${phone.slice(-6)}`;
+  await call('/v1/me', { displayName: name, username }, r.tokens.accessToken, 'PATCH');
+  return { id: r.me.id, name, username, email, phone, tokens: r.tokens };
+}
+/** A browser tab already signed in as this user. */
+export async function pageAs(browser: import('@playwright/test').Browser, u: ApiUser, viewport = { width: 1280, height: 800 }) {
+  const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport });
+  await ctx.addInitScript((t) => { if (!localStorage.getItem('yays.tokens')) localStorage.setItem('yays.tokens', t); }, JSON.stringify(u.tokens));
+  const page = await ctx.newPage();
+  return { ctx, page };
+}
+export const apiCall = call;

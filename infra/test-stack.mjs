@@ -31,6 +31,6 @@ await client.close();
 run('node', [path.join(apiDir, 'dist/main.js')], { env: {
   ...process.env, NODE_ENV: 'test', PORT: String(AP), PUBLIC_URL: `http://127.0.0.1:${AP}`, CORS_ORIGINS: process.env.STACK_CORS || 'http://127.0.0.1:3100,http://localhost:3100',
   MONGO_URI: `mongodb://127.0.0.1:${MP}/?replicaSet=rs0`, MONGO_DB: DBNAME, REDIS_URL: `redis://127.0.0.1:${RP}`,
-  JWT_SECRET: 'web-e2e-secret-that-is-long-enough-123456', TEST_OUTBOX: '1', OTP_RESEND_SECONDS: '5', LOG_LEVEL: 'warn',
+  JWT_SECRET: 'web-e2e-secret-that-is-long-enough-123456', TEST_OUTBOX: '1', OTP_RESEND_SECONDS: '5', OTP_IP_PER_HOUR: process.env.STACK_OTP_IP_PER_HOUR || '1000', LOG_LEVEL: 'warn',
   LOCAL_STORAGE_DIR: path.join(dir, 'storage'), ACCESS_TTL_SECONDS: '60',
 } });

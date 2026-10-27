@@ -29,7 +29,7 @@ export class OtpService {
     const cooldown = await this.redis.pttl(`${key}:cd`);
     if (cooldown > 0) throw AppError.rateLimited(Math.ceil(cooldown / 1000), `Wait ${Math.ceil(cooldown / 1000)} seconds before asking for another code.`);
     await this.limiter.hit(`otp:t:${t.value}`, 5, 3600, 'Too many codes for this address in the last hour. Try again later.');
-    await this.limiter.hit(`otp:ip:${ip}`, 30, 3600);
+    await this.limiter.hit(`otp:ip:${ip}`, this.c.OTP_IP_PER_HOUR, 3600);
     const managed = t.kind === 'phone' && this.phone.managesCodes;
     const code = managed ? undefined : String(randomInt(0, 1_000_000)).padStart(6, '0');
     // Send first: a failed send must not burn the cooldown or replace a code the person already has.

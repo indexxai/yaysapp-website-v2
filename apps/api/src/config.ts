@@ -16,6 +16,8 @@ const schema = z.object({
   REFRESH_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(60),
   OTP_TTL_SECONDS: z.coerce.number().int().min(60).max(1800).default(600),
   OTP_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(10).default(5),
+  /** Codes one IP address may request per hour (all numbers and emails together). */
+  OTP_IP_PER_HOUR: z.coerce.number().int().min(1).max(100000).default(30),
   OTP_RESEND_SECONDS: z.coerce.number().int().min(0).max(300).default(30),
   SMS_DRIVER: z.enum(['dev', 'twilio']).default('dev'),
   TWILIO_ACCOUNT_SID: z.string().optional(),

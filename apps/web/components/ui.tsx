@@ -22,12 +22,13 @@ export function OvalButton({ icon, label, size = 'md', variant = 'primary', load
 }
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('') || '?';
-export function Avatar({ name, photoUrl, size = 44 }: { name: string; photoUrl?: string | null; size?: number }) {
+export function Avatar({ name, photoUrl, size = 44, online }: { name: string; photoUrl?: string | null; size?: number; online?: boolean }) {
   return (
     <span className="ys-avatar" style={{ width: size }}>
       <span className="ys-oval ys-oval--wash" style={{ width: size, fontSize: size * 0.36 }}>
         {photoUrl ? <img src={photoUrl} alt="" /> : <span>{initials(name)}</span>}
       </span>
+      {online && <span className="ys-avatar__presence" data-testid="online-dot" aria-hidden />}
     </span>
   );
 }
