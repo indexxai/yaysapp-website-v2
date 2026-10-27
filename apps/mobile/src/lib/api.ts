@@ -14,7 +14,12 @@ export const tokenStore = {
   },
   async set(t: Tokens | null) {
     if (t) await Keychain.setGenericPassword('session', JSON.stringify(t), { service: SERVICE, accessible: Keychain.ACCESSIBLE.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY });
-    else await Keychain.resetGenericPassword({ service: SERVICE });
+    else {
+      await Keychain.resetGenericPassword({ service: SERVICE });
+      // Signed out: saved chats and unsent messages leave the phone too.
+      const keys = (await AsyncStorage.getAllKeys().catch(() => [] as readonly string[])).filter((k) => k.startsWith('yays.cache.') || k.startsWith('yays.outbox.') || k === 'yays.me');
+      if (keys.length) await AsyncStorage.multiRemove(keys).catch(() => undefined);
+    }
   },
 };
 

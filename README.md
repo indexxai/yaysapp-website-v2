@@ -4,7 +4,7 @@ One repository for the new YaysApp: backend, web app, mobile app and landing sit
 
 | Folder | What it is | Stack |
 |---|---|---|
-| `apps/api` | Backend: REST API now, real-time gateway from week 3 | NestJS, MongoDB, Redis |
+| `apps/api` | Backend: REST API and the real-time gateway (`/v1/socket`) | NestJS, Socket.IO, MongoDB, Redis |
 | `apps/web` | Web app (YaysApp in the browser) | Next.js 15, React 19 |
 | `apps/mobile` | Android and iPhone app (`com.indexx.yaysapp`, v2.0.0 build 29) | React Native 0.78 |
 | `apps/landing` | Public site: home, privacy, terms, support, delete account | Next.js static export |
@@ -37,14 +37,29 @@ In development no SMS or email is sent. The last code for a number or email is a
 Each week's work ships with end-to-end tests that run against a real MongoDB replica set and Redis.
 
 ```bash
-pnpm --filter @yays/api test:e2e        # backend: 57 tests
-pnpm --filter @yays/web test:e2e        # browser: 11 tests (Playwright, desktop and phone)
+pnpm --filter @yays/api test:e2e        # backend and chat engine: 94 tests
+pnpm --filter @yays/web test:e2e        # browser: 20 tests (Playwright, desktop and phone)
 pnpm --filter @yays/landing test:e2e    # landing: 19 tests
 pnpm --filter @yays/mobile test         # mobile screens: 3 tests
-pnpm --filter @yays/mobile test:e2e     # mobile screens against the live API: 6 tests
+pnpm --filter @yays/mobile test:e2e     # mobile screens against the live API: 10 tests
+pnpm --filter @yays/shared test         # shared rules (ticks, text limits, dates): 16 tests
 ```
 
 GitHub Actions runs the same suites on every push (`.github/workflows/ci.yml`).
+
+## How messaging works (week 3)
+
+- A chat is a row in `yc_conversations`; each message in `yc_messages` gets the next number (`seq`) inside a
+  MongoDB transaction. That is why MongoDB must run as a replica set: the number, the message and the sender's
+  receipt are written together, so numbers never skip and never repeat.
+- Every message carries a `clientId` chosen by the sending device. Sending it again (after a dropped connection,
+  an app restart, or a lost answer) returns the first copy instead of making a second one.
+- Ticks come from `yc_receipts`: one row per person per chat with how far they have received and read.
+- Apps talk to `/v1/socket` (Socket.IO). With several API servers, the Redis adapter passes events between them.
+  Signing a device out closes its live connection at once, on whichever server holds it.
+- Web and mobile share one `ChatEngine` (`packages/shared/src/engine.ts`): the chat list, threads, ticks, typing,
+  online status, an unsent queue kept on the device, retries, and catching up after being offline. The chat list
+  and recent messages are also kept on the device, so chats open with no signal.
 
 ## Rules that keep the old app and BTCY safe
 

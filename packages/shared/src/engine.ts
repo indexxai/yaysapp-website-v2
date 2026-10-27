@@ -39,10 +39,18 @@ export interface ChatState {
 
 export interface ThreadItem { key: string; mine: boolean; text: string; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string }
 
+/** What the app keeps on the device so chats open with no connection. */
+export interface ChatSnapshot { v: 1; conversations: Record<string, ConversationSummary>; listNext: string | null; threads: Record<string, { items: ChatMessage[]; hasMore: boolean }> }
+export interface ChatCache { load(): Promise<ChatSnapshot | null> | ChatSnapshot | null; save(s: ChatSnapshot): Promise<void> | void }
+/** Messages per chat kept on the device. */
+const CACHE_PER_THREAD = 100;
+
 export interface EngineOptions {
   client: YaysClient;
   me: string;
   outbox?: OutboxStore;
+  /** Saved chat list and recent messages, shown at once and when offline. */
+  cache?: ChatCache;
   /** Extra socket.io options (tests use this to force a transport). */
   socketOptions?: Record<string, unknown>;
   /** How long to wait for the server to confirm a message before trying again. */
@@ -78,6 +86,7 @@ export class ChatEngine {
   private socket?: Socket<ServerEvents, ClientEvents>;
   private flushing = false;
   private flushTimer?: ReturnType<typeof setTimeout>;
+  private saveTimer?: ReturnType<typeof setTimeout>;
   private typingTimer?: ReturnType<typeof setInterval>;
   private lastTypingSent: Record<string, number> = {};
   private stopped = false;
@@ -97,7 +106,11 @@ export class ChatEngine {
   // ---------- store ----------
   getState = () => this.state;
   subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
-  private set(patch: Partial<ChatState>) { this.state = { ...this.state, ...patch }; for (const l of this.listeners) l(); }
+  private set(patch: Partial<ChatState>) {
+    this.state = { ...this.state, ...patch };
+    for (const l of this.listeners) l();
+    if (patch.conversations || patch.threads) this.scheduleSave();
+  }
   private setConv(c: ConversationSummary) {
     const conversations = { ...this.state.conversations, [c.id]: c };
     this.set({ conversations, order: byActivity(conversations) });
@@ -110,6 +123,7 @@ export class ChatEngine {
 
   // ---------- lifecycle ----------
   async start() {
+    await this.hydrate();
     const saved = await Promise.resolve(this.outbox.load()).catch(() => [] as PendingMessage[]);
     // Anything that was mid-send when the app closed goes back to waiting.
     this.set({ outbox: (saved ?? []).map((p) => ({ ...p, status: p.status === 'failed' ? 'failed' : 'pending' })) });
@@ -119,7 +133,34 @@ export class ChatEngine {
     void this.flush();
   }
 
+  private async hydrate() {
+    const snap = await Promise.resolve(this.o.cache?.load()).catch(() => null);
+    if (!snap || snap.v !== 1 || this.stopped) return;
+    const threads: ChatState['threads'] = {};
+    for (const [id, t] of Object.entries(snap.threads ?? {})) threads[id] = { items: t.items, hasMore: t.hasMore, loaded: true, loading: false };
+    this.set({ conversations: snap.conversations, order: byActivity(snap.conversations), listLoaded: true, listNext: snap.listNext, threads });
+  }
+
+  /** Writes the snapshot at most once a second, after things settle. */
+  private scheduleSave() {
+    if (!this.o.cache || this.saveTimer || this.stopped) return;
+    this.saveTimer = setTimeout(() => { this.saveTimer = undefined; this.saveNow(); }, 1000);
+  }
+
+  private saveNow() {
+    if (!this.o.cache || !this.state.listLoaded) return;
+    const threads: ChatSnapshot['threads'] = {};
+    for (const [id, t] of Object.entries(this.state.threads)) {
+      if (!t.loaded) continue;
+      const items = t.items.slice(-CACHE_PER_THREAD);
+      threads[id] = { items, hasMore: t.hasMore || items.length < t.items.length };
+    }
+    void Promise.resolve(this.o.cache.save({ v: 1, conversations: this.state.conversations, listNext: this.state.listNext, threads })).catch(() => undefined);
+  }
+
   stop() {
+    // The app is closing: write what is pending now rather than lose it.
+    if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = undefined; this.saveNow(); }
     this.stopped = true;
     clearTimeout(this.flushTimer); clearInterval(this.typingTimer);
     this.socket?.removeAllListeners(); this.socket?.disconnect(); this.socket = undefined;
@@ -206,7 +247,8 @@ export class ChatEngine {
     }
     const t = this.state.threads[conversationId];
     if (!t?.loaded) await this.loadLatest(conversationId);
-    else await this.catchUp(conversationId);
+    // Already on the device (maybe from the saved cache): show it; if offline, reconnecting catches up.
+    else await this.catchUp(conversationId).catch(() => undefined);
     void this.markActiveRead();
   }
 

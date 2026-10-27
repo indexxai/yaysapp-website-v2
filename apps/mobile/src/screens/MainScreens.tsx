@@ -16,29 +16,6 @@ export function ProfileSetupScreen() {
   return <Screen title="Set up your profile" lead="This is how friends will see you in chats."><ProfileForm me={s.state.me} submitLabel="Continue" onSaved={s.setMe} /></Screen>;
 }
 
-export function ChatsScreen({ openSettings }: { openSettings: () => void }) {
-  const s = useSession();
-  const t = useTheme();
-  if (s.state.status !== 'signedIn') return null;
-  const me = s.state.me;
-  return (
-    <Screen background="surface" header={
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-        <Text accessibilityRole="header" style={{ fontFamily: font.display, fontSize: 30, fontWeight: '800', color: t.ink }}>Chats</Text>
-        <OvalButton icon="settings" label="Settings" size="sm" variant="secondary" onPress={openSettings} />
-      </View>}>
-      {s.state.offline ? <Banner tone="warning">You're offline. We'll reconnect when you're back online.</Banner> : null}
-      <View testID="chats-ready" style={{ backgroundColor: t.raised, borderRadius: 24, padding: 20, gap: 6, flexDirection: 'row', alignItems: 'center' }}>
-        <Avatar name={me.displayName} photoUrl={me.photoUrl} size={48} />
-        <View style={{ flex: 1, gap: 4 }}>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: t.ink }}>Welcome, {me.displayName}</Text>
-          <Text style={{ fontSize: 14, color: t['ink-soft'] }}>{me.migrated ? 'Your account from the old YaysApp is connected.' : 'Your account is ready.'} Messaging arrives in the next build.</Text>
-        </View>
-      </View>
-    </Screen>
-  );
-}
-
 export function SettingsScreen({ openDevices }: { openDevices: () => void }) {
   const s = useSession();
   const [saved, setSaved] = useState(false);

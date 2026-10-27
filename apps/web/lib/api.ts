@@ -33,7 +33,12 @@ export function api(): YaysClient {
       device: { deviceId: deviceId(), platform: 'web', name: browserName(), appVersion: '0.1.0' },
       tokens: {
         get: () => safe(() => JSON.parse(localStorage.getItem(TOKENS_KEY) ?? 'null') as Tokens | null, null),
-        set: (t) => safe(() => (t ? localStorage.setItem(TOKENS_KEY, JSON.stringify(t)) : localStorage.removeItem(TOKENS_KEY)), undefined),
+        set: (t) => safe(() => {
+          if (t) { localStorage.setItem(TOKENS_KEY, JSON.stringify(t)); return; }
+          localStorage.removeItem(TOKENS_KEY);
+          // Signed out: saved chats and unsent messages leave this browser too.
+          for (const k of Object.keys(localStorage)) if (k.startsWith('yays.cache.') || k.startsWith('yays.outbox.')) localStorage.removeItem(k);
+        }, undefined),
       },
       onSignedOut: () => listeners.forEach((l) => l()),
     });
