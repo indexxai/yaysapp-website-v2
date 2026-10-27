@@ -2,7 +2,7 @@ import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
 import type { YaysClient } from './client';
 import type { PublicProfile } from './types';
-import { tickFor, type Ack, type ChatMessage, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
+import { tickFor, type Ack, type Attachment, type ChatMessage, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
 
 /** A message typed on this device that the server has not confirmed yet. Kept on the device until it has. */
 export interface PendingMessage {
@@ -44,7 +44,7 @@ export interface ChatState {
 }
 
 export interface ThreadItem {
-  key: string; mine: boolean; type: 'text' | 'system'; text: string; system?: SystemEvent; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string;
+  key: string; mine: boolean; type: 'text' | 'system' | 'media'; text: string; system?: SystemEvent; attachment?: Attachment; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string;
   /** The server's id; null while still waiting to send. */
   id: string | null;
   replyTo?: ReplyPreview | null; forwarded?: boolean; editedAt?: string; deleted?: boolean; reactions?: Record<string, string[]>; starred?: boolean;
@@ -412,7 +412,7 @@ export class ChatEngine {
     const me = this.o.me;
     const items: ThreadItem[] = (t?.items ?? []).map((m) => ({
       key: m.clientId, id: m.id, mine: m.senderId === me && m.type !== 'system', type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}),
-      replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred,
+      attachment: m.attachment, replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred,
       createdAt: m.createdAt, seq: m.seq, senderId: m.senderId, clientId: m.clientId,
       tick: m.senderId === me && m.type !== 'system' && conv ? tickFor(m, conv) : null,
     }));

@@ -1,11 +1,12 @@
 import { MongoServerError, ObjectId, type ClientSession, type Collection, type Db, type MongoClient } from 'mongodb';
 import {
-  DEFAULT_GROUP_SETTINGS,
+  DEFAULT_GROUP_SETTINGS, MAX_VOICE_MS, messagePreview, MEDIA_LIMITS, MEDIA_TYPES, baseMime, formatBytes,
+  type Attachment, type AttachmentInput, type AttachmentKind,
   type ChatMessage, type ConversationPage, type ConversationSummary, type GroupMeta, type GroupSettings, type MemberReceipt, type MessagePage, type PinnedMessage, type PublicProfile, type ReplyPreview, type SendResult, type SystemEvent,
 } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { C } from '../infra/mongo';
-import type { Storage } from '../infra/storage';
+import { KEY_RE, type Storage } from '../infra/storage';
 import { displayNameOf, toPublic, type UserDoc } from '../users/users.repo';
 
 export interface ConversationDoc {
@@ -39,9 +40,10 @@ export interface MessageDoc {
   seq: number;
   senderId: ObjectId;
   clientId: string;
-  type: 'text' | 'system';
+  type: 'text' | 'system' | 'media';
   text: string;
   system?: SystemEvent;
+  attachment?: StoredAttachment;
   createdAt: Date;
   replyToId?: ObjectId;
   forwarded?: boolean;
@@ -84,13 +86,26 @@ export interface MessageEvents {
   mine(userId: ObjectId, p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean }): void;
 }
 
-export const replyPreview = (t: MessageDoc): ReplyPreview => ({
+/** Stored on the message. Links are made fresh when it is read. */
+export interface StoredAttachment { kind: AttachmentKind; key: string; thumbKey?: string; name: string; size: number; mime: string; width?: number; height?: number; durationMs?: number; waveform?: number[] }
+/** Download links for a set of messages: key → url. */
+export type Urls = Map<string, string>;
+
+export const replyPreview = (t: MessageDoc, urls?: Urls): ReplyPreview => ({
   id: t._id.toHexString(), seq: t.seq, senderId: t.senderId.toHexString(), type: t.type, deleted: !!t.deletedAt,
   text: t.deletedAt ? '' : t.text.length > 200 ? `${t.text.slice(0, 200)}…` : t.text,
+  ...(t.attachment && !t.deletedAt ? { attachment: { kind: t.attachment.kind, name: t.attachment.name, thumbUrl: t.attachment.thumbKey ? urls?.get(t.attachment.thumbKey) ?? null : null, ...(t.attachment.durationMs !== undefined ? { durationMs: t.attachment.durationMs } : {}) } } : {}),
 });
 
+function toAttachment(a: StoredAttachment, urls?: Urls): Attachment {
+  return {
+    kind: a.kind, url: urls?.get(a.key) ?? '', thumbUrl: a.thumbKey ? urls?.get(a.thumbKey) ?? null : null, name: a.name, size: a.size, mime: a.mime,
+    ...(a.width ? { width: a.width, height: a.height } : {}), ...(a.durationMs !== undefined ? { durationMs: a.durationMs } : {}), ...(a.waveform ? { waveform: a.waveform } : {}),
+  };
+}
+
 /** A message as apps see it. Deleted messages lose their text, reactions and quote. */
-export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, viewer?: { id: ObjectId; starred: Set<string> }): ChatMessage {
+export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, viewer?: { id: ObjectId; starred: Set<string> }, urls?: Urls): ChatMessage {
   const out: ChatMessage = {
     id: m._id.toHexString(), conversationId: m.convId.toHexString(), seq: m.seq, senderId: m.senderId.toHexString(), clientId: m.clientId,
     type: m.type, text: m.deletedAt ? '' : m.text, ...(m.system ? { system: m.system } : {}), createdAt: m.createdAt.toISOString(),
@@ -99,7 +114,8 @@ export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, view
   if (m.editedAt && !m.deletedAt) out.editedAt = m.editedAt.toISOString();
   const hiddenForViewer = viewer && has(m.hiddenFor, viewer.id);
   if (m.deletedAt || hiddenForViewer) { out.deleted = true; out.text = ''; return out; }
-  if (m.replyToId) { const t = replies?.get(m.replyToId.toHexString()); out.replyTo = t ? replyPreview(t) : null; }
+  if (m.attachment) out.attachment = toAttachment(m.attachment, urls);
+  if (m.replyToId) { const t = replies?.get(m.replyToId.toHexString()); out.replyTo = t ? replyPreview(t, urls) : null; }
   if (m.reactions?.length) {
     const r: Record<string, string[]> = {};
     for (const x of [...m.reactions].sort((a, b) => a.at.getTime() - b.at.getTime())) (r[x.e] ??= []).push(x.u.toHexString());
@@ -269,7 +285,7 @@ export class ChatService {
         peer: peerId ? (peerDoc ? await toPublic(peerDoc, this.photo) : { ...DELETED, id: peerId.toHexString() }) : null,
         group: c.kind === 'group' ? await this.groupMeta(c, me) : null,
         canSend: member && this.may(c, me, 'send'),
-        memberIds: c.members.map((m) => m.toHexString()), lastSeq, lastMessage: last && last.seq > (my?.fromSeq ?? 0) ? toMessage(last, undefined, { id: me, starred: new Set() }) : null, unread, receipts,
+        memberIds: c.members.map((m) => m.toHexString()), lastSeq, lastMessage: last && last.seq > (my?.fromSeq ?? 0) ? toMessage(last, undefined, { id: me, starred: new Set() }, await this.urlsFor([last])) : null, unread, receipts,
         lastSenderName: last ? (last.senderId.equals(me) ? 'You' : sender ? displayNameOf(sender) : DELETED.displayName) : null,
         pins: await this.pinsOf(c),
         lastActivityAt: (member ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
@@ -282,7 +298,46 @@ export class ChatService {
     const replyIds = [...new Set(rows.map((m) => m.replyToId?.toHexString()).filter((x): x is string => !!x))];
     const replies = new Map(replyIds.length ? (await this.msgs.find({ _id: { $in: replyIds.map((x) => new ObjectId(x)) } }).toArray()).map((t) => [t._id.toHexString(), t]) : []);
     const starred = new Set(viewer && rows.length ? (await this.stars.find({ userId: viewer, msgId: { $in: rows.map((m) => m._id) } }, { projection: { msgId: 1 } }).toArray()).map((x) => x.msgId.toHexString()) : []);
-    return rows.map((m) => toMessage(m, replies, viewer ? { id: viewer, starred } : undefined));
+    const urls = await this.urlsFor([...rows, ...replies.values()]);
+    return rows.map((m) => toMessage(m, replies, viewer ? { id: viewer, starred } : undefined, urls));
+  }
+
+  /** Signed links for every attachment (and preview) in these messages. Files download under their own name. */
+  async urlsFor(rows: MessageDoc[]): Promise<Urls> {
+    const urls: Urls = new Map();
+    await Promise.all(rows.filter((m) => m.attachment && !m.deletedAt).flatMap((m) => {
+      const a = m.attachment!;
+      const jobs = [this.storage.downloadUrl(a.key, a.kind === 'file' ? { filename: a.name } : {}).then((u) => { urls.set(a.key, u); })];
+      if (a.thumbKey) jobs.push(this.storage.downloadUrl(a.thumbKey).then((u) => { urls.set(a.thumbKey!, u); }));
+      return jobs;
+    }));
+    return urls;
+  }
+
+  /** Checks an uploaded file before it goes on a message: mine, really there, the right type and size. */
+  async checkAttachment(me: ObjectId, a: AttachmentInput): Promise<StoredAttachment> {
+    const mine = `media/${me.toHexString()}/`;
+    if (!KEY_RE.test(a.key) || !a.key.startsWith(mine)) throw AppError.forbidden('That file was not uploaded by you.');
+    const obj = await this.storage.head(a.key);
+    if (!obj) throw AppError.validation('The upload did not finish. Try again.');
+    const mime = baseMime(obj.contentType);
+    if (obj.size > MEDIA_LIMITS[a.kind]) throw AppError.validation(`That file is ${formatBytes(obj.size)}. The limit is ${formatBytes(MEDIA_LIMITS[a.kind])}.`);
+    if (a.kind !== 'file' && !MEDIA_TYPES[a.kind].includes(mime)) throw AppError.validation('That file type doesn’t match what was sent.');
+    if (a.kind === 'voice' && (a.durationMs ?? 0) > MAX_VOICE_MS) throw AppError.validation('Voice messages can be up to 15 minutes.');
+    let thumbKey: string | undefined;
+    if (a.thumbKey) {
+      if (!KEY_RE.test(a.thumbKey) || !a.thumbKey.startsWith(`thumbs/${me.toHexString()}/`)) throw AppError.forbidden('That preview was not uploaded by you.');
+      const t = await this.storage.head(a.thumbKey);
+      if (!t || t.size > MEDIA_LIMITS.thumb || !t.contentType.startsWith('image/')) throw AppError.validation('The preview image is not valid.');
+      thumbKey = a.thumbKey;
+    }
+    const name = (a.name ?? '').replace(/[\u0000-\u001f\\/]/g, '_').trim().slice(0, 200) || (a.kind === 'voice' ? 'Voice message' : a.kind === 'image' ? 'Photo' : a.kind === 'video' ? 'Video' : 'File');
+    return {
+      kind: a.kind, key: a.key, name, size: obj.size, mime, ...(thumbKey ? { thumbKey } : {}),
+      ...(a.width && a.height && (a.kind === 'image' || a.kind === 'video') ? { width: a.width, height: a.height } : {}),
+      ...(a.durationMs !== undefined && (a.kind === 'video' || a.kind === 'voice') ? { durationMs: a.durationMs } : {}),
+      ...(a.waveform && a.kind === 'voice' ? { waveform: a.waveform } : {}),
+    };
   }
 
   async messages(me: ObjectId, convId: string, q: { before?: number; after?: number; limit: number }): Promise<MessagePage> {
@@ -302,11 +357,13 @@ export class ChatService {
    * Stores a message exactly once. The number, the message and the sender's own receipt are written in one
    * transaction, so a retry with the same clientId returns the first copy and the numbers have no gaps.
    */
-  async send(me: ObjectId, convId: string, clientId: string, text: string, opts: { replyToId?: string; forwarded?: boolean } = {}): Promise<SendResult> {
+  async send(me: ObjectId, convId: string, clientId: string, text: string, opts: { replyToId?: string; forwarded?: boolean; attachment?: AttachmentInput; trustedAttachment?: StoredAttachment } = {}): Promise<SendResult> {
     const existing = await this.msgs.findOne({ senderId: me, clientId });
     if (existing) return this.duplicate(existing, convId, me);
     const pre = await this.memberConv(convId, me);
     if (!this.may(pre, me, 'send')) throw AppError.forbidden('Only admins can send messages in this group.');
+    // Forwarding reuses the original file as it is; anything else is checked.
+    const attachment = opts.trustedAttachment ?? (opts.attachment ? await this.checkAttachment(me, opts.attachment) : undefined);
     let replyToId: ObjectId | undefined;
     if (opts.replyToId) {
       const t = await this.msgs.findOne({ _id: new ObjectId(opts.replyToId), convId: pre._id });
@@ -327,7 +384,7 @@ export class ChatService {
         const id = new ObjectId();
         const c = await this.convs.findOneAndUpdate({ _id: pre._id, members: me }, { $inc: { seq: 1 }, $set: { lastAt: now, lastMessageId: id } }, { session, returnDocument: 'after' });
         if (!c) throw AppError.notFound('Chat not found.');
-        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: 'text', text, createdAt: now, ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}) };
+        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: attachment ? 'media' : 'text', text, createdAt: now, ...(attachment ? { attachment } : {}), ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}) };
         await this.msgs.insertOne(m, { session });
         await this.receipts.updateOne({ _id: rKey(c._id, me) }, { $max: { deliveredSeq: c.seq, readSeq: c.seq }, $set: { updatedAt: now }, $setOnInsert: { convId: c._id, userId: me } }, { upsert: true, session });
         created = m; conv = c;
@@ -380,7 +437,7 @@ export class ChatService {
     const docs = new Map((await this.msgs.find({ _id: { $in: c.pins.map((p) => p.msgId) } }).toArray()).map((m) => [m._id.toHexString(), m]));
     return [...c.pins].reverse().map((p) => {
       const m = docs.get(p.msgId.toHexString());
-      return { messageId: p.msgId.toHexString(), seq: p.seq, senderId: m?.senderId.toHexString() ?? '', text: m && !m.deletedAt ? m.text.slice(0, 200) : '', pinnedBy: p.by.toHexString(), pinnedAt: p.at.toISOString() };
+      return { messageId: p.msgId.toHexString(), seq: p.seq, senderId: m?.senderId.toHexString() ?? '', text: m && !m.deletedAt ? messagePreview({ text: m.text, attachment: m.attachment }).slice(0, 200) : '', pinnedBy: p.by.toHexString(), pinnedAt: p.at.toISOString() };
     });
   }
 

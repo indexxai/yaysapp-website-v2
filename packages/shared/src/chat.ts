@@ -21,8 +21,52 @@ export type SystemEvent =
   | { kind: 'pinned'; messageId: string; seq: number }
   | { kind: 'unpinned'; messageId: string; seq: number };
 
+export type AttachmentKind = 'image' | 'video' | 'voice' | 'file';
+/** A photo, video, voice note or file on a message. Links expire; fetch the message again for fresh ones. */
+export interface Attachment {
+  kind: AttachmentKind;
+  url: string;
+  thumbUrl: string | null;
+  name: string;
+  size: number;
+  mime: string;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  /** Voice notes: 48 bars, 0–100. */
+  waveform?: number[];
+}
+
+/** Largest upload per kind, in bytes. */
+export const MEDIA_LIMITS: Record<AttachmentKind | 'thumb', number> = { image: 16 * 1024 * 1024, video: 100 * 1024 * 1024, voice: 16 * 1024 * 1024, file: 100 * 1024 * 1024, thumb: 512 * 1024 };
+export const MAX_VOICE_MS = 15 * 60 * 1000;
+export const MEDIA_TYPES: Record<Exclude<AttachmentKind, 'file'>, string[]> = {
+  image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+  video: ['video/mp4', 'video/webm', 'video/quicktime'],
+  voice: ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/aac', 'audio/wav'],
+};
+/** "image/jpeg; charset=x" → "image/jpeg". */
+export const baseMime = (m: string) => m.split(';')[0].trim().toLowerCase();
+/** Which kind a file is sent as, from its type (photos sent "as files" stay files). */
+export function kindFor(mime: string, asFile = false): AttachmentKind {
+  const b = baseMime(mime);
+  if (asFile) return 'file';
+  if (MEDIA_TYPES.image.includes(b)) return 'image';
+  if (MEDIA_TYPES.video.includes(b)) return 'video';
+  return 'file';
+}
+export function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+}
+export function formatDuration(ms: number) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
 /** The quoted message shown above a reply. */
-export interface ReplyPreview { id: string; seq: number; senderId: string; type: 'text' | 'system'; text: string; deleted: boolean }
+export interface ReplyPreview { id: string; seq: number; senderId: string; type: 'text' | 'system' | 'media'; text: string; deleted: boolean; attachment?: { kind: AttachmentKind; name: string; thumbUrl: string | null; durationMs?: number } }
 
 export interface ChatMessage {
   id: string;
@@ -32,9 +76,11 @@ export interface ChatMessage {
   senderId: string;
   /** Chosen by the sending device; sending the same clientId twice never makes two messages. */
   clientId: string;
-  type: 'text' | 'system';
+  type: 'text' | 'system' | 'media';
+  /** The message, or the caption of a photo, video or file. */
   text: string;
   system?: SystemEvent;
+  attachment?: Attachment;
   createdAt: string;
   replyTo?: ReplyPreview | null;
   forwarded?: boolean;
@@ -148,7 +194,26 @@ export const messageTextSchema = z.string().transform((v, ctx) => {
   if (textLength(t) > MAX_TEXT) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Messages can be up to ${MAX_TEXT} characters.` }); return z.NEVER; }
   return t;
 });
-export const sendMessageSchema = z.object({ clientId: clientIdSchema, text: messageTextSchema, replyToId: objectIdSchema.optional() });
+const captionSchema = z.string().transform((v, ctx) => {
+  const t = v.replace(/\u0000/g, '').trim();
+  if (textLength(t) > MAX_TEXT) { ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Messages can be up to ${MAX_TEXT} characters.` }); return z.NEVER; }
+  return t;
+});
+export const attachmentInputSchema = z.object({
+  kind: z.enum(['image', 'video', 'voice', 'file']),
+  key: z.string().max(200),
+  thumbKey: z.string().max(200).optional(),
+  name: z.string().max(255).optional(),
+  width: z.number().int().min(1).max(20000).optional(),
+  height: z.number().int().min(1).max(20000).optional(),
+  durationMs: z.number().int().min(0).max(24 * 3600 * 1000).optional(),
+  waveform: z.array(z.number().int().min(0).max(100)).max(64).optional(),
+});
+export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
+export const sendMessageSchema = z.union([
+  z.object({ clientId: clientIdSchema, text: messageTextSchema, replyToId: objectIdSchema.optional(), attachment: z.undefined().optional() }),
+  z.object({ clientId: clientIdSchema, text: captionSchema.default(''), replyToId: objectIdSchema.optional(), attachment: attachmentInputSchema }),
+]);
 export const editMessageSchema = z.object({ text: messageTextSchema });
 /** One emoji (with skin tones, flags or joined sequences), nothing else. */
 export const emojiSchema = z.string().refine((v) => v.length > 0 && v.length <= 16 && (/^[0-9#*]\u{FE0F}?\u{20E3}$/u.test(v) || /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:[\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}\u{20E3}]|\p{Extended_Pictographic}|\p{Regional_Indicator})*$/u.test(v)), 'React with a single emoji.');
@@ -157,7 +222,7 @@ export const forwardSchema = z.object({
   targets: z.array(z.object({ conversationId: objectIdSchema, clientId: clientIdSchema, commentClientId: clientIdSchema.optional() })).min(1, 'Pick a chat.').max(MAX_FORWARD_TARGETS, `Forward to up to ${MAX_FORWARD_TARGETS} chats at a time.`),
   comment: messageTextSchema.optional(),
 });
-export const socketSendSchema = sendMessageSchema.extend({ conversationId: objectIdSchema });
+export const socketSendSchema = z.intersection(sendMessageSchema, z.object({ conversationId: objectIdSchema }));
 export const receiptSchema = z.object({ seq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER) });
 export const socketReceiptSchema = receiptSchema.extend({ conversationId: objectIdSchema });
 export const typingSchema = z.object({ conversationId: objectIdSchema, on: z.boolean() });
@@ -205,7 +270,7 @@ export interface ServerEvents {
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: { status: number; code: string; message: string; details?: Record<string, unknown> } };
 /** Client → server socket events. Every one answers through the acknowledgement callback. */
 export interface ClientEvents {
-  'msg:send': (p: { conversationId: string; clientId: string; text: string; replyToId?: string }, ack: (r: Ack<SendResult>) => void) => void;
+  'msg:send': (p: { conversationId: string; clientId: string; text: string; replyToId?: string; attachment?: AttachmentInput }, ack: (r: Ack<SendResult>) => void) => void;
   'receipt:delivered': (p: { conversationId: string; seq: number }, ack: (r: Ack<MemberReceipt>) => void) => void;
   'receipt:read': (p: { conversationId: string; seq: number }, ack: (r: Ack<MemberReceipt>) => void) => void;
   typing: (p: { conversationId: string; on: boolean }, ack?: (r: Ack<null>) => void) => void;

@@ -14,8 +14,16 @@ export interface Storage {
   check(): Promise<void>;
   createUpload(key: string, contentType: string, maxBytes: number): Promise<UploadTicket>;
   head(key: string): Promise<StoredObject | null>;
-  downloadUrl(key: string, ttlSeconds?: number): Promise<string>;
+  /** A link valid for at least an hour. The same key gives the same link within the hour, so browsers can cache it. */
+  downloadUrl(key: string, opts?: DownloadOpts): Promise<string>;
 }
+export interface DownloadOpts { /** Save with this file name instead of showing inline. */ filename?: string }
+
+const HOUR = 3600_000;
+/** Links are signed for the current hour plus one, so they stay identical for a whole hour. */
+const hourStart = () => Math.floor(Date.now() / HOUR) * HOUR;
+const safeName = (n: string) => n.replace(/[\r\n"\\]/g, '_').slice(0, 200);
+export const contentDisposition = (filename: string) => `attachment; filename="${safeName(filename).replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(safeName(filename))}`;
 
 /** Keys are made by the server only: a fixed prefix, an owner id and a random name. */
 export function newKey(prefix: string, ownerId: string, ext: string) {
@@ -39,7 +47,10 @@ export class S3Storage implements Storage {
       return { size: r.ContentLength ?? 0, contentType: r.ContentType ?? 'application/octet-stream' };
     } catch (e) { if ((e as { name?: string }).name === 'NotFound') return null; throw e; }
   }
-  downloadUrl(key: string, ttlSeconds = 3600) { return getSignedUrl(this.s3, new GetObjectCommand({ Bucket: this.bucket, Key: key }), { expiresIn: ttlSeconds }); }
+  downloadUrl(key: string, opts: DownloadOpts = {}) {
+    const cmd = new GetObjectCommand({ Bucket: this.bucket, Key: key, ...(opts.filename ? { ResponseContentDisposition: contentDisposition(opts.filename) } : {}) });
+    return getSignedUrl(this.s3, cmd, { expiresIn: 7200, signingDate: new Date(hourStart()) });
+  }
 }
 
 /**
@@ -91,8 +102,8 @@ export class LocalStorage implements Storage {
       return { size: st.size, contentType: (JSON.parse(meta) as { contentType: string }).contentType };
     } catch { return null; }
   }
-  async downloadUrl(key: string, ttlSeconds = 3600) {
-    return `${this.publicUrl}/v1/media/local/${this.sign({ op: 'get', key, exp: Date.now() + ttlSeconds * 1000 })}`;
+  async downloadUrl(key: string, opts: DownloadOpts = {}) {
+    return `${this.publicUrl}/v1/media/local/${this.sign({ op: 'get', key, exp: hourStart() + 2 * HOUR, ...(opts.filename ? { fn: opts.filename } : {}) })}`;
   }
 }
 

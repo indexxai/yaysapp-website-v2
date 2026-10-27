@@ -38,7 +38,7 @@ export class MessagesService {
   async edit(me: ObjectId, convId: string, msgId: string, text: string): Promise<ChatMessage> {
     const { c, m } = await this.visible(me, convId, msgId);
     if (!m.senderId.equals(me)) throw AppError.forbidden('You can only edit your own messages.');
-    if (m.type !== 'text' || m.deletedAt) throw AppError.validation('That message can’t be edited.');
+    if (m.type !== 'text' || m.deletedAt) throw AppError.validation(m.type === 'media' ? 'Photos, videos and files can’t be edited. Delete and send again.' : 'That message can’t be edited.');
     if (m.forwarded) throw AppError.validation('Forwarded messages can’t be edited.');
     if (minutesSince(m.createdAt) > EDIT_WINDOW_MINUTES) throw AppError.conflict(`Messages can be edited for ${EDIT_WINDOW_MINUTES} minutes after sending.`);
     if (text === m.text) return this.mine(me, m._id);
@@ -88,7 +88,7 @@ export class MessagesService {
   async pin(me: ObjectId, convId: string, msgId: string, on: boolean) {
     const { c, m } = await this.visible(me, convId, msgId);
     if (!this.chat.may(c, me, 'pin')) throw AppError.forbidden('Only admins can pin messages in this group.');
-    if (on && (m.type !== 'text' || m.deletedAt)) throw AppError.validation('That message can’t be pinned.');
+    if (on && ((m.type !== 'text' && m.type !== 'media') || m.deletedAt)) throw AppError.validation('That message can’t be pinned.');
     const pinned = !!c.pins?.some((p) => p.msgId.equals(m._id));
     if (pinned === on) return this.chat.one(me, convId);
     const r = await this.chat.tx(async (s) => {
@@ -116,7 +116,7 @@ export class MessagesService {
   /** Who has read and received my message, and when. People who joined after it aren't listed. */
   async info(me: ObjectId, convId: string, msgId: string): Promise<MessageInfo> {
     const { c, m } = await this.visible(me, convId, msgId, false);
-    if (!m.senderId.equals(me) || m.type !== 'text') throw AppError.forbidden('You can only see details for your own messages.');
+    if (!m.senderId.equals(me) || m.type === 'system') throw AppError.forbidden('You can only see details for your own messages.');
     const others = c.members.filter((u) => !u.equals(me));
     const recs = new Map((await this.chat.receipts.find({ _id: { $in: others.map((u) => rKey(c._id, u)) } }).toArray()).map((r) => [r.userId.toHexString(), r as ReceiptDoc]));
     const people = new Map((await this.chat.users.find({ _id: { $in: others } }).toArray()).map((u) => [u._id.toHexString(), u]));
@@ -136,14 +136,14 @@ export class MessagesService {
   /** Copies a message's text into up to 5 chats, each marked forwarded, with an optional note after it. */
   async forward(me: ObjectId, convId: string, msgId: string, v: { targets: Array<{ conversationId: string; clientId: string; commentClientId?: string }>; comment?: string }): Promise<ForwardResult> {
     const { m } = await this.visible(me, convId, msgId, false);
-    if (m.type !== 'text' || m.deletedAt) throw AppError.validation('That message can’t be forwarded.');
+    if ((m.type !== 'text' && m.type !== 'media') || m.deletedAt) throw AppError.validation('That message can’t be forwarded.');
     const seen = new Set<string>();
     const out: ForwardResult = [];
     for (const t of v.targets) {
       if (seen.has(t.conversationId)) continue;
       seen.add(t.conversationId);
       try {
-        const r: SendResult = await this.chat.send(me, t.conversationId, t.clientId, m.text, { forwarded: true });
+        const r: SendResult = await this.chat.send(me, t.conversationId, t.clientId, m.text, { forwarded: true, trustedAttachment: m.attachment });
         if (v.comment && t.commentClientId) await this.chat.send(me, t.conversationId, t.commentClientId, v.comment);
         out.push({ conversationId: t.conversationId, ok: true, message: r.message });
       } catch (e) {

@@ -1,3 +1,4 @@
+import { formatDuration, type AttachmentKind } from './chat';
 import type { GroupSettings, SystemEvent } from './chat';
 /** Times and dates as chats show them, in the device's own time zone. Same on web and mobile. */
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -59,4 +60,19 @@ export function systemText(e: SystemEvent, actorId: string, name: (id: string) =
     case 'unpinned': return `${a} unpinned a message`;
     default: return '';
   }
+}
+
+const ICON: Record<AttachmentKind, string> = { image: '📷', video: '🎥', voice: '🎤', file: '📄' };
+/** "📷 Photo", "🎤 Voice message (0:12)", "📄 brand-guide.pdf". */
+export function attachmentLabel(a: { kind: AttachmentKind; name: string; durationMs?: number }) {
+  if (a.kind === 'image') return `${ICON.image} Photo`;
+  if (a.kind === 'video') return `${ICON.video} Video`;
+  if (a.kind === 'voice') return `${ICON.voice} Voice message${a.durationMs ? ` (${formatDuration(a.durationMs)})` : ''}`;
+  return `${ICON.file} ${a.name}`;
+}
+/** One line for a chat list row, a quote or a pin. */
+export function messagePreview(m: { text: string; deleted?: boolean; attachment?: { kind: AttachmentKind; name: string; durationMs?: number } | null }) {
+  if (m.deleted) return 'This message was deleted';
+  if (m.attachment) return m.text ? `${ICON[m.attachment.kind]} ${m.text}` : attachmentLabel(m.attachment);
+  return m.text;
 }
