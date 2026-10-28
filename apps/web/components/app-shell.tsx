@@ -8,7 +8,7 @@ import { Avatar } from './ui';
 
 const NAV: Array<{ href: string; icon: IconName; label: string }> = [
   { href: '/chats', icon: 'chats', label: 'Chats' },
-  { href: '/settings/profile', icon: 'settings', label: 'Settings' },
+  { href: '/settings', icon: 'settings', label: 'Settings' },
 ];
 
 export function AppShell({ me, children, bare }: { me: MeProfile | null; children: ReactNode; bare?: boolean }) {

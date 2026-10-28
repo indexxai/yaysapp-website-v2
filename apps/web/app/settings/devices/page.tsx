@@ -1,13 +1,9 @@
 'use client';
-import { disablePush } from '@/lib/push';
-import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, type DeviceSession } from '@yays/shared';
 import { api } from '@/lib/api';
-import { AppShell } from '@/components/app-shell';
-import { SettingsNav } from '@/components/settings-nav';
+import { SettingsFrame } from '@/components/settings';
 import { Banner, OvalButton } from '@/components/ui';
-import { useMe } from '@/components/use-me';
 import { Icon } from '@/lib/icons';
 
 const ago = (iso: string) => {
@@ -18,14 +14,14 @@ const ago = (iso: string) => {
   return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 };
 
-export default function Devices() {
-  const router = useRouter();
-  const { me } = useMe();
+export default function DevicesPage() { return <SettingsFrame>{() => <Devices />}</SettingsFrame>; }
+
+function Devices() {
   const [list, setList] = useState<DeviceSession[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'danger' | 'success'; text: string } | null>(null);
   const load = useCallback(async () => { try { setList(await api().devices()); } catch (e) { setMsg({ tone: 'danger', text: e instanceof ApiError ? e.message : 'Could not load devices.' }); } }, []);
-  useEffect(() => { if (me) void load(); }, [me, load]);
+  useEffect(() => { void load(); }, [load]);
 
   const act = async (id: string, fn: () => Promise<unknown>, ok: string) => {
     setBusy(id); setMsg(null);
@@ -35,12 +31,9 @@ export default function Devices() {
   };
 
   return (
-    <AppShell me={me}>
-      <div style={{ maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h1 style={{ margin: 0, font: '800 28px var(--font-display)' }}>Settings</h1>
-        <SettingsNav />
+    <>
         {msg && <Banner tone={msg.tone}>{msg.text}</Banner>}
-        <section className="card" aria-label="Signed-in devices">
+        <section className="set-card" aria-label="Signed-in devices">
           {list?.map((d) => (
             <div key={d.id} className="ys-row-item" style={{ minHeight: 66, cursor: 'default', background: d.current ? 'var(--ember-wash)' : undefined }} data-testid="device-row">
               <span className="ys-oval ys-oval--wash" style={{ width: 40 }}><Icon name={d.platform === 'web' ? 'globe' : 'phone'} size={18} /></span>
@@ -54,9 +47,7 @@ export default function Devices() {
         </section>
         <div className="row center" style={{ gap: 32 }}>
           {list && list.length > 1 && <OvalButton icon="logout" label="Log out all other devices" size="sm" variant="danger" loading={busy === 'others'} onClick={() => act('others', () => api().revokeOtherDevices(), 'All other devices were logged out.')} />}
-          <OvalButton icon="logout" label="Log out of this browser" size="sm" variant="ghost" loading={busy === 'me'} onClick={async () => { setBusy('me'); await disablePush().catch(() => undefined); await api().logout().catch(() => undefined); router.replace('/sign-in'); }} />
         </div>
-      </div>
-    </AppShell>
+    </>
   );
 }

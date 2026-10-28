@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { ApiError, ErrorCode, normalizeEmail, normalizePhone, type AuthResult, type CodeSent } from '@yays/shared';
+import { ApiError, ErrorCode, needsPin, normalizeEmail, normalizePhone, type AuthResult, type CodeSent, type SignInResult } from '@yays/shared';
 import { api } from '../lib/api';
 import { font, useTheme } from '../lib/theme';
 import { Banner, Field, OvalButton, TextLink } from '../ui/kit';
@@ -11,7 +11,7 @@ type Step =
   | { s: 'signup-email'; phone: string; signupToken: string } | { s: 'signup-code'; phone: string; signupToken: string; email: string; sent: CodeSent }
   | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent };
 
-const msg = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
+const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : 'Something went wrong. Try again.');
 
 function useSecondsLeft(until: number) {
   const [now, setNow] = useState(Date.now());
@@ -73,13 +73,15 @@ export function SignInScreen({ onDone }: { onDone: (r: AuthResult) => void }) {
       })}
       onSubmit={(value) => run(async () => {
         const c = await api();
+        // The PIN screen for two-step verification arrives with the mobile settings work.
+        const finish = (r: SignInResult) => { if (needsPin(r)) throw new Error('This account has two-step verification. Sign in on YaysApp Web for now.'); onDone(r); };
         if (code.s === 'phone-code') {
           const r = await c.verifyPhone(code.phone, value);
-          if (r.status === 'signed_in') return onDone(r);
+          if (r.status === 'signed_in' || r.status === 'pin_required') return finish(r);
           setResendAt(0);
           setStep({ s: 'signup-email', phone: r.phone, signupToken: r.signupToken });
-        } else if (code.s === 'email-code') onDone(await c.verifyEmail(code.email, value));
-        else onDone(await c.verifySignupEmail(code.signupToken, code.email, value));
+        } else if (code.s === 'email-code') finish(await c.verifyEmail(code.email, value));
+        else finish(await c.verifySignupEmail(code.signupToken, code.email, value));
       })} />
   );
 }

@@ -1,4 +1,5 @@
 'use client';
+import { chime, getPrefs } from '@/lib/prefs';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { messagePreview, systemText, type ChatMessage, type ConversationSummary } from '@yays/shared';
@@ -62,6 +63,7 @@ export function Attention() {
       body: c.kind === 'group' && m.type !== 'system' ? `${sender.split(' ')[0]}: ${preview}` : preview, photo: c.group?.photoUrl ?? c.peer?.photoUrl ?? null,
     };
     setToasts((x) => [...x.filter((y) => y.conversationId !== c.id), t].slice(-3));
+    if (getPrefs().sound && document.visibilityState === 'visible') chime();
     setTimeout(() => setToasts((x) => x.filter((y) => y.id !== t.id)), 5000);
   }), [engine]);
   // "(3) YaysApp": chats with something unread.

@@ -120,7 +120,7 @@ export function uuid(): string {
 }
 
 /** Pinned chats first (last pinned on top), then by latest activity. */
-const byActivity = (cs: Record<string, ConversationSummary>) => Object.values(cs).filter((c) => c.lastSeq > 0 || c.pinnedAt)
+const byActivity = (cs: Record<string, ConversationSummary>) => Object.values(cs).filter((c) => (c.lastSeq > 0 || c.pinnedAt) && !c.hidden)
   .sort((a, b) => (b.pinnedAt ?? '').localeCompare(a.pinnedAt ?? '') || b.lastActivityAt.localeCompare(a.lastActivityAt) || b.id.localeCompare(a.id)).map((c) => c.id);
 
 /**
@@ -316,6 +316,8 @@ export class ChatEngine {
     const t = this.state.threads[id];
     if (t && from && t.items.some((m) => m.seq <= from)) { this.setThread(id, { items: t.items.filter((m) => m.seq > from) }); this.scheduleSave(); }
   }
+  /** "Delete chat": gone from my list (and this device) until someone writes again. */
+  async deleteChat(id: string) { await this.o.client.deleteChat(id); this.dropConv(id); }
   private directWith(userId: string) { return Object.values(this.state.conversations).find((c) => c.kind === 'direct' && c.peer?.id === userId); }
   async block(userId: string) { await this.o.client.block(userId); const c = this.directWith(userId); if (c) await this.refreshConv(c.id); }
   async unblock(userId: string) { await this.o.client.unblock(userId); const c = this.directWith(userId); if (c) await this.refreshConv(c.id); }
@@ -769,7 +771,7 @@ export class ChatEngine {
     const isNew = m.seq > conv.lastSeq;
     const readingNow = this.state.active === id && this.visible;
     const next: ConversationSummary = isNew
-      ? { ...conv, lastSeq: m.seq, lastMessage: m, lastSenderName: m.senderId === this.o.me ? 'You' : this.nameOf(m.senderId), lastActivityAt: m.createdAt > conv.lastActivityAt ? m.createdAt : conv.lastActivityAt, unread: mine || readingNow ? (mine ? 0 : conv.unread) : Math.min(100, conv.unread + 1) }
+      ? { ...conv, hidden: false, lastSeq: m.seq, lastMessage: m, lastSenderName: m.senderId === this.o.me ? 'You' : this.nameOf(m.senderId), lastActivityAt: m.createdAt > conv.lastActivityAt ? m.createdAt : conv.lastActivityAt, unread: mine || readingNow ? (mine ? 0 : conv.unread) : Math.min(100, conv.unread + 1) }
       : conv;
     if (isNew && conv.kind === 'group') this.ensurePeople([m.senderId]);
     if (mine && isNew) next.receipts = { ...next.receipts, [m.senderId]: { deliveredSeq: m.seq, readSeq: m.seq } };

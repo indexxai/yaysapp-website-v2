@@ -171,6 +171,8 @@ export interface ConversationSummary {
   blocked: boolean;
   /** I see messages after this number only (where I joined, or cleared the chat). */
   visibleFrom: number;
+  /** I deleted this chat and nothing new has been said since: keep it off the list. */
+  hidden?: boolean;
   memberIds: string[];
   lastSeq: number;
   lastMessage: ChatMessage | null;

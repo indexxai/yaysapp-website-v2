@@ -11,7 +11,10 @@ export function useMe() {
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     try { setMe(await api().me()); setError(null); }
-    catch (e) { if (e instanceof ApiError && (e.status === 401 || e.status === 403)) router.replace('/sign-in'); else setError(e instanceof ApiError ? e.message : 'Could not load your profile.'); }
+    catch (e) {
+      // Signed out, turned off or deleted: forget this browser's session too, or sign-in would send it straight back.
+      if (e instanceof ApiError && (e.status === 401 || e.status === 403)) { await api().logout().catch(() => undefined); router.replace('/sign-in'); }
+      else setError(e instanceof ApiError ? e.message : 'Could not load your profile.'); }
   }, [router]);
   useEffect(() => {
     if (!hasSession()) { router.replace('/sign-in'); return; }

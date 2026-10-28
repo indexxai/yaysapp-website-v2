@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ApiError, ErrorCode, normalizeEmail, normalizePhone, type AuthResult, type CodeSent } from '@yays/shared';
+import { ApiError, ErrorCode, needsPin, normalizeEmail, normalizePhone, type CodeSent, type SignInResult } from '@yays/shared';
 import { api, hasSession } from '@/lib/api';
 import { AuthShell } from '@/components/auth-shell';
 import { Banner, Field, OvalButton } from '@/components/ui';
@@ -11,7 +11,8 @@ import { Icon } from '@/lib/icons';
 type Step =
   | { s: 'phone' } | { s: 'phone-code'; phone: string; sent: CodeSent }
   | { s: 'signup-email'; phone: string; signupToken: string } | { s: 'signup-code'; phone: string; signupToken: string; email: string; sent: CodeSent }
-  | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent };
+  | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent }
+  | { s: 'pin'; pinToken: string } | { s: 'pin-reset'; pinToken: string; sent: CodeSent };
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
 
@@ -23,7 +24,11 @@ export default function SignIn() {
   const [resendAt, setResendAt] = useState(0);
   const left = useCountdown(resendAt);
 
-  useEffect(() => { if (hasSession()) router.replace('/chats'); }, [router]);
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (hasSession()) router.replace('/chats');
+    else if (new URLSearchParams(window.location.search).get('deleted') === '1') setNotice('Your account was deleted. You can make a new one any time with the same steps.');
+  }, [router]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError(null);
@@ -32,7 +37,10 @@ export default function SignIn() {
       if (e instanceof ApiError && e.code === ErrorCode.RATE_LIMITED && e.retryAfter) setResendAt(Date.now() + e.retryAfter * 1000);
     } finally { setBusy(false); }
   };
-  const done = (r: AuthResult) => router.replace(r.me.pending.includes('profile') ? '/setup/profile' : '/chats');
+  const done = (r: SignInResult) => {
+    if (needsPin(r)) { setError(null); setStep({ s: 'pin', pinToken: r.pinToken }); return; }
+    router.replace(r.me.pending.includes('profile') ? '/setup/profile' : '/chats');
+  };
   const sent = (s: CodeSent) => setResendAt(Date.now() + s.resendInSeconds * 1000);
 
   return (
@@ -48,6 +56,7 @@ export default function SignIn() {
             <button role="tab" className="ys-tab" aria-selected={step.s === 'email'} onClick={() => { setError(null); setStep({ s: 'email' }); }}><Icon name="mail" size={16} />Email</button>
           </div>
           {error && <Banner>{error}</Banner>}
+          {notice && !error && <Banner tone="success">{notice}</Banner>}
           {step.s === 'phone' ? <PhoneForm busy={busy} onSubmit={(phone) => run(async () => { const r = await api().startPhone(phone); sent(r); setStep({ s: 'phone-code', phone, sent: r }); })} />
             : <EmailForm busy={busy} label="Email" submitLabel="Send code" onSubmit={(email) => run(async () => { const r = await api().startEmail(email); sent(r); setStep({ s: 'email-code', email, sent: r }); })} />}
           <div className="divider">or</div>
@@ -61,7 +70,7 @@ export default function SignIn() {
           onResend={() => run(async () => sent(await api().startPhone(step.phone)))}
           onSubmit={(code) => run(async () => {
             const r = await api().verifyPhone(step.phone, code);
-            if (r.status === 'signed_in') return done(r);
+            if (r.status === 'signed_in' || r.status === 'pin_required') return done(r);
             setResendAt(0);
             setStep({ s: 'signup-email', phone: r.phone, signupToken: r.signupToken });
           })} />
@@ -93,7 +102,45 @@ export default function SignIn() {
           onResend={() => run(async () => sent(await api().startEmail(step.email)))}
           onSubmit={(code) => run(async () => done(await api().verifyEmail(step.email, code)))} />
       )}
+      {step.s === 'pin' && (
+        <PinStep busy={busy} error={error}
+          onSubmit={(pin) => run(async () => done(await api().signInWithPin(step.pinToken, pin)))}
+          onForgot={() => run(async () => { const r = await api().forgotPin(step.pinToken); sent(r); setStep({ s: 'pin-reset', pinToken: step.pinToken, sent: r }); })} />
+      )}
+
+      {step.s === 'pin-reset' && (
+        <CodeStep title="Reset your PIN" sentTo={step.sent.sentTo} busy={busy} error={error} left={left}
+          note="Entering it turns off two-step verification so you can sign in. You can set a new PIN in Settings."
+          onBack={() => { setError(null); setStep({ s: 'pin', pinToken: step.pinToken }); }} backLabel="I remember my PIN"
+          onResend={() => run(async () => sent(await api().forgotPin(step.pinToken)))}
+          onSubmit={(code) => run(async () => done(await api().resetPin(step.pinToken, code)))} />
+      )}
     </AuthShell>
+  );
+}
+
+/** Two-step verification: the 6-digit PIN after the code. */
+function PinStep({ busy, error, onSubmit, onForgot }: { busy: boolean; error: string | null; onSubmit: (pin: string) => void; onForgot: () => void }) {
+  const [pin, setPin] = useState('');
+  const submitted = useRef('');
+  useEffect(() => { if (pin.length === 6 && submitted.current !== pin && !busy) { submitted.current = pin; onSubmit(pin); } }, [pin, busy, onSubmit]);
+  useEffect(() => { if (error) { setPin(''); submitted.current = ''; } }, [error]);
+  return (
+    <>
+      <div>
+        <h1>Enter your PIN</h1>
+        <p className="lead">This account has two-step verification. Enter the 6-digit PIN you chose.</p>
+      </div>
+      {error && <Banner>{error}</Banner>}
+      <form onSubmit={(e) => { e.preventDefault(); if (pin.length === 6) { submitted.current = pin; onSubmit(pin); } }} className="ys-col" style={{ padding: 0, gap: 20 }}>
+        <Field id="pin" label="PIN">
+          <input id="pin" className="ys-input code-input" type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={pin} disabled={busy}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus aria-label="6-digit PIN" />
+        </Field>
+        <div className="row" style={{ justifyContent: 'flex-end' }}><button type="button" className="link-btn" onClick={onForgot} disabled={busy}>Forgot PIN?</button></div>
+        <div className="row center"><OvalButton type="submit" icon="check" label="Continue" size="lg" loading={busy} disabled={pin.length !== 6} /></div>
+      </form>
+    </>
   );
 }
 
@@ -125,8 +172,8 @@ function EmailForm({ busy, label, submitLabel, onSubmit }: { busy: boolean; labe
   );
 }
 
-function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack, backLabel }: {
-  title: string; sentTo: string; busy: boolean; error: string | null; left: number; onSubmit: (c: string) => void; onResend: () => void; onBack: () => void; backLabel: string;
+function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack, backLabel, note }: {
+  title: string; sentTo: string; busy: boolean; error: string | null; left: number; onSubmit: (c: string) => void; onResend: () => void; onBack: () => void; backLabel: string; note?: string;
 }) {
   const [code, setCode] = useState('');
   const submitted = useRef('');
@@ -137,7 +184,7 @@ function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack
     <>
       <div>
         <h1>{title}</h1>
-        <p className="lead">We sent a 6-digit code to <strong style={{ color: 'var(--ink)' }}>{sentTo}</strong>.</p>
+        <p className="lead">We sent a 6-digit code to <strong style={{ color: 'var(--ink)' }}>{sentTo}</strong>.{note ? ` ${note}` : ''}</p>
       </div>
       {error && <Banner>{error}</Banner>}
       <form onSubmit={(e) => { e.preventDefault(); if (code.length === 6) { submitted.current = code; onSubmit(code); } }} className="ys-col" style={{ padding: 0, gap: 20 }}>

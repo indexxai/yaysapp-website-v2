@@ -3,6 +3,9 @@ import { api } from './api';
 
 export type PushState = 'unsupported' | 'blocked' | 'off' | 'on';
 const DISMISS_KEY = 'yays.push.dismissed';
+/** Turned off in Settings on this browser, even though the browser still allows it. */
+const OFF_KEY = 'yays.push.off';
+const turnedOff = () => { try { return localStorage.getItem(OFF_KEY) === '1'; } catch { return false; } };
 
 const supported = () => typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const b64ToBytes = (b64: string) => {
@@ -13,10 +16,10 @@ const b64ToBytes = (b64: string) => {
 export function pushState(): PushState {
   if (!supported()) return 'unsupported';
   if (Notification.permission === 'denied') return 'blocked';
-  return Notification.permission === 'granted' ? 'on' : 'off';
+  return Notification.permission === 'granted' && !turnedOff() ? 'on' : 'off';
 }
 
-export const bannerDismissed = () => { try { return localStorage.getItem(DISMISS_KEY) === '1'; } catch { return false; } };
+export const bannerDismissed = () => { try { return localStorage.getItem(DISMISS_KEY) === '1' || turnedOff(); } catch { return false; } };
 export const dismissBanner = () => { try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* fine */ } };
 
 async function registration() {
@@ -38,6 +41,7 @@ export async function enablePush(): Promise<PushState> {
   if (!supported()) return 'unsupported';
   const p = await Notification.requestPermission();
   if (p !== 'granted') return p === 'denied' ? 'blocked' : 'off';
+  try { localStorage.removeItem(OFF_KEY); } catch { /* fine */ }
   await subscribe();
   return 'on';
 }
@@ -48,8 +52,9 @@ export async function refreshPush() {
 }
 
 /** On sign-out: this browser stops getting this account's notifications. */
-export async function disablePush() {
+export async function disablePush(remember = false) {
   if (!supported()) return;
+  if (remember) { try { localStorage.setItem(OFF_KEY, '1'); } catch { /* fine */ } }
   const reg = await navigator.serviceWorker.getRegistration();
   const sub = await reg?.pushManager.getSubscription();
   if (!sub) return;

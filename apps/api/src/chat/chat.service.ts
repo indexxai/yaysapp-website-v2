@@ -395,6 +395,7 @@ export class ChatService {
         mutedUntil: pref?.mutedUntil && pref.mutedUntil.getTime() > Date.now() ? pref.mutedUntil.toISOString() : null,
         archived: !!pref?.archived, pinnedAt: pref?.pinnedAt ? pref.pinnedAt.toISOString() : null,
         markedUnread: !!pref?.markedUnread, blocked: iBlocked, visibleFrom: fromSeq,
+        ...(pref?.deletedSeq !== undefined && pref.deletedSeq >= c.seq ? { hidden: true } : {}),
         lastActivityAt: (member && !(last && c.lastMessageId && !last._id.equals(c.lastMessageId)) ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
       };
     }));

@@ -86,7 +86,7 @@ export function ContactInfoPanel({ id, onClose, onJump, onSearch, onOpenChat }: 
         </section>
 
         <section className="info-section">
-          <div className="info-row"><span className="ys-oval ys-oval--wash" style={{ width: 32 }}><Icon name="star" size={16} /></span><span className="info-row__text">Starred messages</span><span className="muted">{o?.counts.starred ?? ''}</span></div>
+          <a className="info-row" href={`/settings/starred?c=${id}`} style={{ textDecoration: 'none', cursor: 'pointer' }}><span className="ys-oval ys-oval--wash" style={{ width: 32 }}><Icon name="star" size={16} /></span><span className="info-row__text">Starred messages</span><span className="muted">{o?.counts.starred ?? ''}</span></a>
           <MuteRow c={c} run={run} />
           {c.pins.length > 0 && (
             <button type="button" className="info-row" onClick={() => onJump(c.pins[0].seq)}>

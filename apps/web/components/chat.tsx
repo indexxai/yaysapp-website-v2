@@ -9,6 +9,8 @@ import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/
 import { Avatar, Banner, OvalButton } from './ui';
 import { InChatSearch } from './search';
 import { isMuted, MUTE_CHOICES } from './contact';
+import { getPrefs } from '@/lib/prefs';
+import { useRouter } from 'next/navigation';
 
 const TICK_LABEL: Record<Tick, string> = { pending: 'Sending', failed: 'Not sent', sent: 'Sent', delivered: 'Delivered', read: 'Read' };
 
@@ -180,18 +182,20 @@ function ChatRow({ c, me, active, typing, onOpen }: { c: ConversationSummary; me
       </a>
       <span className="chat-row__more">
         <button type="button" className="icon-btn" aria-label={`Options for ${name}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)}><Icon name="chevron-down" size={18} /></button>
-        {menu && <ChatRowMenu c={c} onClose={() => setMenu(false)} />}
+        {menu && <ChatRowMenu c={c} active={active} onClose={() => setMenu(false)} />}
       </span>
     </div>
   );
 }
 
 /** Archive, mute, pin and mark unread, from a chat's row. */
-function ChatRowMenu({ c, onClose }: { c: ConversationSummary; onClose: () => void }) {
+function ChatRowMenu({ c, active, onClose }: { c: ConversationSummary; active: boolean; onClose: () => void }) {
   const engine = useEngine();
+  const router = useRouter();
   const ref = useRef<HTMLSpanElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [muting, setMuting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('[role=menuitem]')?.focus();
     const away = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) onClose(); };
@@ -205,7 +209,13 @@ function ChatRowMenu({ c, onClose }: { c: ConversationSummary; onClose: () => vo
   return (
     <span className="menu menu--row" role="menu" ref={ref} aria-label="Chat options">
       {error && <span className="menu__error" role="alert">{error}</span>}
-      {muting ? (
+      {deleting ? (
+        <>
+          <span className="menu__error" style={{ color: 'var(--ink)' }}>Delete this chat? Its messages go from your devices only.</span>
+          <button type="button" role="menuitem" className="danger" onClick={() => void engine.deleteChat(c.id).then(() => { onClose(); if (active) router.push('/chats'); }, (e) => setError(e instanceof ApiError ? e.message : 'That did not work.'))}><Icon name="trash" size={16} />Delete chat</button>
+          <button type="button" role="menuitem" onClick={() => setDeleting(false)}>Cancel</button>
+        </>
+      ) : muting ? (
         <>
           {MUTE_CHOICES.map(([v, l]) => <button key={v} type="button" role="menuitem" onClick={() => set({ mute: v })}>Mute for {l.toLowerCase()}</button>)}
           <button type="button" role="menuitem" onClick={() => setMuting(false)}>Back</button>
@@ -217,6 +227,7 @@ function ChatRowMenu({ c, onClose }: { c: ConversationSummary; onClose: () => vo
             : <button type="button" role="menuitem" onClick={() => setMuting(true)}><Icon name="bell-off" size={16} />Mute notifications</button>}
           {!c.archived && <button type="button" role="menuitem" onClick={() => set({ pinned: !c.pinnedAt })}><Icon name="pin" size={16} />{c.pinnedAt ? 'Unpin chat' : 'Pin chat'}</button>}
           <button type="button" role="menuitem" onClick={() => set({ unread: !unread })}><Icon name="check-double" size={16} />{unread ? 'Mark as read' : 'Mark as unread'}</button>
+          {c.kind === 'direct' && <button type="button" role="menuitem" className="danger" onClick={() => setDeleting(true)}><Icon name="trash" size={16} />Delete chat</button>}
         </>
       )}
     </span>
@@ -509,7 +520,7 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
     if (fs.length && !editing) { e.preventDefault(); onFiles(fs); }
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(); }
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && (getPrefs().enterToSend || e.ctrlKey || e.metaKey)) { e.preventDefault(); void submit(); }
     if (e.key === 'Escape' && (editing || replyTo)) { e.preventDefault(); onDone(); }
   };
   return (
