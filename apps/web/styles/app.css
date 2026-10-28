@@ -426,3 +426,34 @@ textarea.ys-input { min-height: 110px; resize: vertical; padding-top: 10px; font
 .btn--primary { background: var(--ember); color: var(--on-ember); border-color: transparent; }
 .switch span { background: #ffffff !important; }
 @media (max-width: 860px) { .app-shell:has(.settings--open) .rail { display: none; } }
+
+/* Mentions and polls (w03, m42) */
+.mention { font-weight: 700; color: var(--ember-ink); }
+.ys-bubble--me .mention { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.mention--me { background: var(--ember-wash); border-radius: 6px; padding: 0 3px; }
+.ys-bubble--me .mention--me { background: rgba(255,255,255,.22); }
+.composer__box { position: relative; flex: 1; min-width: 0; display: flex; }
+.composer__box textarea { flex: 1; }
+.mention-list { position: absolute; left: 0; bottom: calc(100% - 12px); z-index: 6; width: min(280px, 100%); display: flex; flex-direction: column; padding: 6px; background: var(--raised); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-raise); }
+.mention-list button { appearance: none; border: 0; background: none; display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 12px; font: 600 14px var(--font-body); color: var(--ink); cursor: pointer; text-align: left; }
+.mention-list button[aria-selected="true"], .mention-list button:hover { background: var(--ember-wash); }
+.attach-wrap { position: relative; }
+.menu--attach { top: auto; bottom: calc(100% + 4px); left: 0; right: auto; min-width: 230px; }
+.menu--attach button { display: flex; align-items: center; gap: 10px; }
+.poll { display: flex; flex-direction: column; gap: 6px; min-width: min(280px, 60vw); padding: 2px 0 4px; }
+.poll__q { font: 700 15px/21px var(--font-body); }
+.poll__hint { font-size: 12px; opacity: .75; margin-top: -4px; }
+.poll__opt { appearance: none; border: 0; background: none; color: inherit; font: inherit; display: flex; align-items: center; gap: 10px; padding: 4px 0; text-align: left; cursor: pointer; }
+.poll__opt:disabled { cursor: default; }
+.poll__box { flex: none; width: 20px; height: 20px; border-radius: 6px; border: 2px solid currentColor; opacity: .7; display: grid; place-items: center; }
+.poll__box--round { border-radius: 50%; }
+.poll__opt[aria-checked="true"] .poll__box { opacity: 1; background: var(--ember); border-color: var(--ember); color: var(--on-ember); }
+.ys-bubble--me .poll__opt[aria-checked="true"] .poll__box { background: #fff; border-color: #fff; color: var(--ember-deep); }
+.poll__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.poll__row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.poll__bar { height: 6px; border-radius: 3px; background: rgba(128,128,128,.25); overflow: hidden; }
+.poll__bar span { display: block; height: 100%; border-radius: 3px; background: var(--ember); transition: width .25s; }
+.ys-bubble--me .poll__bar span { background: #fff; }
+.poll__foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px; opacity: .85; }
+.ys-bubble--me .poll__foot .link-btn { color: inherit; text-decoration: underline; }
+.poll__error { font-size: 12px; font-weight: 700; color: var(--danger-ink); }

@@ -66,7 +66,8 @@ export function formatDuration(ms: number) {
 }
 
 /** The quoted message shown above a reply. */
-export interface ReplyPreview { id: string; seq: number; senderId: string; type: 'text' | 'system' | 'media'; text: string; deleted: boolean; attachment?: { kind: AttachmentKind; name: string; thumbUrl: string | null; durationMs?: number } }
+export type MessageType = 'text' | 'system' | 'media' | 'poll';
+export interface ReplyPreview { id: string; seq: number; senderId: string; type: MessageType; text: string; deleted: boolean; attachment?: { kind: AttachmentKind; name: string; thumbUrl: string | null; durationMs?: number } }
 
 export interface ChatMessage {
   id: string;
@@ -76,8 +77,8 @@ export interface ChatMessage {
   senderId: string;
   /** Chosen by the sending device; sending the same clientId twice never makes two messages. */
   clientId: string;
-  type: 'text' | 'system' | 'media';
-  /** The message, or the caption of a photo, video or file. */
+  type: MessageType;
+  /** The message, the caption of a photo, video or file, or a poll's question. */
   text: string;
   system?: SystemEvent;
   attachment?: Attachment;
@@ -93,7 +94,25 @@ export interface ChatMessage {
   starred?: boolean;
   /** Mine, to someone who blocked me: it stays at one tick. */
   held?: boolean;
+  /** People @mentioned in the text (each appears as "@Their Name"). */
+  mentions?: string[];
+  poll?: PollView;
 }
+
+export interface PollView {
+  question: string;
+  options: Array<{ id: string; text: string; votes: number; /** Who picked it, unless the poll hides voters. */ voters?: string[] }>;
+  /** More than one answer allowed. */
+  multi: boolean;
+  /** Only counts are shown. */
+  anonymous: boolean;
+  /** How many people have voted. */
+  voterCount: number;
+  /** My picks (only in answers to me, or when voters are shown). */
+  myVotes?: string[];
+}
+export const POLL_LIMITS = { question: 255, option: 100, minOptions: 2, maxOptions: 12 };
+export const MAX_MENTIONS = 50;
 
 /** Rules for message actions. */
 export const EDIT_WINDOW_MINUTES = 15;
@@ -173,6 +192,8 @@ export interface ConversationSummary {
   visibleFrom: number;
   /** I deleted this chat and nothing new has been said since: keep it off the list. */
   hidden?: boolean;
+  /** Someone @mentioned me in a message I haven't read yet. */
+  mentioned?: boolean;
   memberIds: string[];
   lastSeq: number;
   lastMessage: ChatMessage | null;
@@ -231,10 +252,22 @@ export const attachmentInputSchema = z.object({
 });
 export type AttachmentInput = z.infer<typeof attachmentInputSchema>;
 export const sendMessageSchema = z.union([
-  z.object({ clientId: clientIdSchema, text: messageTextSchema, replyToId: objectIdSchema.optional(), attachment: z.undefined().optional() }),
-  z.object({ clientId: clientIdSchema, text: captionSchema.default(''), replyToId: objectIdSchema.optional(), attachment: attachmentInputSchema }),
+  z.object({ clientId: clientIdSchema, text: messageTextSchema, replyToId: objectIdSchema.optional(), attachment: z.undefined().optional(), mentions: z.array(objectIdSchema).max(MAX_MENTIONS).optional() }),
+  z.object({ clientId: clientIdSchema, text: captionSchema.default(''), replyToId: objectIdSchema.optional(), attachment: attachmentInputSchema, mentions: z.array(objectIdSchema).max(MAX_MENTIONS).optional() }),
 ]);
-export const editMessageSchema = z.object({ text: messageTextSchema });
+export const editMessageSchema = z.object({ text: messageTextSchema, mentions: z.array(objectIdSchema).max(MAX_MENTIONS).optional() });
+const pollText = (max: number, what: string) => z.string().transform((v) => v.replace(/\s+/g, ' ').trim()).pipe(z.string().min(1, `Write the ${what}.`).max(max, `The ${what} can be up to ${max} characters.`));
+export const createPollSchema = z.object({
+  clientId: clientIdSchema,
+  question: pollText(POLL_LIMITS.question, 'question'),
+  options: z.array(pollText(POLL_LIMITS.option, 'option')).min(POLL_LIMITS.minOptions, 'Add at least 2 options.').max(POLL_LIMITS.maxOptions, 'A poll can have up to 12 options.')
+    .refine((o) => new Set(o.map((x) => x.toLowerCase())).size === o.length, 'Each option must be different.'),
+  multi: z.boolean().default(false),
+  anonymous: z.boolean().default(false),
+  replyToId: objectIdSchema.optional(),
+});
+export type CreatePollInput = z.input<typeof createPollSchema>;
+export const voteSchema = z.object({ options: z.array(z.string().regex(/^[a-z0-9]{1,8}$/)).max(POLL_LIMITS.maxOptions) });
 /** One emoji (with skin tones, flags or joined sequences), nothing else. */
 export const emojiSchema = z.string().refine((v) => v.length > 0 && v.length <= 16 && (/^[0-9#*]\u{FE0F}?\u{20E3}$/u.test(v) || /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})(?:[\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}\u{20E3}]|\p{Extended_Pictographic}|\p{Regional_Indicator})*$/u.test(v)), 'React with a single emoji.');
 export const reactSchema = z.object({ emoji: emojiSchema });
@@ -287,7 +320,7 @@ export interface ServerEvents {
   /** A message was edited, deleted for everyone, or its reactions changed. */
   'msg:update': (p: { message: ChatMessage }) => void;
   /** Only to my own devices: I deleted a message for me, or starred / unstarred it. */
-  'msg:mine': (p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean }) => void;
+  'msg:mine': (p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean; votes?: string[] }) => void;
   /** Someone changed who sees their online status: ask again. */
   'presence:recheck': (p: { userId: string }) => void;
 }

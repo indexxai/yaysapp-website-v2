@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { editMessageSchema, forwardSchema, reactSchema } from '@yays/shared';
+import { createPollSchema, editMessageSchema, forwardSchema, reactSchema, voteSchema } from '@yays/shared';
 import { parse } from '../common/zod';
 import { AppError } from '../common/app-error';
 import { Auth, AuthGuard, type AuthCtx } from '../auth/auth.guard';
@@ -13,7 +13,12 @@ import { MESSAGES, type MessagesService } from './messages.service';
 export class MessageActionsController {
   constructor(@Inject(MESSAGES) private m: MessagesService, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
 
-  @Patch() edit(@Auth() a: AuthCtx, @Param('id') id: string, @Param('msgId') msgId: string, @Body() b: unknown) { return this.m.edit(a.userId, id, msgId, parse(editMessageSchema, b).text); }
+  @Patch() edit(@Auth() a: AuthCtx, @Param('id') id: string, @Param('msgId') msgId: string, @Body() b: unknown) { const v = parse(editMessageSchema, b); return this.m.edit(a.userId, id, msgId, v.text, v.mentions); }
+
+  @Put('vote') async vote(@Auth() a: AuthCtx, @Param('id') id: string, @Param('msgId') msgId: string, @Body() b: unknown) {
+    await this.limiter.hit(`vote:${a.userId}`, 120, 60, 'You are voting too fast. Wait a moment.');
+    return this.m.vote(a.userId, id, msgId, parse(voteSchema, b).options);
+  }
 
   /** ?for=everyone or ?for=me */
   @Delete()
@@ -50,5 +55,18 @@ export class StarredController {
   @Get() list(@Auth() a: AuthCtx, @Query('before') before?: string, @Query('conversationId') conv?: string) {
     if (conv && !/^[a-f0-9]{24}$/i.test(conv)) throw AppError.validation('Not a valid id.');
     return this.m.starred(a.userId, before, 50, conv);
+  }
+}
+
+@Controller('v1/conversations/:id/polls')
+@UseGuards(AuthGuard)
+export class PollsController {
+  constructor(@Inject(MESSAGES) private m: MessagesService, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
+
+  @Post() @HttpCode(200)
+  async create(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) {
+    const v = parse(createPollSchema, b);
+    await this.limiter.hit(`send:${a.userId}`, SEND_LIMIT.count, SEND_LIMIT.windowSeconds, 'You are sending messages too fast. Wait a moment.');
+    return this.m.createPoll(a.userId, id, v);
   }
 }

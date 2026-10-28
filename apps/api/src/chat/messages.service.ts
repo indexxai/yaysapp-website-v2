@@ -37,14 +37,15 @@ export class MessagesService {
     return (await this.chat.present([m!], me))[0];
   }
 
-  async edit(me: ObjectId, convId: string, msgId: string, text: string): Promise<ChatMessage> {
+  async edit(me: ObjectId, convId: string, msgId: string, text: string, mentionIds?: string[]): Promise<ChatMessage> {
     const { c, m } = await this.visible(me, convId, msgId);
     if (!m.senderId.equals(me)) throw AppError.forbidden('You can only edit your own messages.');
     if (m.type !== 'text' || m.deletedAt) throw AppError.validation(m.type === 'media' ? 'Photos, videos and files can’t be edited. Delete and send again.' : 'That message can’t be edited.');
     if (m.forwarded) throw AppError.validation('Forwarded messages can’t be edited.');
     if (minutesSince(m.createdAt) > EDIT_WINDOW_MINUTES) throw AppError.conflict(`Messages can be edited for ${EDIT_WINDOW_MINUTES} minutes after sending.`);
-    if (text === m.text) return this.mine(me, m._id);
-    const updated = await this.chat.msgs.findOneAndUpdate({ _id: m._id, deletedAt: { $exists: false } }, { $set: { text, editedAt: new Date() } }, { returnDocument: 'after' });
+    const mentions = this.chat.cleanMentions(c, me, text, mentionIds ?? m.mentions?.map((x) => x.toHexString()));
+    if (text === m.text && mentions.length === (m.mentions?.length ?? 0)) return this.mine(me, m._id);
+    const updated = await this.chat.msgs.findOneAndUpdate({ _id: m._id, deletedAt: { $exists: false } }, mentions.length ? { $set: { text, editedAt: new Date(), mentions } } : { $set: { text, editedAt: new Date() }, $unset: { mentions: '' } }, { returnDocument: 'after' });
     if (!updated) throw AppError.validation('That message can’t be edited.');
     await this.broadcast(c, updated);
     return this.mine(me, m._id);
@@ -90,7 +91,7 @@ export class MessagesService {
   async pin(me: ObjectId, convId: string, msgId: string, on: boolean) {
     const { c, m } = await this.visible(me, convId, msgId);
     if (!this.chat.may(c, me, 'pin')) throw AppError.forbidden('Only admins can pin messages in this group.');
-    if (on && ((m.type !== 'text' && m.type !== 'media') || m.deletedAt)) throw AppError.validation('That message can’t be pinned.');
+    if (on && ((m.type !== 'text' && m.type !== 'media' && m.type !== 'poll') || m.deletedAt)) throw AppError.validation('That message can’t be pinned.');
     const pinned = !!c.pins?.some((p) => p.msgId.equals(m._id));
     if (pinned === on) return this.chat.one(me, convId);
     const r = await this.chat.tx(async (s) => {
@@ -136,6 +137,30 @@ export class MessagesService {
     }
     const byTime = (a: ReceiptDetail, b: ReceiptDetail) => a.at.localeCompare(b.at);
     return { messageId: m._id.toHexString(), readBy: readBy.sort(byTime), deliveredTo: deliveredTo.sort(byTime), waiting };
+  }
+
+  async createPoll(me: ObjectId, convId: string, v: { clientId: string; question: string; options: string[]; multi: boolean; anonymous: boolean; replyToId?: string }) {
+    return this.chat.send(me, convId, v.clientId, v.question, { replyToId: v.replyToId, poll: { options: v.options, multi: v.multi, anonymous: v.anonymous } });
+  }
+
+  /** Picks (or changes, or with none, takes back) my answer. Everyone sees the new counts live. */
+  async vote(me: ObjectId, convId: string, msgId: string, picks: string[]): Promise<ChatMessage> {
+    const { c, m } = await this.visible(me, convId, msgId);
+    if (m.type !== 'poll' || !m.poll) throw AppError.validation('That message isn’t a poll.');
+    if (m.deletedAt) throw AppError.validation('That poll was deleted.');
+    const options = [...new Set(picks)];
+    if (options.some((o) => !m.poll!.options.some((x) => x.id === o))) throw AppError.validation('That option isn’t in the poll.');
+    if (!m.poll.multi && options.length > 1) throw AppError.validation('This poll allows one answer.');
+    const updated = await this.chat.msgs.findOneAndUpdate({ _id: m._id }, [{
+      $set: { votes: { $concatArrays: [
+        { $filter: { input: { $ifNull: ['$votes', []] }, cond: { $ne: ['$$this.u', me] } } },
+        options.length ? [{ u: me, o: options, at: new Date() }] : [],
+      ] } },
+    }], { returnDocument: 'after' });
+    await this.broadcast(c, updated!);
+    // Hidden-voter polls: my other devices learn my picks this way.
+    this.chat.msgEvents.mine(me, { conversationId: c._id.toHexString(), messageId: m._id.toHexString(), votes: options });
+    return this.mine(me, m._id);
   }
 
   /** Copies a message's text into up to 5 chats, each marked forwarded, with an optional note after it. */

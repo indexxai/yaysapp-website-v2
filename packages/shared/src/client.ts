@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
-import type { AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -175,15 +175,17 @@ export class YaysClient {
     const s = q.toString();
     return this.request<MessagePage>('GET', `/v1/conversations/${encodeURIComponent(conversationId)}/messages${s ? `?${s}` : ''}`);
   }
-  sendMessage(conversationId: string, clientId: string, text: string, replyToId?: string, attachment?: AttachmentInput) {
-    return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/messages`, { clientId, text, ...(replyToId ? { replyToId } : {}), ...(attachment ? { attachment } : {}) });
+  sendMessage(conversationId: string, clientId: string, text: string, replyToId?: string, attachment?: AttachmentInput, mentions?: string[]) {
+    return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/messages`, { clientId, text, ...(replyToId ? { replyToId } : {}), ...(attachment ? { attachment } : {}), ...(mentions?.length ? { mentions } : {}) });
   }
+  createPoll(conversationId: string, p: CreatePollInput) { return this.request<SendResult>('POST', `/v1/conversations/${encodeURIComponent(conversationId)}/polls`, p); }
+  vote(c: string, m: string, options: string[]) { return this.request<ChatMessage>('PUT', `${this.msgUrl(c, m)}/vote`, { options }); }
   /** A signed link to upload one file to. */
   uploadTicket(body: { purpose: 'media' | 'thumb' | 'avatar'; kind?: AttachmentKind; contentType: string; size: number; name?: string }) {
     return this.request<UploadTicket>('POST', '/v1/media/upload-url', body);
   }
   private msgUrl(c: string, m: string, tail = '') { return `/v1/conversations/${encodeURIComponent(c)}/messages/${encodeURIComponent(m)}${tail}`; }
-  editMessage(c: string, m: string, text: string) { return this.request<ChatMessage>('PATCH', this.msgUrl(c, m), { text }); }
+  editMessage(c: string, m: string, text: string, mentions?: string[]) { return this.request<ChatMessage>('PATCH', this.msgUrl(c, m), { text, ...(mentions ? { mentions } : {}) }); }
   deleteMessage(c: string, m: string, forWho: 'me' | 'everyone') { return this.request<ChatMessage | { hidden: true }>('DELETE', this.msgUrl(c, m, `?for=${forWho}`)); }
   react(c: string, m: string, emoji: string | null) { return emoji ? this.request<ChatMessage>('PUT', this.msgUrl(c, m, '/reaction'), { emoji }) : this.request<ChatMessage>('DELETE', this.msgUrl(c, m, '/reaction')); }
   pinMessage(c: string, m: string, on: boolean) { return this.request<ConversationSummary>(on ? 'POST' : 'DELETE', this.msgUrl(c, m, '/pin'), on ? {} : undefined); }

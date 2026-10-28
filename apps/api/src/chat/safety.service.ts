@@ -71,7 +71,7 @@ export class SafetyService {
       if (c) { convId = c._id; range = { from: (await this.chat.access(c._id, me)).fromSeq, until: Number.MAX_SAFE_INTEGER }; }
     }
     const evidence = convId ? await this.chat.msgs.find({
-      convId, seq: { $gt: range.from, $lte: range.until }, type: { $in: ['text', 'media'] }, ...(target ? { senderId: target } : { senderId: { $ne: me } }),
+      convId, seq: { $gt: range.from, $lte: range.until }, type: { $in: ['text', 'media', 'poll'] }, ...(target ? { senderId: target } : { senderId: { $ne: me } }),
     }).sort({ seq: -1 }).limit(EVIDENCE).toArray() : [];
     await this.reports.insertOne({
       _id: new ObjectId(), by: me, ...(target ? { targetUserId: target } : {}), ...(convId ? { convId } : {}), reason: v.reason, ...(v.note ? { note: v.note.trim() } : {}),

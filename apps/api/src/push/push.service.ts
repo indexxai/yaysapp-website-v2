@@ -129,9 +129,11 @@ export class PushService {
     for (const s of subs) byUser.set(s.userId.toHexString(), [...(byUser.get(s.userId.toHexString()) ?? []), s]);
     for (const [uid, list] of byUser) {
       if (await this.inFront(uid)) continue;
-      if (await this.isMuted(c._id, new ObjectId(uid))) continue;
+      // Being @mentioned gets through a muted group and "no group notifications".
+      const mentioned = !!m.mentions?.includes(uid);
+      if (!mentioned && await this.isMuted(c._id, new ObjectId(uid))) continue;
       const n = settings.get(uid);
-      if (n && c.kind === 'group' && !n.groups && m.type !== 'system') continue;
+      if (n && c.kind === 'group' && !n.groups && m.type !== 'system' && !mentioned) continue;
       if (n && inQuietHours(n)) continue;
       const name = (id: string) => (id === uid ? 'You' : names.get(id) ?? 'Someone');
       const preview = m.type === 'system' && m.system ? systemText(m.system, m.senderId, name) : messagePreview(m);

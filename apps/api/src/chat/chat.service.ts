@@ -2,7 +2,7 @@ import { MongoServerError, ObjectId, type ClientSession, type Collection, type D
 import {
   DEFAULT_GROUP_SETTINGS, MAX_VOICE_MS, messagePreview, MEDIA_LIMITS, MEDIA_TYPES, baseMime, formatBytes,
   type Attachment, type AttachmentInput, type AttachmentKind,
-  type ChatMessage, type ConversationPage, type ConversationSummary, type GroupMeta, type GroupSettings, type MemberReceipt, type MessagePage, type PinnedMessage, type PublicProfile, type ReplyPreview, type SendResult, type SystemEvent,
+  type ChatMessage, type PollView, type ConversationPage, type ConversationSummary, type GroupMeta, type GroupSettings, type MemberReceipt, type MessagePage, type PinnedMessage, type PublicProfile, type ReplyPreview, type SendResult, type SystemEvent,
 } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { C } from '../infra/mongo';
@@ -40,9 +40,15 @@ export interface MessageDoc {
   seq: number;
   senderId: ObjectId;
   clientId: string;
-  type: 'text' | 'system' | 'media';
+  type: 'text' | 'system' | 'media' | 'poll';
+  /** The text, a caption, or a poll's question. */
   text: string;
   system?: SystemEvent;
+  /** @mentioned members. */
+  mentions?: ObjectId[];
+  poll?: { question: string; options: Array<{ id: string; text: string }>; multi: boolean; anonymous: boolean };
+  /** One entry per voter: the options they picked. */
+  votes?: Array<{ u: ObjectId; o: string[]; at: Date }>;
   attachment?: StoredAttachment;
   createdAt: Date;
   replyToId?: ObjectId;
@@ -89,7 +95,7 @@ const DELETED: PublicProfile = { id: '', displayName: 'Deleted account', usernam
 
 export interface MessageEvents {
   messageUpdated(userIds: ObjectId[], message: ChatMessage): void;
-  mine(userId: ObjectId, p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean }): void;
+  mine(userId: ObjectId, p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean; votes?: string[] }): void;
 }
 
 /** Stored on the message. Links are made fresh when it is read. */
@@ -107,6 +113,21 @@ function toAttachment(a: StoredAttachment, urls?: Urls): Attachment {
   return {
     kind: a.kind, url: urls?.get(a.key) ?? '', thumbUrl: a.thumbKey ? urls?.get(a.thumbKey) ?? null : null, name: a.name, size: a.size, mime: a.mime,
     ...(a.width ? { width: a.width, height: a.height } : {}), ...(a.durationMs !== undefined ? { durationMs: a.durationMs } : {}), ...(a.waveform ? { waveform: a.waveform } : {}),
+  };
+}
+
+/** Counts per option; who voted unless the poll hides it; my picks when it's me asking. */
+export function pollView(m: MessageDoc, viewer?: ObjectId): PollView {
+  const p = m.poll!;
+  const votes = m.votes ?? [];
+  const mine = viewer ? votes.find((v) => v.u.equals(viewer))?.o : undefined;
+  return {
+    question: p.question, multi: p.multi, anonymous: p.anonymous, voterCount: votes.length,
+    options: p.options.map((o) => {
+      const who = votes.filter((v) => v.o.includes(o.id)).sort((a, b) => a.at.getTime() - b.at.getTime());
+      return { id: o.id, text: o.text, votes: who.length, ...(p.anonymous ? {} : { voters: who.map((v) => v.u.toHexString()) }) };
+    }),
+    ...(viewer ? { myVotes: mine ?? [] } : {}),
   };
 }
 
@@ -129,6 +150,8 @@ export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, view
   }
   if (viewer) out.starred = viewer.starred.has(m._id.toHexString());
   if (m.heldFrom && viewer?.id.equals(m.senderId)) out.held = true;
+  if (m.mentions?.length) out.mentions = m.mentions.map((u) => u.toHexString());
+  if (m.poll) out.poll = pollView(m, viewer?.id);
   return out;
 }
 
@@ -369,6 +392,7 @@ export class ChatService {
       const lastSeq = visibleLast(c);
       const readFrom = Math.max(my?.readSeq ?? 0, my?.fromSeq ?? 0);
       const unread = lastSeq > readFrom ? await this.msgs.countDocuments({ convId: c._id, seq: { $gt: readFrom, $lte: lastSeq }, senderId: { $ne: me }, hiddenFor: { $ne: me } }, { limit: UNREAD_CAP }) : 0;
+      const mentioned = unread > 0 && c.kind === 'group' && !!(await this.msgs.findOne({ convId: c._id, seq: { $gt: readFrom, $lte: lastSeq }, mentions: me, deletedAt: { $exists: false } }, { projection: { _id: 1 } }));
       const last = lastMsgs[i];
       const peerId = c.kind === 'direct' ? c.members.find((m) => !m.equals(me)) : undefined;
       const peerDoc = peerId ? byId.get(peerId.toHexString()) : undefined;
@@ -394,7 +418,7 @@ export class ChatService {
         pins: (await this.pinsOf(c)).filter((p) => p.seq > fromSeq && p.seq <= lastSeq),
         mutedUntil: pref?.mutedUntil && pref.mutedUntil.getTime() > Date.now() ? pref.mutedUntil.toISOString() : null,
         archived: !!pref?.archived, pinnedAt: pref?.pinnedAt ? pref.pinnedAt.toISOString() : null,
-        markedUnread: !!pref?.markedUnread, blocked: iBlocked, visibleFrom: fromSeq,
+        markedUnread: !!pref?.markedUnread, blocked: iBlocked, visibleFrom: fromSeq, ...(mentioned ? { mentioned: true } : {}),
         ...(pref?.deletedSeq !== undefined && pref.deletedSeq >= c.seq ? { hidden: true } : {}),
         lastActivityAt: (member && !(last && c.lastMessageId && !last._id.equals(c.lastMessageId)) ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
       };
@@ -465,7 +489,7 @@ export class ChatService {
    * Stores a message exactly once. The number, the message and the sender's own receipt are written in one
    * transaction, so a retry with the same clientId returns the first copy and the numbers have no gaps.
    */
-  async send(me: ObjectId, convId: string, clientId: string, text: string, opts: { replyToId?: string; forwarded?: boolean; attachment?: AttachmentInput; trustedAttachment?: StoredAttachment } = {}): Promise<SendResult> {
+  async send(me: ObjectId, convId: string, clientId: string, text: string, opts: { replyToId?: string; forwarded?: boolean; attachment?: AttachmentInput; trustedAttachment?: StoredAttachment; mentions?: string[]; poll?: { options: string[]; multi: boolean; anonymous: boolean } } = {}): Promise<SendResult> {
     const existing = await this.msgs.findOne({ senderId: me, clientId });
     if (existing) return this.duplicate(existing, convId, me);
     const pre = await this.memberConv(convId, me);
@@ -494,6 +518,8 @@ export class ChatService {
       if (t.deletedAt) throw AppError.validation('You can’t reply to a deleted message.');
       replyToId = t._id;
     }
+    const mentions = this.cleanMentions(pre, me, text, opts.mentions);
+    const poll = opts.poll ? { question: text, options: opts.poll.options.map((t, i) => ({ id: (i + 1).toString(36), text: t })), multi: opts.poll.multi, anonymous: opts.poll.anonymous } : undefined;
     let created: MessageDoc | null = null;
     let conv: ConversationDoc | null = null;
     try {
@@ -505,7 +531,7 @@ export class ChatService {
         const id = new ObjectId();
         const c = await this.convs.findOneAndUpdate({ _id: pre._id, members: me }, { $inc: { seq: 1 }, $set: { lastAt: now, lastMessageId: id } }, { session, returnDocument: 'after' });
         if (!c) throw AppError.notFound('Chat not found.');
-        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: attachment ? 'media' : 'text', text, createdAt: now, ...(attachment ? { attachment } : {}), ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}), ...(hiddenFrom ? { hiddenFor: [hiddenFrom], heldFrom: hiddenFrom } : {}) };
+        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: poll ? 'poll' : attachment ? 'media' : 'text', text, createdAt: now, ...(attachment ? { attachment } : {}), ...(mentions.length ? { mentions } : {}), ...(poll ? { poll, votes: [] } : {}), ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}), ...(hiddenFrom ? { hiddenFor: [hiddenFrom], heldFrom: hiddenFrom } : {}) };
         await this.msgs.insertOne(m, { session });
         await this.receipts.updateOne({ _id: rKey(c._id, me) }, { $max: { deliveredSeq: c.seq, readSeq: c.seq }, $set: { updatedAt: now }, $setOnInsert: { convId: c._id, userId: me } }, { upsert: true, session });
         created = m; conv = c;
@@ -523,6 +549,17 @@ export class ChatService {
     this.events.messageCreated(to, message);
     this.events.receiptChanged(to, message.conversationId, me.toHexString(), { deliveredSeq: m.seq, readSeq: m.seq });
     return { message, duplicate: false };
+  }
+
+  /** Mentions only count in groups, for people in the group now, named in the text. */
+  cleanMentions(c: ConversationDoc, me: ObjectId, text: string, ids?: string[]): ObjectId[] {
+    if (!ids?.length || c.kind !== 'group' || !text.includes('@')) return [];
+    const out: ObjectId[] = [];
+    for (const id of new Set(ids.map((x) => x.toLowerCase()))) {
+      const u = c.members.find((m) => m.toHexString() === id);
+      if (u && !u.equals(me)) out.push(u);
+    }
+    return out;
   }
 
   private async duplicate(m: MessageDoc, convId: string, me: ObjectId): Promise<SendResult> {

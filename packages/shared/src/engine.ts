@@ -2,7 +2,7 @@ import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
 import type { UploadTicket, YaysClient } from './client';
 import type { PublicProfile } from './types';
-import { MEDIA_LIMITS, baseMime, formatBytes, tickFor, type Ack, type Attachment, type AttachmentInput, type AttachmentKind, type ChatMessage, type ChatPrefsInput, type ReportInput, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
+import { MEDIA_LIMITS, baseMime, formatBytes, tickFor, type Ack, type Attachment, type AttachmentInput, type AttachmentKind, type ChatMessage, type ChatPrefsInput, type MessageType, type PollView, type CreatePollInput, type ReportInput, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
 
 /** A message typed on this device that the server has not confirmed yet. Kept on the device until it has. */
 export interface PendingMessage {
@@ -14,6 +14,8 @@ export interface PendingMessage {
   status: 'pending' | 'failed';
   error?: string;
   replyToId?: string;
+  /** People @mentioned (group chats). */
+  mentions?: string[];
   /** The uploaded file this message carries. */
   attachment?: AttachmentInput;
   /** What to show while it waits: name, size, type (and a local picture while the app is open). */
@@ -75,7 +77,8 @@ export interface ChatState {
 }
 
 export interface ThreadItem {
-  key: string; mine: boolean; type: 'text' | 'system' | 'media'; text: string; system?: SystemEvent; attachment?: Attachment;
+  key: string; mine: boolean; type: MessageType; text: string; system?: SystemEvent; attachment?: Attachment;
+  mentions?: string[]; poll?: PollView;
   /** While the file is still uploading. */
   upload?: { sent: number; total: number; status: 'uploading' | 'failed'; error?: string }; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string;
   /** The server's id; null while still waiting to send. */
@@ -259,6 +262,10 @@ export class ChatEngine {
     s.on('msg:mine', (p) => {
       if (p.hidden) this.removeLocal(p.conversationId, p.messageId);
       else if (p.starred !== undefined) this.patchLocal(p.conversationId, p.messageId, { starred: p.starred });
+      if (p.votes) {
+        const m = this.state.threads[p.conversationId]?.items.find((x) => x.id === p.messageId);
+        if (m?.poll) this.patchLocal(p.conversationId, p.messageId, { poll: { ...m.poll, myVotes: p.votes } });
+      }
     });
   }
 
@@ -501,7 +508,7 @@ export class ChatEngine {
     const from = conv?.visibleFrom ?? 0;
     const items: ThreadItem[] = (t?.items ?? []).filter((m) => m.seq > from).map((m) => ({
       key: m.clientId, id: m.id, mine: m.senderId === me && m.type !== 'system', type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}),
-      attachment: m.attachment, replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred,
+      attachment: m.attachment, replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred, mentions: m.mentions, poll: m.poll && m.poll.myVotes === undefined && !m.poll.anonymous ? { ...m.poll, myVotes: m.poll.options.filter((o) => o.voters?.includes(me)).map((o) => o.id) } : m.poll,
       createdAt: m.createdAt, seq: m.seq, senderId: m.senderId, clientId: m.clientId,
       tick: m.senderId === me && m.type !== 'system' && conv ? tickFor(m, conv) : null,
     }));
@@ -529,10 +536,10 @@ export class ChatEngine {
 
   // ---------- sending ----------
   /** Queues a message and sends it as soon as there is a connection. Returns its clientId. */
-  async send(conversationId: string, text: string, opts: { replyToId?: string } = {}): Promise<string> {
+  async send(conversationId: string, text: string, opts: { replyToId?: string; mentions?: string[] } = {}): Promise<string> {
     const t = text.replace(/\u0000/g, '').trim();
     if (!t) throw new ApiError(400, 'validation_failed', 'The message is empty.');
-    const p: PendingMessage = { clientId: uuid(), conversationId, text: t, createdAt: new Date().toISOString(), attempts: 0, status: 'pending', ...(opts.replyToId ? { replyToId: opts.replyToId } : {}) };
+    const p: PendingMessage = { clientId: uuid(), conversationId, text: t, createdAt: new Date().toISOString(), attempts: 0, status: 'pending', ...(opts.replyToId ? { replyToId: opts.replyToId } : {}), ...(opts.mentions?.length ? { mentions: opts.mentions } : {}) };
     await this.setOutbox([...this.state.outbox, p]);
     this.typing(conversationId, false);
     void this.flush(true);
@@ -685,13 +692,13 @@ export class ChatEngine {
     const s = this.socket;
     if (s?.connected) {
       try {
-        const r = (await s.timeout(this.ackTimeout).emitWithAck('msg:send', { conversationId: p.conversationId, clientId: p.clientId, text: p.text, ...(p.replyToId ? { replyToId: p.replyToId } : {}), ...(p.attachment ? { attachment: p.attachment } : {}) })) as Ack<SendResult>;
+        const r = (await s.timeout(this.ackTimeout).emitWithAck('msg:send', { conversationId: p.conversationId, clientId: p.clientId, text: p.text, ...(p.replyToId ? { replyToId: p.replyToId } : {}), ...(p.attachment ? { attachment: p.attachment } : {}), ...(p.mentions ? { mentions: p.mentions } : {}) })) as Ack<SendResult>;
         if (r.ok) return { kind: 'sent', message: r.data.message };
         return classify(r.error.status, r.error.code, r.error.message, r.error.details?.retryAfter as number | undefined);
       } catch { return { kind: 'later' }; } // no answer in time: same clientId next time, so no double
     }
     try {
-      const r = await this.o.client.sendMessage(p.conversationId, p.clientId, p.text, p.replyToId, p.attachment);
+      const r = await this.o.client.sendMessage(p.conversationId, p.clientId, p.text, p.replyToId, p.attachment, p.mentions);
       return { kind: 'sent', message: r.message };
     } catch (e) {
       if (e instanceof ApiError) return e.status === 0 ? { kind: 'later' } : classify(e.status, e.code, e.message, e.retryAfter);
@@ -718,7 +725,9 @@ export class ChatEngine {
       const i = t.items.findIndex((x) => x.id === m.id);
       if (i >= 0) {
         const items = [...t.items];
-        items[i] = { ...m, starred: m.starred ?? t.items[i].starred };
+        const old = t.items[i];
+        // Updates sent to everyone don't carry my own poll picks: keep the ones I have.
+        items[i] = { ...m, starred: m.starred ?? old.starred, ...(m.poll ? { poll: { ...m.poll, myVotes: m.poll.myVotes ?? old.poll?.myVotes } } : {}) };
         // Quotes of this message elsewhere in the thread follow it.
         for (let j = 0; j < items.length; j++) if (items[j].replyTo?.id === m.id) items[j] = { ...items[j], replyTo: { ...items[j].replyTo!, text: m.deleted ? '' : m.text.slice(0, 200), deleted: !!m.deleted } };
         this.setThread(m.conversationId, { items });
@@ -738,7 +747,20 @@ export class ChatEngine {
     const c = this.state.conversations[convId];
     if (c?.lastMessage?.id === msgId) this.setConv({ ...c, lastMessage: { ...c.lastMessage, text: '', deleted: true } });
   }
-  async editMessage(convId: string, msgId: string, text: string) { const m = await this.o.client.editMessage(convId, msgId, text); this.applyMessage(m); return m; }
+  async editMessage(convId: string, msgId: string, text: string, mentions?: string[]) { const m = await this.o.client.editMessage(convId, msgId, text, mentions); this.applyMessage(m); return m; }
+  /** Sends a poll (needs a connection; it isn't queued). */
+  async createPoll(convId: string, p: Omit<CreatePollInput, 'clientId'>) {
+    const r = await this.o.client.createPoll(convId, { ...p, clientId: uuid() });
+    this.onMessage(r.message);
+    return r.message;
+  }
+  async vote(convId: string, msgId: string, options: string[]) {
+    // Show it at once; the server's answer settles the counts.
+    const m = this.state.threads[convId]?.items.find((x) => x.id === msgId);
+    if (m?.poll) this.patchLocal(convId, msgId, { poll: { ...m.poll, myVotes: options } });
+    try { this.applyMessage(await this.o.client.vote(convId, msgId, options)); }
+    catch (e) { if (m?.poll) this.patchLocal(convId, msgId, { poll: m.poll }); throw e; }
+  }
   async deleteForEveryone(convId: string, msgId: string) { const m = await this.o.client.deleteMessage(convId, msgId, 'everyone') as ChatMessage; this.applyMessage(m); }
   async deleteForMe(convId: string, msgId: string) { await this.o.client.deleteMessage(convId, msgId, 'me'); this.removeLocal(convId, msgId); }
   async react(convId: string, msgId: string, emoji: string | null) { this.applyMessage(await this.o.client.react(convId, msgId, emoji)); }
@@ -771,7 +793,7 @@ export class ChatEngine {
     const isNew = m.seq > conv.lastSeq;
     const readingNow = this.state.active === id && this.visible;
     const next: ConversationSummary = isNew
-      ? { ...conv, hidden: false, lastSeq: m.seq, lastMessage: m, lastSenderName: m.senderId === this.o.me ? 'You' : this.nameOf(m.senderId), lastActivityAt: m.createdAt > conv.lastActivityAt ? m.createdAt : conv.lastActivityAt, unread: mine || readingNow ? (mine ? 0 : conv.unread) : Math.min(100, conv.unread + 1) }
+      ? { ...conv, hidden: false, lastSeq: m.seq, lastMessage: m, lastSenderName: m.senderId === this.o.me ? 'You' : this.nameOf(m.senderId), lastActivityAt: m.createdAt > conv.lastActivityAt ? m.createdAt : conv.lastActivityAt, unread: mine || readingNow ? (mine ? 0 : conv.unread) : Math.min(100, conv.unread + 1), ...(!mine && !readingNow && m.mentions?.includes(this.o.me) ? { mentioned: true } : {}) }
       : conv;
     if (isNew && conv.kind === 'group') this.ensurePeople([m.senderId]);
     if (mine && isNew) next.receipts = { ...next.receipts, [m.senderId]: { deliveredSeq: m.seq, readSeq: m.seq } };
@@ -834,8 +856,8 @@ export class ChatEngine {
     const c = this.state.conversations[id];
     if (!c || c.lastSeq === 0) return;
     const mine = c.receipts[this.o.me];
-    if (mine && mine.readSeq >= c.lastSeq && c.unread === 0 && !c.markedUnread) return;
-    this.setConv({ ...c, unread: 0, markedUnread: false });
+    if (mine && mine.readSeq >= c.lastSeq && c.unread === 0 && !c.markedUnread && !c.mentioned) return;
+    this.setConv({ ...c, unread: 0, markedUnread: false, mentioned: false });
     this.emitReceipt('receipt:read', id, c.lastSeq);
   }
 

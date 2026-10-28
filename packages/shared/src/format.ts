@@ -71,8 +71,9 @@ export function attachmentLabel(a: { kind: AttachmentKind; name: string; duratio
   return `${ICON.file} ${a.name}`;
 }
 /** One line for a chat list row, a quote or a pin. */
-export function messagePreview(m: { text: string; deleted?: boolean; attachment?: { kind: AttachmentKind; name: string; durationMs?: number } | null }) {
+export function messagePreview(m: { text: string; deleted?: boolean; type?: string; attachment?: { kind: AttachmentKind; name: string; durationMs?: number } | null }) {
   if (m.deleted) return 'This message was deleted';
+  if (m.type === 'poll') return `📊 ${m.text}`;
   if (m.attachment) return m.text ? `${ICON[m.attachment.kind]} ${m.text}` : attachmentLabel(m.attachment);
   return m.text;
 }

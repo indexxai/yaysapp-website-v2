@@ -9,6 +9,7 @@ import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/
 import { Avatar, Banner, OvalButton } from './ui';
 import { InChatSearch } from './search';
 import { isMuted, MUTE_CHOICES } from './contact';
+import { MessageText, PollContent, PollDialog } from './poll';
 import { getPrefs } from '@/lib/prefs';
 import { useRouter } from 'next/navigation';
 
@@ -176,6 +177,7 @@ function ChatRow({ c, me, active, typing, onOpen }: { c: ConversationSummary; me
           <span className="chat-row__icons">
             {muted && <Icon name="bell-off" size={14} title="Muted" />}
             {c.pinnedAt && <Icon name="pin" size={14} title="Pinned" />}
+            {c.mentioned && <span className="ys-oval ys-oval--ember ys-badge" aria-label="You were mentioned"><span>@</span></span>}
             <Badge n={c.unread} muted={muted} marked={c.markedUnread} />
           </span>
         </span>
@@ -442,7 +444,8 @@ function Bubble({ m, mine, sender, c, onOpenMedia }: { m: ThreadItem; mine: bool
         {m.forwarded && !m.deleted && <span className="msg__fwd"><Icon name="forward" size={12} /> Forwarded</span>}
         {m.replyTo && !m.deleted && <Quote r={m.replyTo} onClick={() => act.jumpTo(m.replyTo!.seq)} />}
         {m.attachment && !m.deleted && <MediaContent m={m} onOpen={() => onOpenMedia(m.key)} />}
-        {(m.deleted || m.text) && <span className="msg__text">{m.deleted ? <em><Icon name="slash" size={14} /> {mine ? 'You deleted this message' : 'This message was deleted'}</em> : m.text}</span>}
+        {m.poll && !m.deleted ? <PollContent m={m} convId={c.id} canVote={c.kind === 'direct' ? !c.blocked : c.group?.role !== 'former'} />
+          : (m.deleted || m.text) && <span className="msg__text">{m.deleted ? <em><Icon name="slash" size={14} /> {mine ? 'You deleted this message' : 'This message was deleted'}</em> : <MessageText m={m} me={engine.me} nameOf={(u) => engine.getState().groups[c.id]?.members.find((x) => x.id === u)?.displayName ?? engine.nameOf(u)} />}</span>}
         <span className="ys-bubble__meta">
           {m.starred && <Icon name="star" size={12} title="Starred" />}
           {m.editedAt && <span>Edited</span>}
@@ -486,9 +489,24 @@ function LockedComposer({ c, onGone }: { c: ConversationSummary; onGone: () => v
   );
 }
 
+/** Group members whose name matches what's typed after "@" (any word of the name). */
+function useMentionables(id: string) {
+  const s = useChatState();
+  const engine = useEngine();
+  const g = s.groups[id];
+  return useMemo(() => (g ? g.members.filter((m) => m.id !== engine.me).map((m) => ({ id: m.id, name: m.displayName, photoUrl: m.photoUrl })) : []), [g, engine.me]);
+}
+
 function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; replyTo: ThreadItem | null; editing: ThreadItem | null; onDone: () => void; onFiles: (f: File[]) => void }) {
   const engine = useEngine();
+  const s = useChatState();
+  const group = s.conversations[id]?.kind === 'group';
   const [recording, setRecording] = useState(false);
+  const [attachMenu, setAttachMenu] = useState(false);
+  const [polling, setPolling] = useState(false);
+  const members = useMentionables(id);
+  const [mention, setMention] = useState<{ start: number; query: string; at: number } | null>(null);
+  const picked = useRef(new Map<string, string>());
   const fileInput = useRef<HTMLInputElement>(null);
   const drafts = useRef<Record<string, string>>({});
   const [text, setText] = useState('');
@@ -496,7 +514,30 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
   const ta = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { setText(drafts.current[id] ?? ''); setError(null); ta.current?.focus(); }, [id]);
   // Editing puts the message's text in the box; leaving edit mode brings the draft back.
-  useEffect(() => { if (editing) setText(editing.text); else setText(drafts.current[id] ?? ''); ta.current?.focus(); }, [editing, id]);
+  useEffect(() => {
+    picked.current = new Map((editing?.mentions ?? []).map((u) => [u, engine.nameOf(u)]));
+    if (editing) setText(editing.text); else setText(drafts.current[id] ?? ''); ta.current?.focus();
+  }, [editing, id, engine]);
+  const matches = mention && group ? members.filter((m) => !mention.query || m.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(mention.query.toLowerCase())) || m.name.toLowerCase().startsWith(mention.query.toLowerCase())).slice(0, 6) : [];
+  /** "@" at the start of a word opens the member list; it follows what's typed after it. */
+  const trackMention = (value: string, caret: number) => {
+    if (!group) return;
+    const before = value.slice(0, caret);
+    const hit = /(^|\s)@([^\s@]{0,30})$/.exec(before);
+    setMention(hit ? { start: caret - hit[2].length - 1, query: hit[2], at: 0 } : null);
+  };
+  const pickMention = (m: { id: string; name: string }) => {
+    if (!mention) return;
+    const el = ta.current;
+    const caret = el?.selectionStart ?? text.length;
+    const next = `${text.slice(0, mention.start)}@${m.name} ${text.slice(caret)}`;
+    picked.current.set(m.id, m.name);
+    setText(next); drafts.current[id] = next; setMention(null);
+    const pos = mention.start + m.name.length + 2;
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(pos, pos); });
+  };
+  /** The people still named in the text when it's sent. */
+  const mentionsIn = (t: string) => [...picked.current].filter(([, name]) => t.includes(`@${name}`)).map(([u]) => u);
   useEffect(() => { if (replyTo) ta.current?.focus(); }, [replyTo]);
   useLayoutEffect(() => { const el = ta.current; if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 160)}px`; } }, [text]);
   const len = textLength(text.trim());
@@ -505,14 +546,15 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
     if (!text.trim() || tooLong) return;
     const t = text;
     if (editing) {
-      try { await engine.editMessage(id, editing.id!, t); onDone(); setText(drafts.current[id] ?? ''); }
+      try { await engine.editMessage(id, editing.id!, t, group ? mentionsIn(t) : undefined); onDone(); setText(drafts.current[id] ?? ''); }
       catch (e) { setError(e instanceof ApiError ? e.message : 'Could not save the edit. Check your connection.'); }
       return;
     }
-    setText(''); drafts.current[id] = '';
+    const mentions = group ? mentionsIn(t) : [];
+    setText(''); drafts.current[id] = ''; picked.current.clear(); setMention(null);
     const reply = replyTo?.id ?? undefined;
     onDone();
-    try { await engine.send(id, t, { replyToId: reply }); } catch (e) { setText(t); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
+    try { await engine.send(id, t, { replyToId: reply, mentions }); } catch (e) { setText(t); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
   };
   // A screenshot pasted into the box opens the send sheet.
   const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -520,10 +562,16 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
     if (fs.length && !editing) { e.preventDefault(); onFiles(fs); }
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mention && matches.length) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const d = e.key === 'ArrowDown' ? 1 : -1; setMention({ ...mention, at: (mention.at + d + matches.length) % matches.length }); return; }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(matches[mention.at] ?? matches[0]); return; }
+      if (e.key === 'Escape') { e.preventDefault(); setMention(null); return; }
+    }
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && (getPrefs().enterToSend || e.ctrlKey || e.metaKey)) { e.preventDefault(); void submit(); }
     if (e.key === 'Escape' && (editing || replyTo)) { e.preventDefault(); onDone(); }
   };
   return (
+    <>
     <form className="composer" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       {(replyTo || editing) && (
         <div className="composer__context" role="status">
@@ -535,16 +583,40 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
       {(error || tooLong) && <span className="composer__error" role="alert">{tooLong ? `Messages can be up to ${MAX_TEXT} characters (${len} now).` : error}</span>}
       {recording ? <RecorderBar convId={id} replyToId={replyTo?.id ?? undefined} onDone={() => { setRecording(false); onDone(); }} /> : (
       <div className="composer__row">
-        {!editing && <OvalButton icon="paperclip" label="Attach" size="sm" variant="ghost" onClick={() => fileInput.current?.click()} />}
+        {!editing && (
+          <span className="attach-wrap">
+            <OvalButton icon="paperclip" label="Attach" size="sm" variant="ghost" aria-haspopup="menu" aria-expanded={attachMenu} onClick={() => setAttachMenu((v) => !v)} />
+            {attachMenu && (
+              <span className="menu menu--attach" role="menu" onMouseLeave={() => setAttachMenu(false)}>
+                <button type="button" role="menuitem" onClick={() => { setAttachMenu(false); fileInput.current?.click(); }}><Icon name="image" size={16} />Photos, videos and files</button>
+                <button type="button" role="menuitem" onClick={() => { setAttachMenu(false); setPolling(true); }}><Icon name="stats" size={16} />Poll</button>
+              </span>
+            )}
+          </span>
+        )}
         <input ref={fileInput} type="file" multiple hidden aria-label="Attach files" onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; if (fs.length) onFiles(fs); }} />
         <label htmlFor="composer" className="sr-only">Message</label>
-        <textarea id="composer" ref={ta} rows={1} value={text} placeholder="Message" maxLength={MAX_TEXT * 2 + 10}
-          onChange={(e) => { setText(e.target.value); drafts.current[id] = e.target.value; setError(null); engine.typing(id, e.target.value.trim().length > 0); }}
-          onKeyDown={onKey} onPaste={onPaste} onBlur={() => engine.typing(id, false)} />
+        <span className="composer__box">
+          <textarea id="composer" ref={ta} rows={1} value={text} placeholder="Message" maxLength={MAX_TEXT * 2 + 10}
+            aria-autocomplete={group ? 'list' : undefined} aria-controls={matches.length ? 'mention-list' : undefined} aria-expanded={group ? matches.length > 0 : undefined}
+            onChange={(e) => { setText(e.target.value); drafts.current[id] = e.target.value; setError(null); engine.typing(id, e.target.value.trim().length > 0); trackMention(e.target.value, e.target.selectionStart); }}
+            onKeyDown={onKey} onPaste={onPaste} onBlur={() => { engine.typing(id, false); setTimeout(() => setMention(null), 150); }} />
+          {matches.length > 0 && (
+            <span id="mention-list" className="mention-list" role="listbox" aria-label="Mention a member">
+              {matches.map((m, i) => (
+                <button key={m.id} type="button" role="option" aria-label={m.name} aria-selected={i === mention!.at} onMouseDown={(e) => { e.preventDefault(); pickMention(m); }}>
+                  <Avatar name={m.name} photoUrl={m.photoUrl} size={28} /><span>{m.name}</span>
+                </button>
+              ))}
+            </span>
+          )}
+        </span>
         {!text.trim() && !editing
           ? <OvalButton icon="mic" label="Record" size="md" onClick={() => setRecording(true)} />
           : <OvalButton type="submit" icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} size="md" disabled={!text.trim() || tooLong} />}
       </div>)}
     </form>
+    {polling && <PollDialog convId={id} name={chatName(s.conversations[id])} onClose={() => setPolling(false)} />}
+    </>
   );
 }

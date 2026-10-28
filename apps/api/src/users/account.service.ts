@@ -101,7 +101,7 @@ export class AccountService {
     const peers = new Map((await this.chat.users.find({ _id: { $in: convs.filter((c) => c.kind === 'direct').flatMap((c) => c.members) } }).toArray()).map((x) => [x._id.toHexString(), displayNameOf(x)]));
     const nameOf = (c: (typeof convs)[number]) => c.kind === 'group' ? c.name ?? 'Group' : peers.get(c.members.find((m) => !m.equals(id))?.toHexString() ?? '') ?? 'Deleted account';
     const names = new Map(convs.map((c) => [c._id.toHexString(), nameOf(c)]));
-    const sent = await this.chat.msgs.find({ senderId: id, type: { $in: ['text', 'media'] }, deletedAt: { $exists: false } }).sort({ _id: 1 }).limit(EXPORT_MESSAGES).toArray();
+    const sent = await this.chat.msgs.find({ senderId: id, type: { $in: ['text', 'media', 'poll'] }, deletedAt: { $exists: false } }).sort({ _id: 1 }).limit(EXPORT_MESSAGES).toArray();
     const blocked = await this.chat.blocks.find({ by: id }).toArray();
     return {
       exportedAt: new Date().toISOString(),

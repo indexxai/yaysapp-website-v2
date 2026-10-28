@@ -65,7 +65,7 @@ export function ActionBar({ m, c }: { m: ThreadItem; c: ConversationSummary }) {
     <span className="msg-actions" ref={ref} data-open={open ? 'true' : undefined}>
       {member && <button type="button" className="icon-btn" aria-label="React" aria-expanded={open === 'react'} onClick={() => toggle('react')}><Icon name="smile" size={16} /></button>}
       {member && c.canSend && <button type="button" className="icon-btn" aria-label="Reply" onClick={() => act.reply(m)}><Icon name="reply" size={16} /></button>}
-      <button type="button" className="icon-btn" aria-label="Forward" onClick={() => act.forward(m)}><Icon name="forward" size={16} /></button>
+      {m.type !== 'poll' && <button type="button" className="icon-btn" aria-label="Forward" onClick={() => act.forward(m)}><Icon name="forward" size={16} /></button>}
       <button type="button" className="icon-btn" aria-label="More actions" aria-expanded={open === 'more'} onClick={() => toggle('more')}><Icon name="more-horizontal" size={16} /></button>
       {open === 'react' && (
         <span className="react-pop" role="menu" aria-label="Reactions">

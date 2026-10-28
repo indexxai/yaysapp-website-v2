@@ -135,11 +135,13 @@ test.describe('Week 3 · chatting on the web', () => {
     await a.ctx.setOffline(false);
     const again = await a.ctx.newPage();
     await again.goto(url);
-    await expect(again.locator('.msg--me[data-tick="pending"]')).toHaveCount(0, { timeout: 20_000 });
+    // The queued message shows straight away (still waiting), then goes out.
+    const msg = again.locator('.msg--me').filter({ hasText: 'typed with no signal' });
+    await expect(msg).toHaveCount(1);
+    await expect(msg).not.toHaveAttribute('data-tick', 'pending', { timeout: 20_000 });
     await expect(again.locator('.msg--me .msg__text')).toHaveText(['typed with no signal']);
     const conv = new URL(url).searchParams.get('c')!;
-    const stored = await apiCall(`/v1/conversations/${conv}/messages`, undefined, sara.tokens.accessToken);
-    expect(stored.items.map((m: { text: string }) => m.text)).toEqual(['typed with no signal']);
+    await expect.poll(async () => (await apiCall(`/v1/conversations/${conv}/messages`, undefined, sara.tokens.accessToken)).items.map((m: { text: string }) => m.text)).toEqual(['typed with no signal']);
     await a.ctx.close();
   });
 

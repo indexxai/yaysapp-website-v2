@@ -31,7 +31,7 @@ export class SearchService {
     const re = { $regex: escapeRe(q), $options: 'i' };
     const visible = chats.map(({ c, from, until }) => ({ convId: c._id, seq: { $gt: from, $lte: until } }));
     const filter: Record<string, unknown> = {
-      $and: [{ $or: visible }, opts.files ? { 'attachment.name': re, type: 'media' } : { text: re, type: { $in: ['text', 'media'] } }],
+      $and: [{ $or: visible }, opts.files ? { 'attachment.name': re, type: 'media' } : { text: re, type: { $in: ['text', 'media', 'poll'] } }],
       deletedAt: { $exists: false }, hiddenFor: { $ne: me },
       ...(opts.beforeId ? { _id: { $lt: opts.beforeId } } : {}),
     };
@@ -105,7 +105,7 @@ export class SearchService {
     const a = await this.chat.access(convId, me);
     const rows = await this.chat.msgs.find({
       convId: a.c._id, seq: { $gt: a.fromSeq, $lte: a.untilSeq }, deletedAt: { $exists: false }, hiddenFor: { $ne: me },
-      $or: [{ text: { $regex: escapeRe(q), $options: 'i' } }, { 'attachment.name': { $regex: escapeRe(q), $options: 'i' } }], type: { $in: ['text', 'media'] },
+      $or: [{ text: { $regex: escapeRe(q), $options: 'i' } }, { 'attachment.name': { $regex: escapeRe(q), $options: 'i' } }], type: { $in: ['text', 'media', 'poll'] },
     }, { projection: { seq: 1 } }).sort({ seq: 1 }).limit(500).toArray();
     return { seqs: rows.map((r) => r.seq) };
   }
