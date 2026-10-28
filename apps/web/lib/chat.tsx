@@ -26,8 +26,12 @@ function localOutbox(me: string): OutboxStore {
 
 /** One live chat engine per signed-in tab. */
 export function ChatProvider({ me, onSignedOut, children }: { me: string; onSignedOut: () => void; children: ReactNode }) {
+  const outer = useContext(EngineCtx);
+  const shared = !!outer && outer.me === me;
   const [engine, setEngine] = useState<ChatEngine | null>(null);
   useEffect(() => {
+    // The app keeps one engine for the whole session (so calls survive moving between pages); pages reuse it.
+    if (shared) return;
     const e = new ChatEngine({ client: api(), me, outbox: localOutbox(me), cache: localCache(me), onSignedOut, uploader: xhrUploader });
     setEngine(e);
     void e.start();
@@ -39,7 +43,8 @@ export function ChatProvider({ me, onSignedOut, children }: { me: string; onSign
     document.addEventListener('visibilitychange', vis);
     window.addEventListener('pagehide', leaving);
     return () => { document.removeEventListener('visibilitychange', vis); window.removeEventListener('pagehide', leaving); e.stop(); };
-  }, [me, onSignedOut]);
+  }, [me, onSignedOut, shared]);
+  if (shared) return <>{children}</>;
   if (!engine) return null;
   return <EngineCtx.Provider value={engine}>{children}</EngineCtx.Provider>;
 }
@@ -57,3 +62,11 @@ export function useChatState(): ChatState {
 }
 
 export { clock, dayLabel, lastSeen, listTime } from '@yays/shared';
+
+const NONE = () => () => undefined;
+const nothing = () => null;
+/** The engine's state, or null outside a signed-in page. */
+export function useOptionalChatState(): ChatState | null {
+  const e = useContext(EngineCtx);
+  return useSyncExternalStore(e ? e.subscribe : NONE, e ? e.getState : nothing, e ? e.getState : nothing);
+}

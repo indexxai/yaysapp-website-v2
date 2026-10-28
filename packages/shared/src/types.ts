@@ -36,8 +36,10 @@ export interface PrivacySettings {
   groups: 'everyone' | 'contacts';
   /** Off: others don't see when I read, and I don't see when they read (direct chats only). */
   readReceipts: boolean;
+  /** Calls from people who aren't my contacts don't ring; they show in call history as silenced. */
+  silenceUnknown: boolean;
 }
-export const DEFAULT_PRIVACY: PrivacySettings = { lastSeen: 'everyone', photo: 'everyone', about: 'everyone', groups: 'everyone', readReceipts: true };
+export const DEFAULT_PRIVACY: PrivacySettings = { lastSeen: 'everyone', photo: 'everyone', about: 'everyone', groups: 'everyone', readReceipts: true, silenceUnknown: false };
 
 export interface NotificationSettings {
   /** Show the message text in notifications (off: only who it's from). */

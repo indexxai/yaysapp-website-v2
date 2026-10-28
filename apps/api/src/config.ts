@@ -40,6 +40,14 @@ const schema = z.object({
   VAPID_SUBJECT: z.string().default('mailto:support@yays.app'),
   /** Tests only: accept a self-signed certificate from a stand-in push service. Refused in production. */
   PUSH_INSECURE_TLS: bool.default('false'),
+  /** LiveKit, for voice and video calls. Without these, starting a call says calls aren't available. */
+  LIVEKIT_URL: z.string().optional(),
+  /** Where this server reaches LiveKit's API, if not the same host as LIVEKIT_URL. */
+  LIVEKIT_API_URL: z.string().optional(),
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
+  /** How long a call rings before it counts as missed. */
+  CALL_RING_SECONDS: z.coerce.number().int().min(2).max(120).default(45),
   TEST_OUTBOX: bool.default('false'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
@@ -67,6 +75,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (c.EMAIL_DRIVER === 'ses' && !(c.SES_REGION && c.SES_FROM)) problems.push('EMAIL_DRIVER=ses needs SES_REGION and SES_FROM');
   if (c.STORAGE_DRIVER === 's3' && !(c.S3_BUCKET && c.S3_REGION)) problems.push('STORAGE_DRIVER=s3 needs S3_BUCKET and S3_REGION');
   if (c.PUSH_DRIVER === 'webpush' && c.NODE_ENV === 'production' && !(c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY)) problems.push('PUSH_DRIVER=webpush needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys)');
+  if (c.LIVEKIT_URL && !(c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET)) problems.push('LIVEKIT_URL needs LIVEKIT_API_KEY and LIVEKIT_API_SECRET');
+  if (c.NODE_ENV === 'production' && c.LIVEKIT_API_SECRET && c.LIVEKIT_API_SECRET.length < 32) problems.push('LIVEKIT_API_SECRET must be at least 32 characters in production');
   if (c.GOOGLE_DRIVER === 'google' && !c.GOOGLE_CLIENT_IDS) problems.push('GOOGLE_DRIVER=google needs GOOGLE_CLIENT_IDS');
   if (problems.length) throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);
   return {

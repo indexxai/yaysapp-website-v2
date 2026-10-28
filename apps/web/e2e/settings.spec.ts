@@ -57,7 +57,7 @@ test.describe('Settings on the web', () => {
     await expect(a.page.getByRole('status')).toContainText('Saved');
     await a.page.getByLabel('Profile photo').selectOption('nobody');
     await a.page.getByRole('switch', { name: /Read receipts/ }).click();
-    await expect.poll(async () => (await me(ali)).privacy).toEqual({ lastSeen: 'contacts', photo: 'nobody', about: 'everyone', groups: 'everyone', readReceipts: false });
+    await expect.poll(async () => (await me(ali)).privacy).toEqual({ lastSeen: 'contacts', photo: 'nobody', about: 'everyone', groups: 'everyone', readReceipts: false, silenceUnknown: false });
     await expect(a.page.getByTestId('blocked-row')).toHaveText(/Sara/);
     await a.page.getByRole('button', { name: 'Unblock Sara' }).click();
     await expect(a.page.getByTestId('blocked-row')).toHaveCount(0);

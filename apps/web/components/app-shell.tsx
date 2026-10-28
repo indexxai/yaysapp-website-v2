@@ -5,9 +5,19 @@ import type { ReactNode } from 'react';
 import type { MeProfile } from '@yays/shared';
 import { Icon, type IconName } from '@/lib/icons';
 import { Avatar } from './ui';
+import { useOptionalChatState } from '@/lib/chat';
+
+/** Missed calls since call history was last opened. */
+function MissedBadge() {
+  const s = useOptionalChatState();
+  const n = s?.missedCalls ?? 0;
+  if (!n) return null;
+  return <span className="rail__badge" aria-label={`${n} missed call${n === 1 ? '' : 's'}`}>{n > 9 ? '9+' : n}</span>;
+}
 
 const NAV: Array<{ href: string; icon: IconName; label: string }> = [
   { href: '/chats', icon: 'chats', label: 'Chats' },
+  { href: '/calls', icon: 'phone', label: 'Calls' },
   { href: '/communities', icon: 'people', label: 'Communities' },
   { href: '/settings', icon: 'settings', label: 'Settings' },
 ];
@@ -22,7 +32,7 @@ export function AppShell({ me, children, bare }: { me: MeProfile | null; childre
           const on = path.startsWith(n.href.split('/').slice(0, 2).join('/'));
           return (
             <Link key={n.href} href={n.href} aria-current={on ? 'page' : undefined} className={`ys-ovalbtn ys-ovalbtn--md ys-ovalbtn--${on ? 'primary' : 'ghost'}`} style={{ textDecoration: 'none' }}>
-              <span className="ys-oval"><Icon name={n.icon} size={20} /></span><span className="ys-ovalbtn__label">{n.label}</span>
+              <span className="ys-oval"><Icon name={n.icon} size={20} />{n.href === '/calls' && <MissedBadge />}</span><span className="ys-ovalbtn__label">{n.label}</span>
             </Link>
           );
         })}

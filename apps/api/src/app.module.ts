@@ -39,6 +39,8 @@ import { CommunitiesController, CommunityInvitesController } from './chat/commun
 import { SUPPORT, SupportService } from './users/support.service';
 import { SupportController } from './users/support.controller';
 import { PushController } from './push/push.controller';
+import { CALLS, CallsService } from './calls/calls.service';
+import { CallsController, LiveKitWebhookController } from './calls/calls.controller';
 import { MessageActionsController, PollsController, StarredController } from './chat/messages.controller';
 
 export interface Infra { config: Config; log: Logger; mongo: MongoClient; db: Db; redis: Redis; storage: Storage }
@@ -66,15 +68,16 @@ export class AppModule {
     const communities = new CommunitiesService(chat, groups, db);
     const account = new AccountService(users, otp, sessions, chat, groups, chatPrefs, push, storage, limiter, db);
     account.leaveCommunities = (id) => communities.leaveAll(id);
+    const calls = new CallsService(chat, push, db, c, log);
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
-      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities },
+      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities }, { provide: CALLS, useValue: calls },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CallsController, LiveKitWebhookController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }

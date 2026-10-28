@@ -59,6 +59,7 @@ export function systemText(e: SystemEvent, actorId: string, name: (id: string) =
     case 'invite_reset': return `${a} reset the invite link`;
     case 'pinned': return `${a} pinned a message`;
     case 'unpinned': return `${a} unpinned a message`;
+    case 'call': return callText(e, a === 'You');
     default: return '';
   }
 }
@@ -77,4 +78,20 @@ export function messagePreview(m: { text: string; deleted?: boolean; type?: stri
   if (m.type === 'poll') return `📊 ${m.text}`;
   if (m.attachment) return m.text ? `${ICON[m.attachment.kind]} ${m.text}` : attachmentLabel(m.attachment);
   return m.text;
+}
+
+/** "Missed voice call", "Video call · 6:48", "Voice call · No answer". `mine`: I started it. */
+export function callText(e: { media: 'voice' | 'video'; outcome: string; durationSec: number; group: boolean }, mine: boolean) {
+  const kind = `${e.group ? 'Group ' : ''}${e.media} call`;
+  const Kind = kind[0]!.toUpperCase() + kind.slice(1);
+  if (e.outcome === 'completed') return `${Kind} · ${callDuration(e.durationSec)}`;
+  if (mine) return e.outcome === 'declined' ? `${Kind} · Declined` : e.outcome === 'busy' ? `${Kind} · Busy` : e.outcome === 'cancelled' && e.group ? `${Kind} · Ended` : `${Kind} · No answer`;
+  return e.outcome === 'declined' ? `${Kind} · Declined` : `Missed ${kind.toLowerCase()}`;
+}
+/** 0:42, 6:48, 1:02:05 — or "14 min" when `short`. */
+export function callDuration(sec: number, short = false) {
+  const s = Math.max(0, Math.round(sec));
+  if (short) return s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.floor(s / 3600)} h ${Math.round((s % 3600) / 60)} min`;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${m}:${String(r).padStart(2, '0')}`;
 }

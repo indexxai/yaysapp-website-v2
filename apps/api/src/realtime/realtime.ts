@@ -228,6 +228,10 @@ export class Realtime implements ChatEvents {
     this.io?.to(room.user(t)).emit('presence', { userId: b, online: false, lastSeenAt: null });
   }
 
+  callEvent(userId: ObjectId, event: 'call:ring' | 'call:update', call: import('@yays/shared').CallView) {
+    this.io?.to(room.user(userId.toHexString())).emit(event, { call });
+  }
+
   /** A device that was signed out loses its live connection right away, on whichever server holds it. */
   kickSession(sid: string) { this.io?.in(room.session(sid)).disconnectSockets(true); }
 

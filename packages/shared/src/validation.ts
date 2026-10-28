@@ -73,7 +73,7 @@ export const deleteAccountSchema = z.object({ code: codeSchema, reason: z.string
 const audience = z.enum(['everyone', 'contacts', 'nobody']);
 export const privacySchema = z.object({
   lastSeen: audience.optional(), photo: audience.optional(), about: audience.optional(),
-  groups: z.enum(['everyone', 'contacts']).optional(), readReceipts: z.boolean().optional(),
+  groups: z.enum(['everyone', 'contacts']).optional(), readReceipts: z.boolean().optional(), silenceUnknown: z.boolean().optional(),
 }).refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 23:00.');
 export const notificationsSchema = z.object({

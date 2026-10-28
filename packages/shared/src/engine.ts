@@ -2,7 +2,7 @@ import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
 import type { UploadTicket, YaysClient } from './client';
 import type { PublicProfile } from './types';
-import { MEDIA_LIMITS, baseMime, formatBytes, tickFor, type Ack, type Attachment, type AttachmentInput, type AttachmentKind, type ChatMessage, type ChatPrefsInput, type MessageType, type PollView, type CreatePollInput, type ReportInput, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
+import { type CallView, MEDIA_LIMITS, baseMime, formatBytes, tickFor, type Ack, type Attachment, type AttachmentInput, type AttachmentKind, type ChatMessage, type ChatPrefsInput, type MessageType, type PollView, type CreatePollInput, type ReportInput, type GroupInfo, type GroupSettings, type ReplyPreview, type SystemEvent, type ClientEvents, type ConversationSummary, type MemberReceipt, type Presence, type SendResult, type ServerEvents, type Tick } from './chat';
 
 /** A message typed on this device that the server has not confirmed yet. Kept on the device until it has. */
 export interface PendingMessage {
@@ -74,6 +74,10 @@ export interface ChatState {
   people: Record<string, PublicProfile>;
   /** Files uploading right now, by clientId. */
   uploads: Record<string, Upload>;
+  /** Calls ringing me, that I'm on, or that ended a moment ago, by id. */
+  calls: Record<string, CallView>;
+  /** Missed calls since I last opened call history. */
+  missedCalls: number;
 }
 
 export interface ThreadItem {
@@ -131,7 +135,7 @@ const byActivity = (cs: Record<string, ConversationSummary>) => Object.values(cs
  * ticks, typing and online status. Screens read `getState()` and re-render on `subscribe`.
  */
 export class ChatEngine {
-  private state: ChatState = { connection: 'connecting', conversations: {}, order: [], listLoaded: false, listNext: null, threads: {}, outbox: [], typing: {}, presence: {}, active: null, signedOut: false, groups: {}, people: {}, uploads: {} };
+  private state: ChatState = { connection: 'connecting', conversations: {}, order: [], listLoaded: false, listNext: null, threads: {}, outbox: [], typing: {}, presence: {}, active: null, signedOut: false, groups: {}, people: {}, uploads: {}, calls: {}, missedCalls: 0 };
   private listeners = new Set<() => void>();
   private socket?: Socket<ServerEvents, ClientEvents>;
   private flushing = false;
@@ -239,7 +243,7 @@ export class ChatEngine {
       ...this.o.socketOptions,
     });
     this.socket = s;
-    s.on('connect', () => { this.set({ connection: 'online' }); this.reportFocus(); void this.catchUpAll(); void this.flush(true); this.rewatch(); });
+    s.on('connect', () => { this.set({ connection: 'online' }); this.reportFocus(); void this.catchUpAll(); void this.flush(true); this.rewatch(); void this.refreshCalls(); });
     s.on('disconnect', (reason) => {
       this.set({ connection: 'offline', typing: {} });
       // The server only closes us on purpose when this device was signed out; check, then reconnect.
@@ -259,6 +263,8 @@ export class ChatEngine {
     s.on('presence:recheck', () => this.rewatch());
     s.on('conv:update', ({ conversationId }) => { void this.refreshConv(conversationId); });
     s.on('msg:update', ({ message }) => this.applyMessage(message));
+    s.on('call:ring', ({ call }) => this.onCall(call));
+    s.on('call:update', ({ call }) => this.onCall(call));
     s.on('msg:mine', (p) => {
       if (p.hidden) this.removeLocal(p.conversationId, p.messageId);
       else if (p.starred !== undefined) this.patchLocal(p.conversationId, p.messageId, { starred: p.starred });
@@ -491,6 +497,33 @@ export class ChatEngine {
     this.catchingUp.set(id, p);
     return p;
   }
+
+  // ---------- calls ----------
+  /** A call changed (or rings): keep it; calls that ended over a minute ago are dropped. */
+  onCall(call: CallView) {
+    const now = Date.now();
+    const calls: Record<string, CallView> = {};
+    for (const [id, c] of Object.entries(this.state.calls)) if (!(c.status === 'ended' && c.endedAt && now - Date.parse(c.endedAt) > 60_000)) calls[id] = c;
+    calls[call.id] = call;
+    this.set({ calls });
+    if (call.status === 'ended' && call.createdBy !== this.me && call.participants.some((p) => p.userId === this.me && p.state === 'missed')) void this.refreshMissed();
+  }
+  /** After connecting: calls ringing me or that I'm on, and the missed-call count. */
+  async refreshCalls() {
+    try {
+      const live = await this.o.client.liveCalls();
+      const calls = { ...this.state.calls };
+      // Anything we thought was live but the server no longer lists is over.
+      for (const [id, c] of Object.entries(calls)) if (c.status !== 'ended' && !live.some((l) => l.id === id)) calls[id] = { ...c, status: 'ended', endedAt: new Date().toISOString() };
+      for (const c of live) calls[c.id] = c;
+      this.set({ calls });
+    } catch { /* next connect */ }
+    await this.refreshMissed();
+  }
+  async refreshMissed() {
+    try { this.set({ missedCalls: (await this.o.client.callHistory({ limit: 1 })).missed }); } catch { /* keep the old count */ }
+  }
+  async callsSeen() { this.set({ missedCalls: 0 }); try { await this.o.client.callsSeen(); } catch { /* shown as seen here anyway */ } }
 
   private async catchUpAll() {
     try {

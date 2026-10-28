@@ -24,7 +24,9 @@ export interface PushSubDoc { _id: string; userId: ObjectId; sid: string; endpoi
 
 export type PushPayload =
   | { type: 'message'; conversationId: string; messageId: string; title: string; body: string; tag: string; url: string }
-  | { type: 'read'; conversationId: string; tag: string };
+  | { type: 'read'; conversationId: string; tag: string }
+  | { type: 'call'; callId: string; title: string; body: string; tag: string; url: string }
+  | { type: 'call_end'; callId: string; tag: string };
 
 /** Where pushes go. "dev" keeps them in Redis so tests (and developers) can see what would have been sent. */
 interface Sender { send(sub: PushSubDoc, payload: PushPayload): Promise<'ok' | 'gone'> }
@@ -47,8 +49,10 @@ class WebPushSender implements Sender {
         vapidDetails: { subject: this.c.subject, publicKey: this.c.publicKey, privateKey: this.c.privateKey },
         // Messages are worth delivering for a day; "read" signals only matter right now.
         ...(this.c.agent ? { agent: this.c.agent } : {}),
-        TTL: payload.type === 'message' ? 86400 : 60, urgency: payload.type === 'message' ? 'high' : 'low', // Topic: URL-safe, up to 32 characters. A newer push for the same chat replaces one still waiting.
-        topic: payload.conversationId.slice(0, 32),
+        // Messages are worth a day; a ring only while it rings; "read" and "call over" only right now.
+        TTL: payload.type === 'message' ? 86400 : payload.type === 'call' ? 45 : 60, urgency: payload.type === 'message' || payload.type === 'call' ? 'high' : 'low',
+        // Topic: URL-safe, up to 32 characters. A newer push for the same chat (or call) replaces one still waiting.
+        topic: ('conversationId' in payload ? payload.conversationId : payload.callId).slice(0, 32),
       });
       return 'ok' as const;
     } catch (e) {
@@ -153,6 +157,24 @@ export class PushService {
       const subs = await this.subs.find({ userId }).toArray();
       await Promise.all(subs.map((s) => this.deliver(s, { type: 'read', conversationId, tag: `c:${conversationId}` })));
     })().catch((e) => this.log.warn({ err: e }, 'push read failed'));
+  }
+
+  /** Rings my devices that aren't looking (a looking device rings from the live connection). */
+  async callRing(userId: ObjectId, payload: Extract<PushPayload, { type: 'call' }>) {
+    const uid = userId.toHexString();
+    if (await this.inFront(uid)) return;
+    const u = await this.users.findOne({ _id: userId }, { projection: { 'yc.notify': 1 } });
+    if (u && inQuietHours(notifyOf(u as UserDoc))) return;
+    const subs = await this.subs.find({ userId }).toArray();
+    await Promise.all(subs.map((s) => this.deliver(s, payload)));
+  }
+  /** The call stopped ringing: take its notification away. */
+  callEnded(userIds: ObjectId[], callId: string) {
+    if (!userIds.length) return;
+    void (async () => {
+      const subs = await this.subs.find({ userId: { $in: userIds } }).toArray();
+      await Promise.all(subs.map((s) => this.deliver(s, { type: 'call_end', callId, tag: `call:${callId}` })));
+    })().catch((e) => this.log.warn({ err: e }, 'push call end failed'));
   }
 
   private async deliver(s: PushSubDoc, payload: PushPayload) {

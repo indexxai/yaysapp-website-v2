@@ -12,6 +12,19 @@ self.addEventListener('push', (event) => {
       list.forEach((n) => n.close());
       return;
     }
+    if (p.type === 'call_end') {
+      const list = await self.registration.getNotifications({ tag: p.tag });
+      list.forEach((n) => n.close());
+      return;
+    }
+    if (p.type === 'call') {
+      // A tab that is open (even in the background) rings by itself; show the notification so it can be found.
+      await self.registration.showNotification(p.title || 'YaysApp', {
+        body: p.body || 'Incoming call', tag: p.tag, renotify: true, requireInteraction: true, icon: '/icon.png', badge: '/icon.png',
+        data: { url: p.url || '/calls', callId: p.callId },
+      });
+      return;
+    }
     if (p.type !== 'message') return;
     // If a YaysApp tab is open and in front, it shows its own banner instead.
     const tabs = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

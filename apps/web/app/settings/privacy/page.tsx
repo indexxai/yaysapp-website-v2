@@ -50,6 +50,9 @@ function Privacy({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }
         </SetRow>
         <Switch on={p.readReceipts} onChange={(v) => void set({ readReceipts: v })} label="Read receipts" hint="Turning off also hides others’ receipts from you. Groups always show them." />
       </Card>
+      <Card title="Calls">
+        <Switch on={p.silenceUnknown} onChange={(v) => void set({ silenceUnknown: v })} label="Silence unknown callers" hint="Calls from people you haven’t chatted with won’t ring. They still show in your call history." />
+      </Card>
       <Card title={`Blocked${blocked?.length ? ` · ${blocked.length}` : ''}`}>
         {blocked === null ? <span className="ys-spin" style={{ margin: 18 }} aria-label="Loading" /> : !blocked.length
           ? <p className="muted" style={{ margin: '4px 18px 16px', fontSize: 14 }}>You haven’t blocked anyone. Block someone from their contact info in a chat.</p>

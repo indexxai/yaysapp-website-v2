@@ -6,6 +6,7 @@ import { AttachDialog, MediaContent, MediaViewer, RecorderBar } from './media';
 import { ActionBar, ActionsCtx, DeleteDialog, ForwardDialog, MessageInfoPanel, PinnedBar, Quote, Reactions, useActions, type Actions } from './message-actions';
 import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
+import { CallButtons, CallLine } from './call';
 import { Avatar, Banner, OvalButton } from './ui';
 import { InChatSearch } from './search';
 import { BlockReportDialog, isMuted, MUTE_CHOICES } from './contact';
@@ -355,6 +356,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
             <span data-testid="peer-status" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>{status}</span>
           </span>
         </button>
+        <CallButtons conversationId={id} canCall={c.canSend && !(c.kind === 'group' && c.group?.announcements)} live={c.call} />
         <OvalButton icon="search" label="Search" size="sm" variant={searching ? 'soft' : 'ghost'} onClick={() => setSearching((v) => !v)} />
         {onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'soft' : 'ghost'} onClick={onInfo} />}
       </header>
@@ -425,7 +427,9 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpe
           return (
             <div key={m.key} style={{ display: 'contents' }}>
               {sep && <div className="day-sep">{day}</div>}
-              {m.type === 'system' && m.system
+              {m.type === 'system' && m.system?.kind === 'call'
+                ? <CallLine e={m.system} mine={m.senderId === me} at={clock(m.createdAt)} conversationId={id} canCall={c.canSend} />
+                : m.type === 'system' && m.system
                 ? <div className="sys-line" data-testid="system-line">{systemText(m.system, m.senderId, (u) => engine.nameOf(u))}</div>
                 : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} c={c} onOpenMedia={onOpenMedia} />}
             </div>

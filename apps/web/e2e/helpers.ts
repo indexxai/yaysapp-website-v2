@@ -75,7 +75,7 @@ export async function apiUser(name: string): Promise<ApiUser> {
 /** A browser tab already signed in as this user. */
 export async function pageAs(browser: import('@playwright/test').Browser, u: ApiUser, viewport = { width: 1280, height: 800 }, opts: { askForPermissions?: boolean } = {}) {
   // askForPermissions: a browser that hasn't been asked anything yet (notifications show as "default").
-  const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport, ...(opts.askForPermissions ? {} : { permissions: ['microphone', 'clipboard-read', 'clipboard-write'] }) });
+  const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport, ...(opts.askForPermissions ? {} : { permissions: ['microphone', 'camera', 'clipboard-read', 'clipboard-write'] }) });
   await ctx.addInitScript((t) => { if (!localStorage.getItem('yays.tokens')) localStorage.setItem('yays.tokens', t); }, JSON.stringify(u.tokens));
   const page = await ctx.newPage();
   return { ctx, page };

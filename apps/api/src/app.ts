@@ -20,6 +20,7 @@ import { RateLimiter } from './infra/rate-limit';
 import { C } from './infra/mongo';
 import { Realtime } from './realtime/realtime';
 import { PUSH, type PushService } from './push/push.service';
+import { CALLS, type CallsService } from './calls/calls.service';
 
 export async function createApp(env: Record<string, string | undefined> = process.env) {
   const config: Config = loadConfig(env);
@@ -37,6 +38,8 @@ export async function createApp(env: Record<string, string | undefined> = proces
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(pinoHttp({ logger: log, genReqId: (req, res) => { const id = (req.headers['x-request-id'] as string) || randomUUID(); res.setHeader('x-request-id', id); return id; }, autoLogging: config.LOG_LEVEL !== 'silent' }));
   app.useBodyParser('json', { limit: '256kb' });
+  // LiveKit webhooks are checked against the exact bytes sent.
+  app.useBodyParser('raw', { type: 'application/webhook+json', limit: '64kb' });
   app.enableCors({ origin: config.corsOrigins, credentials: false, exposedHeaders: ['x-request-id', 'retry-after'] });
   app.useGlobalFilters(new AllExceptionsFilter(log));
 
@@ -54,10 +57,13 @@ export async function createApp(env: Record<string, string | undefined> = proces
   chat.msgEvents = realtime;
   app.get<AccountService>(ACCOUNT).onPrivacyChanged = (u) => realtime.privacyChanged(u);
   chat.onRead = (u, conv) => push.read(u, conv);
+  const calls = app.get<CallsService>(CALLS);
+  calls.events = { call: (u, ev, call) => realtime.callEvent(u, ev, call) };
   sessions.onRevoked = (sid) => { realtime.kickSession(sid); void push.forgetSession(sid).catch(() => undefined); };
 
   /** Stops sockets and HTTP, then the database and Redis connections, so the process can exit. */
   const shutdown = async () => {
+    calls.close();
     await realtime.close().catch(() => undefined);
     await app.close().catch(() => undefined);
     await mongo.close(true).catch(() => undefined);

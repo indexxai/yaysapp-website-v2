@@ -20,7 +20,9 @@ export type SystemEvent =
   | { kind: 'settings'; changes: Partial<GroupSettings> }
   | { kind: 'invite_reset' }
   | { kind: 'pinned'; messageId: string; seq: number }
-  | { kind: 'unpinned'; messageId: string; seq: number };
+  | { kind: 'unpinned'; messageId: string; seq: number }
+  /** A call in this chat finished. `actor` (the message sender) is whoever started it. */
+  | { kind: 'call'; callId: string; media: CallMedia; outcome: CallOutcome; durationSec: number; group: boolean };
 
 export type AttachmentKind = 'image' | 'video' | 'voice' | 'file';
 /** A photo, video, voice note or file on a message. Links expire; fetch the message again for fresh ones. */
@@ -199,6 +201,8 @@ export interface ConversationSummary {
   hidden?: boolean;
   /** Someone @mentioned me in a message I haven't read yet. */
   mentioned?: boolean;
+  /** A group call going on in this chat right now (shows "Join"). */
+  call?: { id: string; media: CallMedia; count: number } | null;
   memberIds: string[];
   lastSeq: number;
   lastMessage: ChatMessage | null;
@@ -328,6 +332,10 @@ export interface ServerEvents {
   'msg:mine': (p: { conversationId: string; messageId: string; hidden?: boolean; starred?: boolean; votes?: string[] }) => void;
   /** Someone changed who sees their online status: ask again. */
   'presence:recheck': (p: { userId: string }) => void;
+  /** Someone is calling me (to all my devices). */
+  'call:ring': (p: { call: CallView }) => void;
+  /** A call I'm part of changed: someone answered, declined, joined, left, asked to join, or it ended. */
+  'call:update': (p: { call: CallView }) => void;
 }
 export type Ack<T> = { ok: true; data: T } | { ok: false; error: { status: number; code: string; message: string; details?: Record<string, unknown> } };
 /** Client → server socket events. Every one answers through the acknowledgement callback. */
@@ -451,3 +459,57 @@ export const updateCommunitySchema = z.object({ name: communityName.optional(), 
   .refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
 export const communityGroupSchema = z.union([z.object({ groupId: objectIdSchema }), z.object({ name: z.string().transform((v) => v.trim()).pipe(z.string().min(1, 'Give the group a name.').max(100)) })]);
 export const moderateSchema = z.object({ action: z.enum(['delete', 'remove', 'keep']) });
+
+// ---- calls ----
+export const CALL_LIMITS = { participants: 32, ringSeconds: 45, linkName: 60 } as const;
+export type CallMedia = 'voice' | 'video';
+export type CallKind = 'direct' | 'group' | 'link';
+export type CallStatus = 'ringing' | 'active' | 'ended';
+/**
+ * ringing: being rung now. invited: can join but isn't rung (a muted group, a big group). silenced: a call from
+ * someone who isn't a contact, with "Silence unknown callers" on. waiting / denied: asked to join a call link.
+ */
+export type CallPartState = 'ringing' | 'invited' | 'silenced' | 'joined' | 'left' | 'declined' | 'missed' | 'busy' | 'waiting' | 'admitted' | 'denied';
+export type CallOutcome = 'completed' | 'missed' | 'declined' | 'busy' | 'cancelled';
+export interface CallParticipant { userId: string; name: string; photoUrl: string | null; state: CallPartState; joinedAt: string | null }
+export interface CallView {
+  id: string; kind: CallKind; media: CallMedia; status: CallStatus;
+  conversationId: string | null;
+  /** The other person, the group, or the call link's name. */
+  title: string; photoUrl: string | null;
+  createdBy: string; createdAt: string; startedAt: string | null; endedAt: string | null;
+  outcome: CallOutcome | null;
+  participants: CallParticipant[];
+  /** Who can let people in from a call link. */
+  hostIds: string[];
+  linkCode: string | null;
+}
+/** What a device needs to connect to the call's media room. */
+export interface CallJoin { call: CallView; url: string; token: string }
+export type CallLinkJoin = ({ status: 'joined' } & CallJoin) | { status: 'waiting'; call: CallView } | { status: 'denied' };
+/** One row of call history, from my side. */
+export interface CallHistoryItem {
+  id: string; kind: CallKind; media: CallMedia;
+  conversationId: string | null; title: string; photoUrl: string | null;
+  /** The other person, for direct calls. */
+  peerId: string | null;
+  direction: 'in' | 'out';
+  /** missed: rang me and I didn't answer. silenced: from an unknown caller, not rung. no_answer: I called, nobody answered. */
+  result: 'answered' | 'missed' | 'silenced' | 'declined' | 'no_answer' | 'busy' | 'cancelled' | 'live';
+  durationSec: number; at: string;
+}
+export interface CallHistoryPage { items: CallHistoryItem[]; next: string | null; missed: number }
+export interface CallLink { code: string; name: string; media: CallMedia; approve: boolean; url: string; createdAt: string }
+export interface CallLinkPreview { code: string; name: string; media: CallMedia; host: PublicProfile; live: boolean; count: number; mine: boolean }
+
+export const startCallSchema = z.object({ conversationId: objectIdSchema, media: z.enum(['voice', 'video']) });
+export const callLinkSchema = z.object({
+  name: z.string().transform((v) => v.replace(/\s+/g, ' ').trim()).pipe(z.string().max(CALL_LIMITS.linkName, `Names can be up to ${CALL_LIMITS.linkName} characters.`)).default(''),
+  media: z.enum(['voice', 'video']).default('video'), approve: z.boolean().default(true),
+});
+export const callLinkUpdateSchema = z.object({
+  name: z.string().transform((v) => v.replace(/\s+/g, ' ').trim()).pipe(z.string().max(CALL_LIMITS.linkName, `Names can be up to ${CALL_LIMITS.linkName} characters.`)).optional(),
+  media: z.enum(['voice', 'video']).optional(), approve: z.boolean().optional(),
+}).refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
+export const callInviteSchema = z.object({ userIds: z.array(objectIdSchema).min(1).max(CALL_LIMITS.participants) });
+export const callAdmitSchema = z.object({ userId: objectIdSchema, allow: z.boolean() });

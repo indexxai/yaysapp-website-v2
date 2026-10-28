@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
-import type { AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -215,6 +215,28 @@ export class YaysClient {
     if (!r.ok) throw new ApiError(r.status, ErrorCode.INTERNAL, "The photo didn't upload. Try again.");
     return t.key;
   }
+
+  // ---- calls ----
+  startCall(conversationId: string, media: CallMedia) { return this.request<CallJoin>('POST', '/v1/calls', { conversationId, media }); }
+  callHistory(q: { before?: string; filter?: 'all' | 'missed' | 'video'; conversationId?: string; limit?: number } = {}) {
+    const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString();
+    return this.request<CallHistoryPage>('GET', `/v1/calls${qs ? `?${qs}` : ''}`);
+  }
+  liveCalls() { return this.request<CallView[]>('GET', '/v1/calls/live'); }
+  callsSeen() { return this.request<void>('POST', '/v1/calls/seen', {}); }
+  forgetCalls(ids: string[]) { return this.request<void>('POST', '/v1/calls/forget', { ids }); }
+  call(id: string) { return this.request<CallView>('GET', `/v1/calls/${encodeURIComponent(id)}`); }
+  acceptCall(id: string) { return this.request<CallJoin>('POST', `/v1/calls/${encodeURIComponent(id)}/accept`, {}); }
+  declineCall(id: string) { return this.request<CallView>('POST', `/v1/calls/${encodeURIComponent(id)}/decline`, {}); }
+  leaveCall(id: string) { return this.request<CallView>('POST', `/v1/calls/${encodeURIComponent(id)}/leave`, {}); }
+  inviteToCall(id: string, userIds: string[]) { return this.request<CallView>('POST', `/v1/calls/${encodeURIComponent(id)}/invite`, { userIds }); }
+  admitToCall(id: string, userId: string, allow: boolean) { return this.request<CallView>('POST', `/v1/calls/${encodeURIComponent(id)}/admit`, { userId, allow }); }
+  createCallLink(v: { name?: string; media?: CallMedia; approve?: boolean }) { return this.request<CallLink>('POST', '/v1/call-links', v); }
+  updateCallLink(code: string, v: { name?: string; media?: CallMedia; approve?: boolean }) { return this.request<CallLink>('PATCH', `/v1/call-links/${encodeURIComponent(code)}`, v); }
+  callLinks() { return this.request<CallLink[]>('GET', '/v1/call-links'); }
+  callLink(code: string) { return this.request<CallLinkPreview>('GET', `/v1/call-links/${encodeURIComponent(code)}`); }
+  joinCallLink(code: string) { return this.request<CallLinkJoin>('POST', `/v1/call-links/${encodeURIComponent(code)}/join`, {}); }
+  revokeCallLink(code: string) { return this.request<void>('DELETE', `/v1/call-links/${encodeURIComponent(code)}`); }
 
   // ---- communities ----
   communities() { return this.request<CommunitySummary[]>('GET', '/v1/communities'); }

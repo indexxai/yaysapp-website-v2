@@ -392,6 +392,8 @@ export class ChatService {
     const profiles = await this.profilesFor(me, people.filter((u) => peerIds.some((p) => p.equals(u._id))));
     const meDoc = await this.users.findOne({ _id: me }, { projection: { 'yc.privacy': 1 } });
     const myReceipts = meDoc ? privacyOf(meDoc).readReceipts : true;
+    const groupIds = convs.filter((c) => c.kind === 'group' && has(c.members, me)).map((c) => c._id);
+    const liveCalls = groupIds.length ? await this.db.collection<{ convId: ObjectId; media: 'voice' | 'video'; parts: Array<{ state: string }> }>(C.calls).find({ convId: { $in: groupIds }, status: { $ne: 'ended' } }).toArray() : [];
     return Promise.all(convs.map(async (c, i) => {
       const pref = prefs.get(c._id.toHexString());
       const member = has(c.members, me);
@@ -429,6 +431,7 @@ export class ChatService {
         pins: (await this.pinsOf(c)).filter((p) => p.seq > fromSeq && p.seq <= lastSeq),
         mutedUntil: pref?.mutedUntil && pref.mutedUntil.getTime() > Date.now() ? pref.mutedUntil.toISOString() : null,
         archived: !!pref?.archived, pinnedAt: pref?.pinnedAt ? pref.pinnedAt.toISOString() : null,
+        call: (() => { const lc = liveCalls.find((x) => x.convId.equals(c._id)); return lc ? { id: String((lc as unknown as { _id: ObjectId })._id), media: lc.media, count: lc.parts.filter((p) => p.state === 'joined').length } : null; })(),
         markedUnread: !!pref?.markedUnread, blocked: iBlocked, visibleFrom: fromSeq, ...(mentioned ? { mentioned: true } : {}),
         ...(pref?.deletedSeq !== undefined && pref.deletedSeq >= c.seq ? { hidden: true } : {}),
         lastActivityAt: (member && !(last && c.lastMessageId && !last._id.equals(c.lastMessageId)) ? c.lastAt : last?.createdAt ?? c.lastAt).toISOString(),
