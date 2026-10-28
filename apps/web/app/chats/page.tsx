@@ -9,7 +9,7 @@ import { Attention, NotifyBanner } from '@/components/notify';
 import { SearchPanel } from '@/components/search';
 import { Banner, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
-import { ChatProvider, useChatState } from '@/lib/chat';
+import { ChatProvider, useChatState, useEngine } from '@/lib/chat';
 import { Icon } from '@/lib/icons';
 
 export default function ChatsPage() {
@@ -41,14 +41,28 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
   const jumpSeq = Number(params.get('m')) || undefined;
   const [info, setInfo] = useState(params.get('info') === '1');
   const s = useChatState();
+  const engine = useEngine();
   const open = useCallback((id: string) => { setPanel('list'); router.push(`/chats?c=${id}`); }, [router]);
   // From search: the results stay on the left so you can try the next one.
   const openFound = useCallback((id: string, seq?: number) => { router.push(`/chats?c=${id}${seq ? `&m=${seq}&j=${Date.now()}` : ''}`); }, [router]);
   useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPanel('search'); } };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPanel('search'); return; }
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.code === 'KeyN') { e.preventDefault(); setPanel('chat'); return; }
+      if (e.altKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+        e.preventDefault();
+        const st = engine.getState();
+        const list = st.order.filter((id) => st.conversations[id] && !st.conversations[id]!.archived);
+        if (!list.length) return;
+        const cur = new URLSearchParams(window.location.search).get('c');
+        const i = cur ? list.indexOf(cur) : -1;
+        const next = list[Math.max(0, Math.min(list.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))] ?? list[0]!;
+        router.push(`/chats?c=${next}`);
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [engine, router]);
   const back = useCallback(() => { setInfo(false); router.push('/chats'); }, [router]);
   const kind = active ? s.conversations[active]?.kind : undefined;
   const isGroup = kind === 'group';
@@ -81,9 +95,16 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
       <main className="chats__pane">
         {active ? <Conversation id={active} jumpSeq={jumpSeq} jumpKey={params.get('j') ?? ''} searchNonce={searchNonce} onBack={back} onInfo={() => setInfo((v) => !v)} infoOpen={info} /> : (
           <div className="pane-center pane-welcome" data-testid="chats-ready">
+            <span className="ys-feature__deco a" style={{ width: 520, top: -220, right: -160, opacity: 0.5 }} aria-hidden />
+            <span className="ys-feature__deco c" style={{ width: 300, bottom: -120, left: -100, opacity: 0.5 }} aria-hidden />
             <span className="ys-oval ys-oval--wash" style={{ width: 96 }}><Icon name="chat" size={40} /></span>
-            <strong>Welcome, {name}</strong>
-            <span>{migrated ? 'Your account from the old YaysApp is connected.' : 'Your account is ready.'} Pick a chat on the left, or start a new one.</span>
+            <h2 className="pane-welcome__title">Pick a chat to start</h2>
+            <span>Welcome, {name}. {migrated ? 'Your account from the old YaysApp is connected.' : 'Your account is ready.'} Choose a conversation on the left, or start something new.</span>
+            <div className="shortcuts" aria-label="Keyboard shortcuts">
+              <span><kbd>Ctrl</kbd> <kbd>K</kbd></span><span>Search</span>
+              <span><kbd>Alt</kbd> <kbd>N</kbd></span><span>New chat</span>
+              <span><kbd>Alt</kbd> <kbd>↑</kbd> <kbd>↓</kbd></span><span>Move between chats</span>
+            </div>
           </div>
         )}
       </main>

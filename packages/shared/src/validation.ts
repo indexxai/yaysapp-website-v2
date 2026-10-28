@@ -85,3 +85,10 @@ export const problemReportSchema = z.object({
   text: z.string().trim().min(10, 'Tell us a bit more (at least 10 characters).').max(2000),
   screenshotKey: z.string().max(512).optional(), userAgent: z.string().max(400).optional(), appVersion: z.string().max(40).optional(), page: z.string().max(200).optional(),
 });
+
+export const linkStartSchema = z.object({ device: deviceSchema });
+/** Either what the QR code says, or the short code under it (with or without the dash). */
+export const linkApproveSchema = z.union([
+  z.object({ qr: z.string().regex(/^yays:\/\/link\/[A-Za-z0-9_-]{20,64}$/, 'That isn’t a YaysApp code.') }),
+  z.object({ code: z.string().transform((v) => v.toUpperCase().replace(/[^A-Z0-9]/g, '')).pipe(z.string().length(8, 'The code has 8 letters and numbers.')) }),
+]);

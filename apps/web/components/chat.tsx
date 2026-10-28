@@ -33,10 +33,13 @@ export function ConnectionNotice() {
   const s = useChatState();
   const waiting = s.outbox.filter((p) => p.status === 'pending').length;
   if (s.connection === 'online') return null;
+  const noNet = typeof navigator !== 'undefined' && !navigator.onLine;
+  const later = waiting ? `${waiting} message${waiting > 1 ? 's' : ''} will send when you're back online.` : 'Messages you send will go out when you’re back online.';
+  if (s.connection === 'connecting' && !noNet) return <div className="conn-notice" role="status"><span className="ys-spin" aria-hidden /><span>Connecting…{waiting ? ` ${later}` : ''}</span></div>;
   return (
     <div className="conn-notice" role="status">
-      <span className="ys-spin" aria-hidden />
-      <span>{s.connection === 'connecting' ? 'Connecting…' : 'Waiting for network.'}{waiting ? ` ${waiting} message${waiting > 1 ? 's' : ''} will send when you're back online.` : ''}</span>
+      <Icon name="alert-triangle" size={18} />
+      <span><strong>{noNet ? 'No internet connection.' : 'Can’t reach YaysApp. Trying again…'}</strong> {later}</span>
     </div>
   );
 }
@@ -45,6 +48,21 @@ export function ConnectionNotice() {
 type ListFilter = 'all' | 'unread' | 'groups' | 'communities';
 const hasUnread = (c: ConversationSummary) => c.unread > 0 || !!c.markedUnread;
 
+const SKELETON: Array<[string, string]> = [['60%', '80%'], ['45%', '70%'], ['70%', '55%'], ['50%', '85%'], ['65%', '60%'], ['40%', '75%'], ['55%', '65%']];
+function ListSkeleton() {
+  return (
+    <div className="list-skeleton" aria-busy="true" role="status" aria-label="Loading chats">
+      <div className="list-skeleton__label">Loading chats…</div>
+      {SKELETON.map(([a, b], i) => (
+        <div key={i} className="ys-row-item" aria-hidden style={{ cursor: 'default' }}>
+          <span className="ys-oval ys-oval--sunken skeleton-pulse" style={{ width: 48 }} />
+          <span className="ys-row-item__text" style={{ gap: 8 }}><span className="skeleton-line skeleton-pulse" style={{ width: a, height: 12 }} /><span className="skeleton-line skeleton-line--soft skeleton-pulse" style={{ width: b, height: 10 }} /></span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId: string | null; onOpen: (id: string) => void; onNewChat: () => void; onArchived: () => void }) {
   const s = useChatState();
   const engine = useEngine();
@@ -52,7 +70,7 @@ export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId
   const [filter, setFilter] = useState<ListFilter>('all');
   const me = useMe();
   usePreviewNames();
-  if (!s.listLoaded) return <div className="list-empty" aria-busy="true"><span className="ys-spin" aria-hidden /> Loading chats…</div>;
+  if (!s.listLoaded && !s.order.length) return <ListSkeleton />;
   const main = s.order.filter((id) => s.conversations[id] && !s.conversations[id].archived);
   const archived = s.order.filter((id) => s.conversations[id]?.archived);
   if (!main.length && !archived.length) {
@@ -298,6 +316,8 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
   const c = s.conversations[id];
   const thread = s.threads[id];
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [replyTo, setReplyTo] = useState<ThreadItem | null>(null);
   const [editing, setEditing] = useState<ThreadItem | null>(null);
   const [forwarding, setForwarding] = useState<ThreadItem | null>(null);
@@ -319,9 +339,14 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
   useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setNotice(null); setReportOf(null); setAttachFiles(null); setViewerAt(null); setSearching(false); }, [id]);
   useEffect(() => {
     setError(null);
-    void engine.open(id).then(() => { if (engine.getState().conversations[id]?.kind === 'group') return engine.loadGroup(id); }).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
+    setNotFound(false);
+    void engine.open(id).then(() => { if (engine.getState().conversations[id]?.kind === 'group') return engine.loadGroup(id); }).catch((e) => {
+      const nf = e instanceof ApiError && e.status === 404;
+      setNotFound(nf);
+      setError(nf ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection and try again.');
+    });
     return () => { if (engine.getState().active === id) void engine.open(null); };
-  }, [engine, id]);
+  }, [engine, id, retry]);
   // Opened from a search result: go to that message once the thread is there.
   const loaded = !!thread?.loaded;
   useEffect(() => {
@@ -334,13 +359,26 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const items = useMemo(() => engine.thread(id), [engine, id, thread, s.outbox, s.uploads, c]);
 
-  if (error) return <div className="pane-center"><Banner>{error}</Banner><OvalButton icon="arrow-left" label="Back to chats" variant="ghost" onClick={onBack} /></div>;
+  if (error) return (
+    <div className="pane-center">
+      <div className="state-card" role="alert">
+        <span className="ys-oval" style={{ width: 72, ['--ys-oval-fill' as string]: 'var(--danger-wash)', ['--ys-oval-ink' as string]: 'var(--danger-ink)' }}><Icon name="alert" size={30} /></span>
+        <h2>{notFound ? 'Chat not found' : 'Couldn’t open this chat'}</h2>
+        <p>{error}</p>
+        <div className="row" style={{ gap: 26 }}>
+          {!notFound && <OvalButton icon="refresh" label="Try again" onClick={() => setRetry((n) => n + 1)} />}
+          <OvalButton icon="arrow-left" label="Back to chats" variant="ghost" onClick={onBack} />
+        </div>
+      </div>
+    </div>
+  );
   if (!c) return <div className="pane-center" aria-busy="true"><span className="ys-spin" aria-hidden /></div>;
   const peer = c.peer;
   const name = chatName(c);
   const typing = typingLabel(engine, c);
   const p = peer ? s.presence[peer.id] : undefined;
-  const status = typing ?? (c.kind === 'group' ? memberLine(s.groups[id], me, '') : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : peer?.username ? `@${peer.username}` : '');
+  const offline = s.connection !== 'online';
+  const status = offline ? 'Waiting for network…' : typing ?? (c.kind === 'group' ? memberLine(s.groups[id], me, '') : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : peer?.username ? `@${peer.username}` : '');
   return (
     <ActionsCtx.Provider value={actions}>
     <section className={`convo${dragging ? ' convo--drop' : ''}`} aria-label={`Chat with ${name}`}
@@ -353,7 +391,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
           <Avatar name={name} photoUrl={chatPhoto(c)} size={44} online={!!p?.online} />
           <span className="convo__who">
             <strong>{name}</strong>
-            <span data-testid="peer-status" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>{status}</span>
+            <span data-testid="peer-status" style={offline ? { color: 'var(--warning-ink)', fontWeight: 700 } : typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>{status}</span>
           </span>
         </button>
         <CallButtons conversationId={id} canCall={c.canSend && !(c.kind === 'group' && c.group?.announcements)} live={c.call} />
@@ -385,6 +423,11 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpe
   const prevFirst = useRef<string | null>(null);
   const prevHeight = useRef(0);
   const [older, setOlder] = useState(false);
+  const [olderFailed, setOlderFailed] = useState(false);
+  const loadMore = () => { setOlder(true); setOlderFailed(false); void engine.loadOlder(id).catch(() => setOlderFailed(true)).finally(() => setOlder(false)); };
+  useEffect(() => setOlderFailed(false), [id]);
+  const s = useChatState();
+  const waitingToSend = s.connection !== 'online' ? items.filter((m) => m.mine && m.tick === 'pending' && !m.upload).length : 0;
   // Stay pinned to the newest message unless the reader scrolled up; keep position when older ones load above.
   useLayoutEffect(() => {
     const el = box.current; if (!el) return;
@@ -410,13 +453,21 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpe
   const onScroll = () => {
     const el = box.current; if (!el) return;
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    if (el.scrollTop < 60 && hasMore && !older && !loading) { setOlder(true); void engine.loadOlder(id).finally(() => setOlder(false)); }
+    if (el.scrollTop < 60 && hasMore && !older && !loading && !olderFailed) loadMore();
   };
   let lastDay = '';
   return (
     <div className="convo__scroll" ref={box} onScroll={onScroll}>
       <div className="ys-thread convo__thread" role="log" aria-live="polite" aria-label="Messages">
         {(older || loading) && <span className="ys-spin" style={{ alignSelf: 'center' }} aria-label="Loading messages" />}
+        {olderFailed && (
+          <div className="state-card state-card--inline" role="alert">
+            <span className="ys-oval" style={{ width: 56, ['--ys-oval-fill' as string]: 'var(--danger-wash)', ['--ys-oval-ink' as string]: 'var(--danger-ink)' }}><Icon name="alert" size={24} /></span>
+            <h2>Couldn’t load older messages</h2>
+            <p>Your newest messages are saved on this computer. Older ones load once you’re connected again.</p>
+            <div className="row" style={{ gap: 26 }}><OvalButton icon="refresh" label="Try again" size="sm" onClick={loadMore} /><OvalButton icon="help" label="Get help" size="sm" variant="ghost" href="/settings/help" /></div>
+          </div>
+        )}
         {!loading && !items.length && <div className="day-sep">Say hello 👋</div>}
         {items.map((m, i) => {
           const day = dayLabel(m.createdAt);
@@ -435,6 +486,7 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpe
             </div>
           );
         })}
+        {waitingToSend > 0 && <span className="waiting-send" data-testid="waiting-to-send">Waiting to send · {waitingToSend} message{waitingToSend > 1 ? 's' : ''}</span>}
         {typing && <div className="ys-bubble ys-bubble--them typing-dots" aria-label="Typing"><span /><span /><span /></div>}
       </div>
     </div>

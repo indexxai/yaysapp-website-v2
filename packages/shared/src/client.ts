@@ -1,5 +1,5 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
-import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
+import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
@@ -115,6 +115,16 @@ export class YaysClient {
   forgotPin(pinToken: string) { return this.request<CodeSent>('POST', '/v1/auth/pin/forgot', { pinToken }, { auth: false }); }
   /** Turns two-step off and signs in. */
   async resetPin(pinToken: string, code: string) { return this.signedIn(await this.request<AuthResult>('POST', '/v1/auth/pin/reset', { pinToken, code }, { auth: false })); }
+  // ---- linking with a QR code ----
+  linkStart() { return this.request<LinkStart>('POST', '/v1/auth/link/start', { device: this.o.device }, { auth: false }); }
+  /** Asks whether the code was scanned; once it was, this browser is signed in. */
+  async linkPoll(pollId: string) {
+    const r = await this.request<LinkPoll>('GET', `/v1/auth/link/${encodeURIComponent(pollId)}`, undefined, { auth: false });
+    if (r.status === 'linked') await this.o.tokens.set(r.tokens);
+    return r;
+  }
+  linkApprove(v: { qr: string } | { code: string }) { return this.request<LinkApproved>('POST', '/v1/auth/link/approve', v); }
+
   async logout() {
     try { await this.request<void>('POST', '/v1/auth/logout', {}); } finally { await this.o.tokens.set(null); }
   }

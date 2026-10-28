@@ -2,7 +2,7 @@ import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import type Redis from 'ioredis';
 import { ObjectId } from 'mongodb';
-import { ErrorCode, type AuthResult, type CodeSent, type PinRequired, type SignInResult } from '@yays/shared';
+import { ErrorCode, type LinkApproved, type LinkPoll, type LinkStart, type AuthResult, type CodeSent, type PinRequired, type SignInResult } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import type { Storage } from '../infra/storage';
 import { isDuplicate, toMe, type UserDoc, type UsersRepo } from '../users/users.repo';
@@ -16,6 +16,8 @@ const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) =>
 type Via = 'phone' | 'email' | 'google';
 const PIN_TRIES = 5;
 const PIN_STEP_SECONDS = 600;
+const LINK_SECONDS = 60;
+const LINK_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /** PINs are stored as scrypt hashes with their own salt. */
 export async function hashPin(pin: string) {
@@ -49,6 +51,41 @@ export class AuthService {
   private async finish(u: UserDoc, device: DeviceInput, ip: string, isNew: boolean): Promise<AuthResult> {
     const tokens = await this.sessions.create(u._id, device, ip);
     return { tokens, me: await toMe(u, this.photo), isNew };
+  }
+
+  // ---------- linking a device with a QR code ----------
+  /** The browser asking to be signed in: a QR code (and a short code) good for LINK_SECONDS. */
+  async linkStart(device: DeviceInput, ip: string): Promise<LinkStart> {
+    const secret = randomBytes(24).toString('base64url'), pollId = randomBytes(18).toString('base64url');
+    const code = [...randomBytes(8)].map((b) => LINK_ALPHABET[b % LINK_ALPHABET.length]).join('');
+    const expiresAt = new Date(Date.now() + LINK_SECONDS * 1000);
+    await this.redis.multi()
+      .set(`link:s:${secret}`, JSON.stringify({ pollId, device, ip }), 'EX', LINK_SECONDS)
+      .set(`link:c:${code}`, secret, 'EX', LINK_SECONDS)
+      .set(`link:p:${pollId}`, JSON.stringify({ status: 'waiting', expiresAt: expiresAt.toISOString() }), 'EX', LINK_SECONDS + 5)
+      .exec();
+    return { pollId, qr: `yays://link/${secret}`, code: `${code.slice(0, 4)}-${code.slice(4)}`, expiresAt: expiresAt.toISOString() };
+  }
+  /** The waiting browser asks whether it was linked. The sign-in is handed over once. */
+  async linkPoll(pollId: string): Promise<LinkPoll> {
+    if (!/^[A-Za-z0-9_-]{10,40}$/.test(pollId)) return { status: 'expired' };
+    const raw = await this.redis.get(`link:p:${pollId}`);
+    if (!raw) return { status: 'expired' };
+    const v = JSON.parse(raw) as LinkPoll;
+    if (v.status === 'linked') { await this.redis.del(`link:p:${pollId}`); return v; }
+    return v;
+  }
+  /** A signed-in device scanned the code (or typed it): the waiting browser becomes a session of the same account. */
+  async linkApprove(userId: ObjectId, v: { qr: string } | { code: string }): Promise<LinkApproved> {
+    const secret = 'qr' in v ? v.qr.slice('yays://link/'.length) : await this.redis.getdel(`link:c:${v.code}`);
+    const raw = secret ? await this.redis.getdel(`link:s:${secret}`) : null;
+    if (!raw) throw AppError.notFound('This code expired or was already used. Get a new one on the other device.');
+    const rec = JSON.parse(raw) as { pollId: string; device: DeviceInput; ip: string };
+    const u = await this.users.byId(userId);
+    if (!u || u.yc?.disabledAt || u.yc?.deletedAt) throw AppError.unauthenticated();
+    const result = await this.finish(u, rec.device, rec.ip, false);
+    await this.redis.set(`link:p:${rec.pollId}`, JSON.stringify({ status: 'linked', ...result }), 'EX', 120);
+    return { deviceName: rec.device.name ?? 'New device' };
   }
 
   // ---------- two-step verification ----------

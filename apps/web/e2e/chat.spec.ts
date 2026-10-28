@@ -110,10 +110,12 @@ test.describe('Week 3 · chatting on the web', () => {
     await row(s.page, 'Ali').click();
 
     await a.ctx.setOffline(true);
-    await expect(a.page.getByRole('status').filter({ hasText: /Waiting for network|Connecting/ })).toBeVisible({ timeout: 45_000 });
+    await expect(a.page.getByRole('status').filter({ hasText: /No internet connection|Can’t reach YaysApp|Connecting/ })).toBeVisible({ timeout: 45_000 });
     for (const t of ['in the tunnel 1', 'in the tunnel 2', 'in the tunnel 3']) await send(a.page, t);
     await expect(a.page.locator('.msg--me[data-tick="pending"]')).toHaveCount(3);
     await expect(a.page.getByRole('status')).toContainText("3 messages will send when you're back online");
+    await expect(a.page.getByTestId('waiting-to-send')).toHaveText('Waiting to send · 3 messages');
+    await expect(a.page.getByTestId('peer-status')).toHaveText('Waiting for network…');
 
     await a.ctx.setOffline(false);
     await expect(a.page.locator('.msg--me[data-tick="pending"]')).toHaveCount(0, { timeout: 20_000 });
@@ -128,7 +130,7 @@ test.describe('Week 3 · chatting on the web', () => {
     await startChat(a.page, sara);
     const url = a.page.url();
     await a.ctx.setOffline(true);
-    await expect(a.page.getByRole('status').filter({ hasText: /Waiting for network|Connecting/ })).toBeVisible({ timeout: 45_000 });
+    await expect(a.page.getByRole('status').filter({ hasText: /No internet connection|Can’t reach YaysApp|Connecting/ })).toBeVisible({ timeout: 45_000 });
     await send(a.page, 'typed with no signal');
     await expect(a.page.locator('.msg--me[data-tick="pending"]')).toHaveCount(1);
     await a.page.close();
@@ -150,7 +152,7 @@ test.describe('Week 3 · chatting on the web', () => {
     const c = await apiCall('/v1/conversations/direct', { userId: sara.id }, ali.tokens.accessToken);
     const o = await pageAs(browser, omar);
     await o.page.goto(`/chats?c=${c.id}`);
-    await expect(alert(o.page)).toHaveText('This chat does not exist or you are not in it.');
+    await expect(alert(o.page)).toContainText('This chat does not exist or you are not in it.');
     await o.ctx.close();
   });
 

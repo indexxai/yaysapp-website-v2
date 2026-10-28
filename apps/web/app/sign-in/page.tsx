@@ -1,7 +1,8 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ApiError, ErrorCode, needsPin, normalizeEmail, normalizePhone, type CodeSent, type SignInResult } from '@yays/shared';
+import QRCode from 'qrcode';
+import { ApiError, ErrorCode, needsPin, normalizeEmail, normalizePhone, type CodeSent, type LinkStart, type SignInResult } from '@yays/shared';
 import { api, hasSession } from '@/lib/api';
 import { AuthShell } from '@/components/auth-shell';
 import { Banner, Field, OvalButton } from '@/components/ui';
@@ -11,7 +12,7 @@ import { Icon } from '@/lib/icons';
 type Step =
   | { s: 'phone' } | { s: 'phone-code'; phone: string; sent: CodeSent }
   | { s: 'signup-email'; phone: string; signupToken: string } | { s: 'signup-code'; phone: string; signupToken: string; email: string; sent: CodeSent }
-  | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent }
+  | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent } | { s: 'qr' }
   | { s: 'pin'; pinToken: string } | { s: 'pin-reset'; pinToken: string; sent: CodeSent };
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
@@ -45,6 +46,7 @@ export default function SignIn() {
 
   return (
     <AuthShell>
+      {step.s === 'qr' && <QrStep onBack={() => setStep({ s: 'phone' })} onLinked={() => router.replace('/chats')} />}
       {step.s === 'phone' || step.s === 'email' ? (
         <>
           <div>
@@ -61,6 +63,7 @@ export default function SignIn() {
             : <EmailForm busy={busy} label="Email" submitLabel="Send code" onSubmit={(email) => run(async () => { const r = await api().startEmail(email); sent(r); setStep({ s: 'email-code', email, sent: r }); })} />}
           <div className="divider">or</div>
           <GoogleButton onToken={(t) => run(async () => done(await api().google(t)))} busy={busy} />
+          <button type="button" className="link-btn qr-switch" onClick={() => { setError(null); setStep({ s: 'qr' }); }}><Icon name="qr" size={18} />Already signed in on another device? Scan a QR code</button>
         </>
       ) : null}
 
@@ -224,6 +227,63 @@ function GoogleButton({ onToken, busy }: { onToken: (idToken: string) => void; b
         const email = window.prompt('Dev Google sign-in: email') ?? '';
         if (email) onToken('dev.' + btoa(JSON.stringify({ sub: 'dev-' + email, email, name: email.split('@')[0] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
       }} />
+    </div>
+  );
+}
+
+/** Sign in by scanning a code with a device that's already signed in (or typing the short code there). */
+function QrStep({ onBack, onLinked }: { onBack: () => void; onLinked: () => void }) {
+  const [link, setLink] = useState<LinkStart | null>(null);
+  const [svg, setSvg] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const fresh = useRef(0);
+  // A new code every minute while this screen is open.
+  useEffect(() => {
+    let alive = true;
+    const get = async () => {
+      try {
+        const l = await api().linkStart();
+        if (!alive) return;
+        setLink(l); setError(null);
+        setSvg(await QRCode.toString(l.qr, { type: 'svg', margin: 0, errorCorrectionLevel: 'H', color: { dark: '#1f1a16', light: '#ffffff' } }));
+      } catch (e) { if (alive) setError(message(e)); }
+    };
+    void get();
+    const t = setInterval(() => { setNow(Date.now()); if (fresh.current && Date.now() > fresh.current) { fresh.current = 0; void get(); } }, 1000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  useEffect(() => { if (link) fresh.current = Date.parse(link.expiresAt) - 1000; }, [link]);
+  // Asks every 2 seconds whether the code was used.
+  useEffect(() => {
+    if (!link) return;
+    let alive = true;
+    const t = setInterval(() => {
+      void api().linkPoll(link.pollId).then((r) => { if (alive && r.status === 'linked') { clearInterval(t); onLinked(); } }).catch(() => undefined);
+    }, 2000);
+    return () => { alive = false; clearInterval(t); };
+  }, [link, onLinked]);
+  const secs = link ? Math.max(0, Math.round((Date.parse(link.expiresAt) - now) / 1000)) : 0;
+  return (
+    <div className="qr-step">
+      <div className="qr-step__text">
+        <h1>Scan to sign in</h1>
+        <ol>
+          <li>Open YaysApp on your phone or another signed-in browser</li>
+          <li>Go to <strong>Settings</strong>, then <strong>Linked devices</strong></li>
+          <li>Tap <strong>Link a device</strong> and point your phone at this code, or type the code below it</li>
+        </ol>
+        {error && <Banner>{error}</Banner>}
+        <button type="button" className="link-btn" onClick={onBack}>No other device? Sign in with a code instead</button>
+      </div>
+      <div className="qr-step__code">
+        <div className="qr-box" role="img" aria-label="QR code to link this browser">
+          {svg ? <span className="qr-box__svg" dangerouslySetInnerHTML={{ __html: svg }} /> : <span className="ys-spin" aria-hidden />}
+          {svg && <span className="qr-box__logo" aria-hidden>Y</span>}
+        </div>
+        {link && <strong className="qr-code-text" data-testid="link-code">{link.code}</strong>}
+        <span className="muted" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{link ? `Code refreshes in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : 'Getting a code…'}</span>
+      </div>
     </div>
   );
 }

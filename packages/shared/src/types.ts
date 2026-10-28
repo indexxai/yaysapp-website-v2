@@ -79,3 +79,9 @@ export interface StorageReport {
   byKind: { image: number; video: number; voice: number; file: number };
   chats: Array<{ conversationId: string; name: string; kind: 'direct' | 'group'; bytes: number; counts: Partial<Record<'image' | 'video' | 'voice' | 'file', number>> }>;
 }
+
+// ---- linking a browser with a QR code (or its short code) ----
+/** Shown on the device that wants to sign in. `qr` goes in the QR code; `code` is typed in instead when there's no camera. */
+export interface LinkStart { pollId: string; qr: string; code: string; expiresAt: string }
+export type LinkPoll = { status: 'waiting'; expiresAt: string } | { status: 'expired' } | ({ status: 'linked' } & AuthResult);
+export interface LinkApproved { deviceName: string }
