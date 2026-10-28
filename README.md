@@ -29,6 +29,10 @@ cd apps/mobile && npx react-native start    # then: npx react-native run-android
                                             # iPhone: cd ios && pod install, then run from Xcode
 ```
 
+Calls need a LiveKit server (1.12 or newer): `brew install livekit`, then `livekit-server --dev`
+in another terminal, and uncomment the `LIVEKIT_*` lines in `apps/api/.env` (the dev keys match).
+Without it everything else works and calls say they aren't available.
+
 In development no SMS or email is sent. The last code for a number or email is at
 `http://localhost:4000/v1/_test/outbox?to=+923001234567` (only while `TEST_OUTBOX=true`).
 
