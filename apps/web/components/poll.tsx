@@ -5,7 +5,7 @@ import { Icon } from '@/lib/icons';
 import { useEngine } from '@/lib/chat';
 import { Switch } from './group';
 import { Modal } from './message-actions';
-import { Avatar, Banner } from './ui';
+import { Avatar, Banner, OvalButton } from './ui';
 
 const errText = (e: unknown, f: string) => (e instanceof ApiError ? e.message : f);
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -125,8 +125,8 @@ export function PollDialog({ convId, name, onClose }: { convId: string; name: st
           <Switch on={anonymous} onChange={setAnonymous} label="Hide who voted" hint="Only counts are shown" />
         </div>
         <div className="modal__actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn--primary" disabled={!ok || busy}>Send poll</button>
+          <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
+          <OvalButton type="submit" icon="send" label="Send poll" size="sm" variant="primary" disabled={!ok || busy} />
         </div>
       </form>
     </Modal>

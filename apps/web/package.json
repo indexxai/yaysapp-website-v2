@@ -10,6 +10,8 @@
     "test:e2e": "NEXT_PUBLIC_API_URL=http://127.0.0.1:4100 NEXT_PUBLIC_DEV_GOOGLE=1 next build && pnpm --filter @yays/api build && playwright test"
   },
   "dependencies": {
+    "@fontsource-variable/nunito-sans": "5.3.0",
+    "@fontsource-variable/outfit": "5.3.0",
     "@yays/shared": "workspace:*",
     "@yays/tokens": "workspace:*",
     "livekit-client": "2.22.4",

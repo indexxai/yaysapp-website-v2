@@ -92,9 +92,9 @@ export function SearchPanel({ onClose, onOpen }: { onClose: () => void; onOpen: 
           <Group title="Chats">
             {res.chats.map((c) => (
               <button key={c.id} type="button" className="ys-row-item" data-testid="search-chat" onClick={() => onOpen(c.id)}>
-                <Avatar name={c.name} photoUrl={c.photoUrl} size={44} />
+                <Avatar name={c.name} photoUrl={c.photoUrl} size={44} group={c.kind === 'group'} />
                 <span className="ys-row-item__text"><span className="ys-row-item__title"><Highlight text={c.name} q={hq} /></span>
-                  <span className="ys-row-item__sub">{c.kind === 'group' ? `Group · ${c.memberCount} members` : 'Chat'}</span></span>
+                  <span className="ys-row-item__sub">{c.kind === 'group' ? `Group · ${c.memberCount} member${c.memberCount === 1 ? '' : 's'}` : 'Chat'}</span></span>
               </button>
             ))}
           </Group>
@@ -145,7 +145,7 @@ function MessageHit({ m, q, onOpen }: { m: SearchMessage; q: string; onOpen: (c:
   const text = m.message.text ?? (m.message.attachment ? attachmentLabel(m.message.attachment) : '');
   return (
     <button type="button" className="ys-row-item" data-testid="search-message" onClick={() => onOpen(m.chat.id, m.message.seq)}>
-      <Avatar name={m.chat.name} photoUrl={m.chat.photoUrl} size={44} />
+      <Avatar name={m.chat.name} photoUrl={m.chat.photoUrl} size={44} group={m.chat.kind === 'group'} />
       <span className="ys-row-item__text">
         <span className="ys-row-item__title">{m.chat.name}</span>
         <span className="ys-row-item__sub search__snippet">{m.chat.kind === 'group' || m.senderName === 'You' ? `${m.senderName}: ` : ''}<Highlight text={text} q={q} /></span>

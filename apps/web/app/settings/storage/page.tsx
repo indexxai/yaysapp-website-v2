@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { Card, SettingsFrame, useSaved } from '@/components/settings';
 import { Avatar, Banner, OvalButton } from '@/components/ui';
 
+const SINGULAR = { image: 'photo', video: 'video', file: 'document', voice: 'voice message' } as const;
 const KINDS: Array<['image' | 'video' | 'file' | 'voice', string, string]> = [['image', 'Photos', 'var(--ember)'], ['video', 'Videos', 'var(--ember-deep)'], ['file', 'Documents', '#4f5fa8'], ['voice', 'Voice', '#5f9e1b']];
 
 /** What this browser keeps: the saved chat list and recent messages (so chats open offline). Unsent messages are never cleared. */
@@ -57,10 +58,10 @@ function Storage() {
         <Card title="Largest chats">
           {r.chats.map((c) => (
             <Link key={c.conversationId} href={`/chats?c=${c.conversationId}`} className="ys-row-item" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <Avatar name={c.name} size={36} />
+              <Avatar name={c.name} size={36} group={c.kind === 'group'} />
               <span className="ys-row-item__text">
                 <span className="ys-row-item__title">{c.name}</span>
-                <span className="ys-row-item__sub">{KINDS.filter(([k]) => c.counts[k]).map(([k, l]) => `${c.counts[k]} ${l.toLowerCase()}`).join(' · ')}</span>
+                <span className="ys-row-item__sub">{KINDS.filter(([k]) => c.counts[k]).map(([k, l]) => `${c.counts[k]} ${c.counts[k] === 1 ? SINGULAR[k] : l.toLowerCase()}`).join(' · ')}</span>
               </span>
               <strong style={{ font: '800 14px var(--font-display)' }}>{formatBytes(c.bytes)}</strong>
             </Link>

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-test('sign-in fits a phone screen with no sideways scroll', async ({ page }) => {
+test('sign-in fits a phone screen with no sideways scroll', async ({ page }, info) => {
+  test.skip(info.project.name !== 'phone', 'phone screens only');
   await page.goto('/sign-in');
   await expect(page.getByRole('heading', { name: 'Sign in to YaysApp' })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

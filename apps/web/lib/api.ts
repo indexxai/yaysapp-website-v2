@@ -32,10 +32,11 @@ export function api(): YaysClient {
       baseUrl: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000',
       device: { deviceId: deviceId(), platform: 'web', name: browserName(), appVersion: '0.1.0' },
       tokens: {
-        get: () => safe(() => JSON.parse(localStorage.getItem(TOKENS_KEY) ?? 'null') as Tokens | null, null),
+        get: () => safe(() => JSON.parse(localStorage.getItem(TOKENS_KEY) ?? sessionStorage.getItem(TOKENS_KEY) ?? 'null') as Tokens | null, null),
         set: (t) => safe(() => {
-          if (t) { localStorage.setItem(TOKENS_KEY, JSON.stringify(t)); return; }
-          localStorage.removeItem(TOKENS_KEY);
+          // "Keep me signed in" off: the session lives only until this browser tab closes.
+          if (t) { const keep = keepSignedIn(); (keep ? localStorage : sessionStorage).setItem(TOKENS_KEY, JSON.stringify(t)); (keep ? sessionStorage : localStorage).removeItem(TOKENS_KEY); return; }
+          localStorage.removeItem(TOKENS_KEY); sessionStorage.removeItem(TOKENS_KEY);
           // Signed out: saved chats and unsent messages leave this browser too.
           for (const k of Object.keys(localStorage)) if (k.startsWith('yays.cache.') || k.startsWith('yays.outbox.')) localStorage.removeItem(k);
         }, undefined),
@@ -46,4 +47,7 @@ export function api(): YaysClient {
   return client;
 }
 
-export const hasSession = () => safe(() => !!localStorage.getItem(TOKENS_KEY), false);
+export const hasSession = () => safe(() => !!(localStorage.getItem(TOKENS_KEY) ?? sessionStorage.getItem(TOKENS_KEY)), false);
+const KEEP_KEY = 'yays.keep';
+export const keepSignedIn = () => safe(() => localStorage.getItem(KEEP_KEY) !== '0', true);
+export const setKeepSignedIn = (v: boolean) => safe(() => localStorage.setItem(KEEP_KEY, v ? '1' : '0'), undefined);

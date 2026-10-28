@@ -1,15 +1,16 @@
 'use client';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, MEDIA_LIMITS, clock, dayLabel, formatBytes, formatDuration, kindFor, type ThreadItem } from '@yays/shared';
 import { Icon } from '@/lib/icons';
 import { useEngine } from '@/lib/chat';
 import { prepareFile, VoiceRecorder } from '@/lib/media';
-import { OvalButton } from './ui';
+import { Avatar, OvalButton } from './ui';
+import { ActionsCtx } from './message-actions';
 
 /** Fits a picture into the bubble without stretching it. */
 function boxSize(w?: number, h?: number) {
-  if (!w || !h) return { width: 280, height: 200 };
-  const scale = Math.min(320 / w, 360 / h, 1);
+  if (!w || !h) return { width: 240, height: 180 };
+  const scale = Math.min(260 / w, 260 / h, 1);
   return { width: Math.max(140, Math.round(w * scale)), height: Math.max(100, Math.round(h * scale)) };
 }
 
@@ -114,6 +115,9 @@ export function AttachDialog({ files, name, replyToId, onClose, onAdded }: { fil
   const limitError = (f: File) => { const max = MEDIA_LIMITS[kindFor(f.type, asFiles)]; return f.size > max ? `${formatBytes(f.size)} — over the ${formatBytes(max)} limit` : !f.size ? 'Empty file' : undefined; };
   const rows = list.map((p) => ({ ...p, error: limitError(p.file) }));
   const ok = rows.filter((r) => !r.error);
+  const [sel, setSel] = useState(0);
+  const selIdx = Math.min(sel, rows.length - 1);
+  const cur = rows[selIdx];
   const total = ok.reduce((n, r) => n + r.file.size, 0);
   useEffect(() => { const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; document.addEventListener('keydown', esc); return () => document.removeEventListener('keydown', esc); }, [onClose]);
   const send = async () => {
@@ -130,28 +134,39 @@ export function AttachDialog({ files, name, replyToId, onClose, onAdded }: { fil
   const alertErr = (e: unknown) => setList((l) => l.map((p, i) => (i === 0 ? { ...p, error: e instanceof ApiError ? e.message : 'Could not send.' } : p)));
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal modal--wide" role="dialog" aria-modal="true" aria-label={`Send ${list.length} file${list.length === 1 ? '' : 's'} to ${name}`}>
-        <div className="modal__head"><h2>Send {list.length} file{list.length === 1 ? '' : 's'} to {name}</h2><button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" size={20} /></button></div>
+      <div className="modal modal--wide attach-sheet" role="dialog" aria-modal="true" aria-label={`Send ${list.length} file${list.length === 1 ? '' : 's'} to ${name}`}>
+        <div className="modal__head"><h2>Send {list.length} file{list.length === 1 ? '' : 's'} to {name}</h2><span className="modal__close"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /></span></div>
+        {cur && (
+          <div className="attach-preview">
+            {kindFor(cur.file.type, false) === 'image' ? <img src={cur.url} alt={cur.file.name} />
+              : kindFor(cur.file.type, false) === 'video' ? <video src={cur.url} muted controls />
+              : <span className="attach-preview__file"><Icon name="document" size={40} /><strong>{cur.file.name}</strong><span>{formatBytes(cur.file.size)}</span></span>}
+          </div>
+        )}
         <div className="attach-grid">
           {rows.map((r, i) => {
             const k = kindFor(r.file.type, asFiles);
             return (
-              <span key={r.url} className={`attach-item${r.error ? ' attach-item--bad' : ''}`} data-testid="attach-item">
-                {k === 'image' ? <img src={r.url} alt="" /> : <span className="attach-icon"><Icon name={k === 'video' ? 'video' : 'file'} size={28} /></span>}
+              <span key={r.url} className={`attach-item${r.error ? ' attach-item--bad' : ''}${i === selIdx ? ' attach-item--on' : ''}`} data-testid="attach-item" onClick={() => setSel(i)}>
+                {k === 'image' ? <img src={r.url} alt="" /> : <span className="attach-icon"><Icon name={k === 'video' ? 'video' : 'document'} size={22} /></span>}
                 <span className="attach-name">{r.file.name}</span>
                 <span className="attach-size">{r.error ?? formatBytes(r.file.size)}</span>
-                <button type="button" className="icon-btn attach-x" aria-label={`Remove ${r.file.name}`} onClick={() => setList(list.filter((_, j) => j !== i))}><Icon name="close" size={14} /></button>
+                <button type="button" className="icon-btn attach-x" aria-label={`Remove ${r.file.name}`} onClick={(e) => { e.stopPropagation(); setList(list.filter((_, j) => j !== i)); }}><Icon name="close" size={12} /></button>
               </span>
             );
           })}
-          <button type="button" className="attach-add" onClick={() => more.current?.click()} aria-label="Add more files"><Icon name="plus" size={24} />Add</button>
+          <button type="button" className="attach-add" onClick={() => more.current?.click()} aria-label="Add more files"><Icon name="plus" size={20} />Add</button>
           <input ref={more} type="file" multiple hidden onChange={(e) => { const fs = [...(e.target.files ?? [])]; setList([...list, ...fs.map((f) => ({ file: f, url: URL.createObjectURL(f) }))]); e.target.value = ''; }} />
         </div>
-        <label className="check-row"><input type="checkbox" checked={asFiles} onChange={(e) => setAsFiles(e.target.checked)} /> Send photos as files (full quality)</label>
-        <span className="muted">{ok.length} file{ok.length === 1 ? '' : 's'} · {formatBytes(total)}{rows.length > ok.length ? ` · ${rows.length - ok.length} can’t be sent` : ''}</span>
-        <div className="ys-field"><label className="ys-field__label sr-only" htmlFor="cap">Caption</label>
-          <div className="ys-field__box"><input id="cap" className="ys-input" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Add a caption" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void send(); } }} /></div></div>
-        <div className="modal__actions"><OvalButton icon="send" label="Send" loading={busy} disabled={!ok.length} onClick={() => void send()} /></div>
+        <div className="attach-opts">
+          <label className="check-row"><input type="checkbox" checked={asFiles} onChange={(e) => setAsFiles(e.target.checked)} /> Send photos as files (full quality)</label>
+          <span className="muted">{ok.length} file{ok.length === 1 ? '' : 's'} · {formatBytes(total)}{rows.length > ok.length ? ` · ${rows.length - ok.length} can’t be sent` : ''}</span>
+        </div>
+        <div className="attach-send">
+          <div className="ys-field ys-field--pill" style={{ flex: 1 }}><label className="ys-field__label sr-only" htmlFor="cap">Caption</label>
+            <div className="ys-field__box"><input id="cap" className="ys-input" value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Add a caption" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void send(); } }} /></div></div>
+          <OvalButton icon="send" label={ok.length > 1 ? `Send ${ok.length}` : 'Send'} size="sm" loading={busy} disabled={!ok.length} onClick={() => void send()} />
+        </div>
       </div>
     </div>
   );
@@ -164,6 +179,8 @@ export function MediaViewer({ items, start, onClose }: { items: ThreadItem[]; st
   const [i, setI] = useState(() => Math.max(0, media.findIndex((x) => x.key === start)));
   const [zoom, setZoom] = useState(1);
   const cur = media[Math.min(i, media.length - 1)];
+  const act = useContext(ActionsCtx);
+  const convId = engine.getState().active;
   const go = useCallback((d: number) => { setZoom(1); setI((x) => Math.min(media.length - 1, Math.max(0, x + d))); }, [media.length]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -178,18 +195,22 @@ export function MediaViewer({ items, start, onClose }: { items: ThreadItem[]; st
   return (
     <div className="viewer" role="dialog" aria-modal="true" aria-label="Media viewer">
       <div className="viewer__bar">
+        <Avatar name={engine.nameOf(cur.senderId)} size={40} />
         <span className="viewer__who"><strong>{engine.nameOf(cur.senderId)}</strong><span>{dayLabel(cur.createdAt)} at {clock(cur.createdAt)} · {i + 1} of {media.length}</span></span>
-        <button type="button" className="icon-btn" aria-label="Zoom out" onClick={() => setZoom((z) => Math.max(1, z / 1.25))}><Icon name="minus" size={20} /></button>
-        <button type="button" className="icon-btn" aria-label="Zoom in" onClick={() => setZoom((z) => Math.min(4, z * 1.25))}><Icon name="plus" size={20} /></button>
-        <a className="icon-btn" href={a.url} download={a.name} aria-label="Download"><Icon name="download" size={20} /></a>
-        <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" size={22} /></button>
+        <div className="viewer__tools">
+          {act && cur.id && <OvalButton icon="reply" label="Reply" size="sm" variant="soft" onClick={() => { onClose(); act.reply(cur); }} />}
+          {act && cur.id && <OvalButton icon="forward" label="Forward" size="sm" variant="soft" onClick={() => { onClose(); act.forward(cur); }} />}
+          {convId && cur.id && <OvalButton icon="star" label={cur.starred ? 'Unstar' : 'Star'} size="sm" variant="soft" onClick={() => void engine.star(convId, cur.id!, !cur.starred).catch(() => undefined)} />}
+          <OvalButton icon="download" label="Download" size="sm" variant="soft" onClick={() => { const l = document.createElement('a'); l.href = a.url; l.download = a.name; l.click(); }} />
+          <OvalButton icon="close" label="Close" size="sm" variant="soft" onClick={onClose} />
+        </div>
       </div>
       <div className="viewer__stage">
-        <button type="button" className="viewer__nav" aria-label="Previous" disabled={i === 0} onClick={() => go(-1)}><Icon name="chevron-left" size={28} /></button>
+        <span className="viewer__nav">{i > 0 && <OvalButton icon="chevron-left" label="Previous" size="md" variant="soft" onClick={() => go(-1)} />}</span>
         <div className="viewer__media" style={{ transform: `scale(${zoom})` }}>
           {a.kind === 'image' ? <img src={a.url} alt={cur.text || 'Photo'} /> : <video key={a.url} src={a.url} controls autoPlay poster={a.thumbUrl ?? undefined} />}
         </div>
-        <button type="button" className="viewer__nav" aria-label="Next" disabled={i >= media.length - 1} onClick={() => go(1)}><Icon name="chevron-right" size={28} /></button>
+        <span className="viewer__nav">{i < media.length - 1 && <OvalButton icon="chevron-right" label="Next" size="md" variant="soft" onClick={() => go(1)} />}</span>
       </div>
       {cur.text && <p className="viewer__caption">{cur.text}</p>}
       <div className="viewer__strip">
@@ -198,6 +219,11 @@ export function MediaViewer({ items, start, onClose }: { items: ThreadItem[]; st
             {x.attachment!.thumbUrl || x.attachment!.kind === 'image' ? <img src={x.attachment!.thumbUrl || x.attachment!.url} alt="" /> : <Icon name="video" size={18} />}
           </button>
         ))}
+      </div>
+      <div className="viewer__keys">
+        <span><kbd>←</kbd><kbd>→</kbd> Browse</span>
+        <span><button type="button" onClick={() => setZoom((z) => Math.min(4, z * 1.25))} aria-label="Zoom in"><kbd>+</kbd></button><button type="button" onClick={() => setZoom((z) => Math.max(1, z / 1.25))} aria-label="Zoom out"><kbd>−</kbd></button> Zoom</span>
+        <span><kbd>Esc</kbd> Close</span>
       </div>
     </div>
   );

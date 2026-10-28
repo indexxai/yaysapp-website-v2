@@ -7,6 +7,7 @@ import { dayLabel, useChatState, useEngine } from '@/lib/chat';
 import { ConfirmButton, Switch } from './group';
 import { MediaViewer } from './media';
 import { Modal } from './message-actions';
+import { useCalls } from './call';
 import { Avatar, Banner, OvalButton } from './ui';
 
 const errText = (e: unknown, f: string) => (e instanceof ApiError ? e.message : f);
@@ -29,6 +30,7 @@ const asItems = (ms: ChatMessage[], me: string): ThreadItem[] => ms.map((m) => (
 /** Contact info for a direct chat (w15): profile, shared media, groups in common, mute, block, report, clear. */
 export function ContactInfoPanel({ id, onClose, onJump, onSearch, onOpenChat }: { id: string; onClose: () => void; onJump: (seq: number) => void; onSearch: () => void; onOpenChat: (id: string) => void }) {
   const engine = useEngine();
+  const calls = useCalls();
   const s = useChatState();
   const c = s.conversations[id];
   const [o, setO] = useState<ChatOverview | null>(null);
@@ -50,9 +52,9 @@ export function ContactInfoPanel({ id, onClose, onJump, onSearch, onOpenChat }: 
   const total = o ? o.counts.media + o.counts.docs + o.counts.links : 0;
   return (
     <aside className="info-panel" aria-label="Contact info">
-      <div className="pane-head">
-        <OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={onClose} />
+      <div className="pane-head pane-head--end">
         <h2>Contact info</h2>
+        <OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={onClose} />
       </div>
       <div className="info-panel__body">
         {error && <Banner>{error}</Banner>}
@@ -60,12 +62,14 @@ export function ContactInfoPanel({ id, onClose, onJump, onSearch, onOpenChat }: 
         <div className="info-hero">
           <Avatar name={p.displayName} photoUrl={p.photoUrl} size={88} online={!!presence?.online} />
           <h3>{p.displayName}</h3>
-          <span className="muted">{p.username ? `@${p.username}` : 'On YaysApp'}</span>
-          <div className="row" style={{ gap: 22 }}>
+          <span className="muted" style={{ fontSize: 13 }}>{p.username ? `@${p.username}` : 'On YaysApp'}{presence?.online ? ' · online' : ''}</span>
+          <div className="row" style={{ gap: 22, justifyContent: 'center' }}>
+            {c.canSend && <OvalButton icon="phone" label="Call" size="sm" variant="soft" aria-label={`Voice call ${p.displayName}`} onClick={() => void calls.start(id, 'voice').catch(() => undefined)} />}
+            {c.canSend && <OvalButton icon="video" label="Video" size="sm" variant="soft" aria-label={`Video call ${p.displayName}`} onClick={() => void calls.start(id, 'video').catch(() => undefined)} />}
             <OvalButton icon="search" label="Search" size="sm" variant="soft" onClick={onSearch} />
           </div>
         </div>
-        {p.about && <section className="info-section"><h4>About</h4><p style={{ margin: 0 }}>{p.about}</p></section>}
+        {p.about && <section className="info-section"><h5 className="info-label">About</h5><p style={{ margin: 0, fontSize: 15, lineHeight: '21px' }}>{p.about}</p></section>}
         {c.blocked && <Banner tone="warning">You blocked {p.displayName}. They can’t call you or send you messages.</Banner>}
 
         <section className="info-section" aria-label="Media, links and docs">
@@ -98,28 +102,26 @@ export function ContactInfoPanel({ id, onClose, onJump, onSearch, onOpenChat }: 
 
         {o && o.commonGroups.length > 0 && (
           <section className="info-section" aria-label="Groups in common">
-            <h4>{o.commonGroups.length} group{o.commonGroups.length === 1 ? '' : 's'} in common</h4>
+            <h5 className="info-label">{o.commonGroups.length} group{o.commonGroups.length === 1 ? '' : 's'} in common</h5>
             <div className="ys-list">
               {o.commonGroups.map((g) => (
                 <button key={g.id} type="button" className="ys-row-item" onClick={() => onOpenChat(g.id)}>
-                  <Avatar name={g.name} photoUrl={g.photoUrl} size={40} />
-                  <span className="ys-row-item__text"><span className="ys-row-item__title">{g.name}</span><span className="ys-row-item__sub">{g.memberCount} members</span></span>
+                  <Avatar name={g.name} photoUrl={g.photoUrl} size={40} group />
+                  <span className="ys-row-item__text"><span className="ys-row-item__title">{g.name}</span><span className="ys-row-item__sub">{g.memberCount} member{g.memberCount === 1 ? '' : 's'}</span></span>
                 </button>
               ))}
             </div>
           </section>
         )}
 
-        <section className="info-section info-danger">
-          <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
+      </div>
+        <footer className="info-footer">
             {c.blocked
               ? <OvalButton icon="block" label={`Unblock`} size="sm" variant="soft" onClick={() => void run(() => engine.unblock(p.id), `${p.displayName} is unblocked.`)} />
               : <OvalButton icon="block" label="Block" size="sm" variant="danger" onClick={() => setDialog('block')} />}
             <OvalButton icon="flag" label="Report" size="sm" variant="danger" onClick={() => setDialog('report')} />
             <ConfirmButton label="Clear chat" icon="trash" danger={false} confirm="Clear" question="Clear all messages in this chat? They stay for the other person." onConfirm={() => run(() => engine.clearChat(id), 'Chat cleared.')} />
-          </div>
-        </section>
-      </div>
+        </footer>
       {dialog && <BlockReportDialog mode={dialog} c={c} onClose={() => setDialog(null)} onDone={(t) => { setDialog(null); setNotice(t); }} />}
       {viewer && o && <MediaViewer items={asItems([...o.recentMedia].reverse(), engine.me)} start={viewer} onClose={() => setViewer(null)} />}
     </aside>
@@ -188,8 +190,8 @@ export function BlockReportDialog({ mode, c, message, onClose, onDone }: { mode:
         )}
       </div>
       <div className="modal__actions">
-        <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn btn--danger" disabled={busy} onClick={() => void go()}>{mode === 'block' ? (also ? 'Block and report' : 'Block') : also ? 'Report and block' : 'Report'}</button>
+        <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
+        <OvalButton icon="block" label={mode === 'block' ? (also ? 'Block and report' : 'Block') : also ? 'Report and block' : 'Report'} size="sm" variant="danger" disabled={busy} onClick={() => void go()} />
       </div>
     </Modal>
   );

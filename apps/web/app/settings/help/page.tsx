@@ -38,8 +38,8 @@ function Help() {
   return (
     <>
       {saved.banner}
-      <div className="ys-field ys-field--pill">
-        <div className="ys-field__box"><Icon name="search" size={18} /><input className="ys-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search help" aria-label="Search help" /></div>
+      <div className="ys-field ys-field--pill help-search">
+        <div className="ys-field__box"><Icon name="search" size={18} /><input className="ys-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search help articles" aria-label="Search help" /></div>
       </div>
       <Card title="Popular questions">
         <div className="faq">
@@ -102,8 +102,8 @@ function ProblemDialog({ onClose, onSent }: { onClose: () => void; onSent: () =>
         {shot && <span className="muted" style={{ fontSize: 13 }}>{shot.name}</span>}
       </div>
       <div className="modal__actions">
-        <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void send()}>Send report</button>
+        <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
+        <OvalButton icon="send" label="Send report" size="sm" variant="primary" disabled={busy} onClick={() => void send()} />
       </div>
     </Modal>
   );

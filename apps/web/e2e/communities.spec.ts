@@ -60,7 +60,7 @@ test.describe('Communities on the web', () => {
     // Group info shows which community it's part of.
     await s.page.getByRole('button', { name: 'Group info' }).click();
     await expect(s.page.getByRole('link', { name: 'Part of Lahore Runners' })).toBeVisible();
-    await expect(s.page.getByRole('button', { name: 'Leave group' })).toHaveCount(0);
+    await expect(s.page.getByRole('button', { name: 'Exit group' })).toHaveCount(0);
     expect(mine.id).toBeTruthy();
     await a.ctx.close(); await s.ctx.close();
   });

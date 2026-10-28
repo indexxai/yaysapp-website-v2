@@ -34,7 +34,7 @@ function Profile({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }
     <>
       {saved.banner}
       <section className="set-card set-card--pad" aria-label="Profile">
-        <ProfileForm key={(me.username ?? '') + me.photoUrl} me={me} submitLabel="Save" onSaved={(m) => { setMe(m); saved.ok(); }} />
+        <ProfileForm key={(me.username ?? '') + me.photoUrl} me={me} submitLabel="Save" layout="settings" onSaved={(m) => { setMe(m); saved.ok(); }} />
       </section>
       <Card title="Account">
         <SetRow label="Phone number" hint="Used to sign in. Others never see it.">
@@ -86,8 +86,8 @@ function PinDialog({ me, onClose, onDone }: { me: MeProfile; onClose: () => void
         <Field id="new-pin" label={me.twoStep ? 'New PIN' : 'PIN'}><input id="new-pin" className="ys-input pin-input" type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(digits(e.target.value))} autoFocus={!me.twoStep} /></Field>
         <Field id="pin-again" label="Type it again"><input id="pin-again" className="ys-input pin-input" type="password" inputMode="numeric" value={again} onChange={(e) => setAgain(digits(e.target.value))} /></Field>
         <div className="modal__actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn--primary" disabled={busy || pin.length !== 6 || again.length !== 6 || (me.twoStep && current.length !== 6)}>{me.twoStep ? 'Change PIN' : 'Turn on'}</button>
+          <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
+          <OvalButton type="submit" icon="lock" label={me.twoStep ? 'Change PIN' : 'Turn on'} size="sm" variant="primary" disabled={busy || pin.length !== 6 || again.length !== 6 || (me.twoStep && current.length !== 6)} />
         </div>
       </form>
     </Modal>
@@ -104,8 +104,8 @@ function PinOffDialog({ onClose, onDone }: { onClose: () => void; onDone: (m: Me
         {error && <Banner>{error}</Banner>}
         <Field id="off-pin" label="Your PIN"><input id="off-pin" className="ys-input pin-input" type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus /></Field>
         <div className="modal__actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn--danger" disabled={busy || pin.length !== 6}>Turn off</button>
+          <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
+          <OvalButton type="submit" icon="lock" label="Turn off" size="sm" variant="danger" disabled={busy || pin.length !== 6} />
         </div>
       </form>
     </Modal>
@@ -128,13 +128,13 @@ function PhoneDialog({ onClose, onDone }: { onClose: () => void; onDone: (m: MeP
         <form className="ys-col" style={{ padding: 0, gap: 14 }} onSubmit={(e) => { e.preventDefault(); const p = normalizePhone(raw); if (!p) { setError('Enter a mobile number, for example 0300 1234567 or +44 7700 900123.'); return; } void run(async () => { setSent(await api().startAddPhone(p)); setPhone(p); }); }}>
           <p className="muted" style={{ margin: 0, fontSize: 14 }}>Your chats, groups and contacts stay with your account. You’ll sign in with the new number from now on.</p>
           <Field id="new-phone" label="New phone number"><input id="new-phone" className="ys-input" type="tel" inputMode="tel" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="0300 1234567" autoFocus /></Field>
-          <div className="modal__actions"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={busy}>Send code</button></div>
+          <div className="modal__actions"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /><OvalButton type="submit" icon="send" label="Send code" size="sm" variant="primary" disabled={busy} /></div>
         </form>
       ) : (
         <form className="ys-col" style={{ padding: 0, gap: 14 }} onSubmit={(e) => { e.preventDefault(); void run(async () => onDone(await api().verifyAddPhone(phone!, code))); }}>
           <p className="muted" style={{ margin: 0, fontSize: 14 }}>We sent a 6-digit code to <strong>{sent.sentTo}</strong>.</p>
           <Field id="phone-code" label="Code"><input id="phone-code" className="ys-input code-input" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus /></Field>
-          <div className="modal__actions"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={busy || code.length !== 6}>Change number</button></div>
+          <div className="modal__actions"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /><OvalButton type="submit" icon="check" label="Change number" size="sm" variant="primary" disabled={busy || code.length !== 6} /></div>
         </form>
       )}
     </Modal>
@@ -164,8 +164,8 @@ function DeleteDialog({ me, onClose }: { me: MeProfile; onClose: () => void }) {
       </div>
       {!sent ? (
         <div className="modal__actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn--danger" disabled={busy} onClick={() => void run(async () => { setSent(await api().startDeleteAccount()); setBusy(false); })}>Send code to {me.phone ? 'my phone' : 'my email'}</button>
+          <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
+          <OvalButton icon="send" label={`Send code to ${me.phone ? 'my phone' : 'my email'}`} size="sm" variant="danger" disabled={busy} onClick={() => void run(async () => { setSent(await api().startDeleteAccount()); setBusy(false); })} />
         </div>
       ) : (
         <form className="ys-col" style={{ padding: 0, gap: 14 }} onSubmit={(e) => { e.preventDefault(); void run(async () => { await disablePush().catch(() => undefined); await api().deleteAccount(code, reason || undefined); router.replace('/sign-in?deleted=1'); }); }}>
@@ -175,7 +175,7 @@ function DeleteDialog({ me, onClose }: { me: MeProfile; onClose: () => void }) {
               <option value="">Prefer not to say</option>{REASONS.map((r) => <option key={r}>{r}</option>)}
             </select>
           </Field>
-          <div className="modal__actions"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--danger" disabled={busy || code.length !== 6}>Delete account</button></div>
+          <div className="modal__actions"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /><OvalButton type="submit" icon="trash" label="Delete account" size="sm" variant="danger" disabled={busy || code.length !== 6} /></div>
         </form>
       )}
     </Modal>

@@ -5,7 +5,7 @@ import { ApiError, callDuration, type CallJoin, type CallView } from '@yays/shar
 import { api } from '@/lib/api';
 import { useChatState, useEngine } from '@/lib/chat';
 import { Icon } from '@/lib/icons';
-import { Avatar, Banner } from './ui';
+import { Avatar, Banner, OvalButton } from './ui';
 import { CloseCtx, JoinRequests, RoundButton, useTone } from './call';
 
 // Everything here needs LiveKit, so it loads only once a call starts.
@@ -172,7 +172,7 @@ export function CallScreen({ session }: { session: CallSession }) {
       <div className="call-mini" role="region" aria-label={`Call with ${view.title}`}>
         <RemoteAudio session={session} />
         <button type="button" className="call-mini__open" onClick={() => session.setMinimized(false)} aria-label="Back to call">
-          <Avatar name={view.title} photoUrl={view.photoUrl} size={40} />
+          <Avatar name={view.title} photoUrl={view.photoUrl} size={40} group={view.kind === 'group'} />
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', textAlign: 'left' }}><strong>{view.title}</strong><span data-testid="call-status">{subtitle}</span></span>
         </button>
         <button type="button" className="call-mini__btn" aria-label={session.mic ? 'Mute' : 'Unmute'} aria-pressed={!session.mic} onClick={() => void session.toggleMic()}><Icon name={session.mic ? 'mic' : 'mic-off'} size={18} /></button>
@@ -195,7 +195,7 @@ export function CallScreen({ session }: { session: CallSession }) {
       <RemoteAudio session={session} />
       <header className="call__head">
         {anyVideo ? <>
-          <Avatar name={view.title} photoUrl={view.photoUrl} size={40} />
+          <Avatar name={view.title} photoUrl={view.photoUrl} size={40} group={view.kind === 'group'} />
           <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
             <strong style={{ font: '700 17px var(--font-display)' }}>{view.title}</strong>
             <span className="call__sub" data-testid="call-status">{subtitle}</span>
@@ -221,7 +221,7 @@ export function CallScreen({ session }: { session: CallSession }) {
         </div>
       ) : (
         <div className="call__voice">
-          <div className="call__rings"><span className="ys-oval call__ring1" /><span className="ys-oval call__ring2" /><Avatar name={view.title} photoUrl={view.photoUrl} size={160} /></div>
+          <div className="call__rings"><span className="ys-oval call__ring1" /><span className="ys-oval call__ring2" /><Avatar name={view.title} photoUrl={view.photoUrl} size={160} group={view.kind === 'group'} /></div>
           <h1 className="call__title">{view.title}</h1>
           <span className="call__timer" data-testid="call-status">{subtitle}</span>
           {view.kind !== 'direct' && <div className="call__people" aria-label="On the call">{everyone.map((p) => <span key={p.identity || 'me'} className={`call__person${p.isSpeaking ? ' call__person--speaking' : ''}`} data-testid="call-tile" data-who={p.isLocal ? 'me' : p.identity}><Avatar name={nameOf(p)} photoUrl={photoOf(p)} size={36} />{nameOf(p)}{!p.isMicrophoneEnabled && <Icon name="mic-off" size={14} title="Muted" />}</span>)}
@@ -260,7 +260,7 @@ function DevicesDialog({ session, onClose }: { session: CallSession; onClose: ()
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-label="Devices">
-        <div className="modal__head"><h2>Devices</h2><button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" size={20} /></button></div>
+        <div className="modal__head"><h2>Devices</h2><span className="modal__close"><OvalButton icon="close" label="Close" size="sm" variant="soft" onClick={onClose} /></span></div>
         {row('audioinput', 'Microphone')}{row('audiooutput', 'Speaker')}{row('videoinput', 'Camera')}
         {!list.audioinput.length && !list.videoinput.length && <p className="muted" style={{ margin: 0 }}>No devices found. Allow microphone and camera for this site in your browser.</p>}
       </div>
@@ -280,7 +280,7 @@ function AddPeopleDialog({ call, onClose }: { call: CallView; onClose: () => voi
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-label="Add people">
-        <div className="modal__head"><h2>Add people</h2><button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" size={20} /></button></div>
+        <div className="modal__head"><h2>Add people</h2><span className="modal__close"><OvalButton icon="close" label="Close" size="sm" variant="soft" onClick={onClose} /></span></div>
         {error && <Banner>{error}</Banner>}
         {!g && <span className="ys-spin" aria-label="Loading" />}
         {members.map((m) => (
@@ -288,7 +288,7 @@ function AddPeopleDialog({ call, onClose }: { call: CallView; onClose: () => voi
             <Avatar name={m.displayName} photoUrl={m.photoUrl} size={36} />
             <span style={{ flex: 1 }}>{m.displayName}</span>
             {on.has(m.id) ? <span className="muted" style={{ fontSize: 13 }}>{call.participants.find((p) => p.userId === m.id)?.state === 'joined' ? 'On the call' : 'Ringing…'}</span>
-              : <button type="button" className="btn" onClick={() => ring(m.id)} aria-label={`Ring ${m.displayName}`}>Ring</button>}
+              : <OvalButton icon="phone" label="Ring" size="sm" variant="secondary" onClick={() => ring(m.id)} aria-label={`Ring ${m.displayName}`} />}
           </div>
         ))}
       </div>

@@ -37,7 +37,7 @@ export function ActionBar({ m, c }: { m: ThreadItem; c: ConversationSummary }) {
     if (open === what) { setOpen(null); return; }
     const r = ref.current?.getBoundingClientRect();
     const box = ref.current?.closest('.convo__scroll')?.getBoundingClientRect();
-    setUp(!!r && !!box && box.bottom - r.bottom < 300);
+    setUp(!!r && !!box && box.bottom - r.bottom < 440);
     setOpen(what);
   };
   useEffect(() => {
@@ -54,6 +54,8 @@ export function ActionBar({ m, c }: { m: ThreadItem; c: ConversationSummary }) {
   const canPin = member && (c.kind === 'direct' || c.group?.role === 'admin' || c.group?.settings.pin === 'all');
   const run = (fn: () => Promise<unknown>, f: string) => { setOpen(null); void fn().catch((e) => act.error(errText(e, f))); };
   const items: Array<[IconName, string, () => void, boolean?]> = [
+    ...(member && c.canSend ? [['reply', 'Reply', () => { setOpen(null); act.reply(m); }] as [IconName, string, () => void]] : []),
+    ...(m.type !== 'poll' ? [['forward', 'Forward', () => { setOpen(null); act.forward(m); }] as [IconName, string, () => void]] : []),
     ...(m.text ? [['copy', 'Copy', () => { void navigator.clipboard?.writeText(m.text).catch(() => undefined); setOpen(null); }] as [IconName, string, () => void]] : []),
     ...(m.attachment?.url ? [['download', 'Download', () => { setOpen(null); const l = document.createElement('a'); l.href = m.attachment!.url; l.download = m.attachment!.name; l.click(); }] as [IconName, string, () => void]] : []),
     ...(canEdit(m) ? [['edit', 'Edit', () => { setOpen(null); act.edit(m); }] as [IconName, string, () => void]] : []),
@@ -79,6 +81,11 @@ export function ActionBar({ m, c }: { m: ThreadItem; c: ConversationSummary }) {
       )}
       {open === 'more' && (
         <span className={`menu menu--msg${up ? ' menu--up' : ''}`} role="menu">
+          {member && (
+            <span className="menu__reacts" role="group" aria-label="Reactions">
+              {QUICK_REACTIONS.map((e) => <button key={e} type="button" role="menuitem" aria-label={`React ${e}`} aria-pressed={myReaction === e} onClick={() => run(() => engine.react(c.id, m.id!, myReaction === e ? null : e), 'Could not react.')}>{e}</button>)}
+            </span>
+          )}
           {items.map(([icon, label, fn, danger]) => <button key={label} type="button" role="menuitem" className={danger ? 'danger' : undefined} onClick={fn}><Icon name={icon} size={16} /> {label}</button>)}
         </span>
       )}
@@ -121,20 +128,34 @@ export function Quote({ r, onClick }: { r: NonNullable<ThreadItem['replyTo']>; o
   );
 }
 
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children, eyebrow, progress, aside, wide }: { title: string; onClose: () => void; children: ReactNode; eyebrow?: ReactNode; progress?: [number, number]; aside?: ReactNode; wide?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
-    box.current?.querySelector<HTMLElement>('input, button, textarea')?.focus();
+    box.current?.querySelector<HTMLElement>('.modal__main input, .modal__main textarea, .modal__main button:not(.modal__close button)')?.focus();
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', esc);
     return () => { document.removeEventListener('keydown', esc); prev?.focus?.(); };
   }, [onClose]);
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} ref={box}>
-        <div className="modal__head"><h2>{title}</h2><button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" size={20} /></button></div>
-        {children}
+      <div className={`modal${aside ? ' modal--split' : wide ? ' modal--wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={box}>
+        <div className="modal__main">
+          <div className="modal__head">
+            <div className="modal__titles">
+              {(eyebrow || progress) && (
+                <div className="modal__eyebrow">
+                  {eyebrow && <span>{eyebrow}</span>}
+                  {progress && <span className="modal__progress" aria-hidden>{Array.from({ length: progress[1] }, (_, i) => <i key={i} className={i < progress[0] ? 'on' : ''} />)}</span>}
+                </div>
+              )}
+              <h2>{title}</h2>
+            </div>
+            {!progress && <span className="modal__close"><OvalButton icon="close" label="Close" size="sm" variant="soft" onClick={onClose} /></span>}
+          </div>
+          {children}
+        </div>
+        {aside && <aside className="modal__aside">{aside}</aside>}
       </div>
     </div>
   );
@@ -151,9 +172,9 @@ export function DeleteDialog({ m, c, onClose }: { m: ThreadItem; c: Conversation
       {error && <Banner>{error}</Banner>}
       <p className="muted" style={{ margin: 0 }}>{everyone ? (m.mine ? `You can delete it for everyone for ${DELETE_FOR_EVERYONE_MINUTES} minutes after sending.` : 'As an admin you can delete it for everyone in the group.') : 'This removes it from your devices only.'}</p>
       <div className="modal__actions">
-        {everyone && <button type="button" className="btn btn--danger" disabled={busy} onClick={() => void go(() => engine.deleteForEveryone(c.id, m.id!))}>Delete for everyone</button>}
-        <button type="button" className="btn" disabled={busy} onClick={() => void go(() => engine.deleteForMe(c.id, m.id!))}>Delete for me</button>
-        <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
+        {everyone && <OvalButton icon="trash" label="Delete for everyone" size="sm" variant="danger" disabled={busy} onClick={() => void go(() => engine.deleteForEveryone(c.id, m.id!))} />}
+        <OvalButton icon="trash" label="Delete for me" size="sm" variant="secondary" disabled={busy} onClick={() => void go(() => engine.deleteForMe(c.id, m.id!))} />
+        <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
       </div>
     </Modal>
   );
@@ -188,8 +209,8 @@ export function ForwardDialog({ m, from, onClose }: { m: ThreadItem; from: strin
         {chats.map((c) => (
           <label key={c.id} className={`ys-row-item pick-row${!c.canSend ? ' pick-row--off' : ''}`}>
             <input type="checkbox" checked={picked.includes(c.id)} disabled={!c.canSend || (!picked.includes(c.id) && picked.length >= MAX_FORWARD_TARGETS)} onChange={() => toggle(c.id)} aria-label={name(c)} />
-            <Avatar name={name(c)} photoUrl={c.group?.photoUrl ?? c.peer?.photoUrl} size={36} />
-            <span className="ys-row-item__text"><span className="ys-row-item__title">{name(c)}</span><span className="ys-row-item__sub">{!c.canSend ? 'Only admins can send messages' : c.group ? `${c.group.memberCount} members` : c.peer?.username ? `@${c.peer.username}` : ''}</span></span>
+            <Avatar name={name(c)} photoUrl={c.group?.photoUrl ?? c.peer?.photoUrl} size={36} group={c.kind === 'group'} />
+            <span className="ys-row-item__text"><span className="ys-row-item__title">{name(c)}</span><span className="ys-row-item__sub">{!c.canSend ? 'Only admins can send messages' : c.group ? `${c.group.memberCount} member${c.group.memberCount === 1 ? '' : 's'}` : c.peer?.username ? `@${c.peer.username}` : ''}</span></span>
           </label>
         ))}
       </div>
@@ -226,7 +247,7 @@ export function MessageInfoPanel({ convId, m, onClose }: { convId: string; m: Th
   );
   return (
     <aside className="info-panel" aria-label="Message info">
-      <div className="pane-head"><OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={onClose} /><h2>Message info</h2></div>
+      <div className="pane-head pane-head--end"><h2>Message info</h2><OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={onClose} /></div>
       <div className="info-panel__body">
         <div className="ys-bubble ys-bubble--me" style={{ alignSelf: 'flex-end', maxWidth: '100%' }}><span className="msg__text">{m.text}</span><span className="ys-bubble__meta"><span>{clock(m.createdAt)}</span></span></div>
         {error && <Banner>{error}</Banner>}

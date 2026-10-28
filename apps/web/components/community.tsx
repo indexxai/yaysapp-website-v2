@@ -8,17 +8,16 @@ import { Icon } from '@/lib/icons';
 import { listTime } from '@/lib/chat';
 import { ConfirmButton, Switch } from './group';
 import { Modal } from './message-actions';
-import { Avatar, Banner, OvalButton } from './ui';
+import { markFill, LineArt, Avatar, Banner, OvalButton, PhotoPick } from './ui';
 
 const errText = (e: unknown, f = 'That did not work. Try again.') => (e instanceof ApiError ? e.message : f);
-const FILLS = ['var(--ember)', '#5f9e1b', '#b24a7a', '#4f5fa8', '#c2711a', '#2f8f83'];
-const fillFor = (id: string) => FILLS[parseInt(id.slice(-4), 16) % FILLS.length];
 const plural = (n: number, w: string) => (w === 'person' ? `${n.toLocaleString()} ${n === 1 ? 'person' : 'people'}` : `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`);
 
 /** The community's picture, or its first letter on its own colour. */
-export function CommunityMark({ c, size }: { c: { id: string; name: string; photoUrl: string | null }; size: number }) {
+export function CommunityMark({ c, size, onBanner }: { c: { id: string; name: string; photoUrl: string | null }; size: number; onBanner?: boolean }) {
+  if (onBanner && !c.photoUrl) return <span className="ys-oval" aria-hidden style={{ width: size, '--ys-oval-fill': '#ffffff', '--ys-oval-ink': 'var(--ember-ink)', font: `800 ${Math.round(size * 0.36)}px var(--font-display)` } as React.CSSProperties}>{c.name.charAt(0).toUpperCase()}</span>;
   if (c.photoUrl) return <span className="ys-oval" style={{ width: size, overflow: 'hidden' }}><img src={c.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></span>;
-  return <span className="ys-oval" aria-hidden style={{ width: size, '--ys-oval-fill': fillFor(c.id), '--ys-oval-ink': '#fff', font: `800 ${Math.round(size * 0.36)}px var(--font-display)` } as React.CSSProperties}>{c.name.charAt(0).toUpperCase()}</span>;
+  return <span className="ys-oval" aria-hidden style={{ width: size, '--ys-oval-fill': markFill(c.id), '--ys-oval-ink': '#fff', font: `800 ${Math.round(size * 0.36)}px var(--font-display)` } as React.CSSProperties}>{c.name.charAt(0).toUpperCase()}</span>;
 }
 
 export function CommunityList({ list, active, onOpen, onNew }: { list: CommunitySummary[] | null; active: string | null; onOpen: (id: string) => void; onNew: () => void }) {
@@ -85,9 +84,11 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
   return (
     <section className="community" aria-label={c.name}>
       <div className="community__hero">
+        <span className="ys-feature__deco a" style={{ width: 380, top: -170, right: 120 }} aria-hidden />
+        <LineArt name="hype" width={170} ink="#ffffff" opacity={0.85} className="community__art" />
         <span className="convo__back" style={{ marginBottom: 10 }}><OvalButton icon="arrow-left" label="Communities" size="sm" variant="soft" href="/communities" /></span>
         <div className="row" style={{ gap: 18 }}>
-          <span className="community__mark"><CommunityMark c={c} size={72} /></span>
+          <span className="community__mark"><CommunityMark c={c} size={72} onBanner /></span>
           <div>
             <h2>{c.name}</h2>
             <span>Community · {plural(c.memberCount, 'member')} · {plural(c.groupCount, 'group')}</span>
@@ -118,7 +119,7 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
             const s = chats[g.id];
             return (
               <Link key={g.id} href={`/chats?c=${g.id}`} className="ys-row-item community__group" data-testid="community-group">
-                <Avatar name={g.name} photoUrl={g.photoUrl} size={44} />
+                <Avatar name={g.name} photoUrl={g.photoUrl} size={44} group />
                 <span className="ys-row-item__text"><span className="ys-row-item__title">{g.name}</span><span className="ys-row-item__sub">{s?.lastMessage?.text ? `${s.lastSenderName ?? ''}: ${s.lastMessage.text}` : plural(g.memberCount, 'member')}</span></span>
                 <span className="ys-row-item__end">{s && <span>{listTime(s.lastActivityAt)}</span>}{s && s.unread > 0 && <span className="ys-oval ys-oval--ember ys-badge"><span>{s.unread}</span></span>}</span>
               </Link>
@@ -127,7 +128,7 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
           {others.length > 0 && <h3 className="community__h">Other groups in this community</h3>}
           {others.map((g) => (
             <div key={g.id} className="ys-row-item community__group" style={{ cursor: 'default' }} data-testid="community-other">
-              <Avatar name={g.name} photoUrl={g.photoUrl} size={44} />
+              <Avatar name={g.name} photoUrl={g.photoUrl} size={44} group />
               <span className="ys-row-item__text"><span className="ys-row-item__title">{g.name}</span>
                 <span className="ys-row-item__sub">{plural(g.memberCount, 'member')}{g.full ? ' · Full' : g.needsApproval ? ' · Admin approves joins' : ''}</span></span>
               {g.full ? <span className="ys-tag">Full</span>
@@ -174,8 +175,8 @@ function InviteDialog({ c, onClose, onChanged }: { c: CommunityInfo; onClose: ()
       <p className="muted" style={{ margin: 0, fontSize: 14 }}>Anyone with this link can {c.settings.approveNew ? 'ask to join. An admin approves them.' : 'join the community and its announcements.'}</p>
       <div className="ys-field"><div className="ys-field__box"><input className="ys-input" readOnly value={link} aria-label="Invite link" onFocus={(e) => e.target.select()} /></div></div>
       <div className="modal__actions">
-        <button type="button" className="btn btn--ghost" onClick={() => void api().communityInvite(c.id).then((r) => { setCode(r.inviteCode); onChanged(); })}>Reset link</button>
-        <button type="button" className="btn btn--primary" disabled={!link} onClick={() => { void navigator.clipboard?.writeText(link).then(() => setCopied(true), () => undefined); }}>{copied ? 'Copied' : 'Copy link'}</button>
+        <OvalButton icon="refresh" label="Reset link" size="sm" variant="soft" onClick={() => void api().communityInvite(c.id).then((r) => { setCode(r.inviteCode); onChanged(); })} />
+        <OvalButton icon={copied ? 'check' : 'copy'} label={copied ? 'Copied' : 'Copy link'} size="sm" variant="primary" disabled={!link} onClick={() => { void navigator.clipboard?.writeText(link).then(() => setCopied(true), () => undefined); }} />
       </div>
     </Modal>
   );
@@ -203,7 +204,7 @@ function AddGroupDialog({ c, suggest, onClose, onDone }: { c: CommunityInfo; sug
         <div className="ys-list">
           {mine.map((g) => (
             <div key={g.id} className="ys-row-item" style={{ cursor: 'default' }}>
-              <Avatar name={g.group!.name} photoUrl={g.group!.photoUrl} size={40} />
+              <Avatar name={g.group!.name} photoUrl={g.group!.photoUrl} size={40} group />
               <span className="ys-row-item__text"><span className="ys-row-item__title">{g.group!.name}</span><span className="ys-row-item__sub">{plural(g.group!.memberCount, 'member')}</span></span>
               <OvalButton icon="plus" label={suggest ? 'Suggest' : 'Add'} size="sm" variant="soft" loading={busy}
                 onClick={() => void run(() => (suggest ? api().suggestCommunityGroup(c.id, g.id) : api().addCommunityGroup(c.id, { groupId: g.id })), suggest ? `Suggested ${g.group!.name}. An admin will decide.` : `${g.group!.name} is now in ${c.name}.`)} />
@@ -220,6 +221,8 @@ export function CreateCommunityDialog({ onClose, onCreated }: { onClose: () => v
   const [step, setStep] = useState<1 | 2>(1);
   const [name, setName] = useState('');
   const [about, setAbout] = useState('');
+  const [photo, setPhoto] = useState<{ key: string; url: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [approveNew, setApproveNew] = useState(false);
   const [membersSuggest, setMembersSuggest] = useState(false);
   const [mine, setMine] = useState<ConversationSummary[] | null>(null);
@@ -228,25 +231,49 @@ export function CreateCommunityDialog({ onClose, onCreated }: { onClose: () => v
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => { void api().conversations({ limit: 100 }).then((r) => setMine(r.items.filter((x) => x.kind === 'group' && x.group?.role === 'admin' && !x.group.community)), () => setMine([])); }, []);
+  const pickPhoto = async (f: File) => {
+    setUploading(true); setError(null);
+    try { const key = await api().uploadPhoto(f); setPhoto({ key, url: URL.createObjectURL(f) }); } catch (e) { setError(errText(e, "The photo didn't upload.")); } finally { setUploading(false); }
+  };
   const create = async () => {
     setBusy(true); setError(null);
-    try { const c = await api().createCommunity({ name, about, approveNew, membersSuggest, groupIds: picked, newGroups: newGroups.map((g) => g.trim()).filter(Boolean) }); onCreated(c.id); }
+    try { const c = await api().createCommunity({ name, about, approveNew, membersSuggest, groupIds: picked, newGroups: newGroups.map((g) => g.trim()).filter(Boolean), ...(photo ? { photoKey: photo.key } : {}) }); onCreated(c.id); }
     catch (e) { setError(errText(e)); setBusy(false); }
   };
+  const preview = (
+    <>
+      <span className="caps">Preview</span>
+      <div className="preview-card" aria-label="Preview">
+        <div className="preview-card__banner">
+          <span className="ys-feature__deco a" style={{ width: 220, top: -110, right: -30 }} aria-hidden />
+        </div>
+        <span className="preview-card__mark"><CommunityMark c={{ id: 'new', name: name.trim() || 'C', photoUrl: photo?.url ?? null }} size={56} onBanner /></span>
+        <div className="preview-card__body">
+          <strong>{name.trim() || 'Your community'}</strong>
+          <small>Community · 1 member{approveNew ? ' · Admin approval on' : ''}</small>
+          {about.trim() && <p>{about.trim()}</p>}
+        </div>
+      </div>
+      <div className="preview-note"><Icon name="megaphone" size={16} /><span>Every community gets an <strong>Announcements</strong> group where only admins post.</span></div>
+      <span className="modal__aside-foot">Up to {COMMUNITY_LIMITS.members.toLocaleString()} members and {COMMUNITY_LIMITS.groups} groups.</span>
+    </>
+  );
   return (
-    <Modal title="Create a community" onClose={onClose}>
-      <span className="muted" style={{ marginTop: -10, fontSize: 13 }}>Step {step} of 2 · {step === 1 ? 'Details' : 'Groups'}</span>
+    <Modal title="Create a community" onClose={onClose} eyebrow={`Step ${step} of 2 · ${step === 1 ? 'Details' : 'Groups'}`} progress={[step, 2]} aside={preview}>
       {error && <Banner>{error}</Banner>}
       {step === 1 ? (
-        <form className="ys-col" style={{ padding: 0, gap: 12 }} onSubmit={(e) => { e.preventDefault(); if (name.trim()) setStep(2); }}>
-          <div className="ys-field"><label className="ys-field__label" htmlFor="cm-name">Community name</label><div className="ys-field__box"><input id="cm-name" className="ys-input" value={name} maxLength={COMMUNITY_LIMITS.name} onChange={(e) => setName(e.target.value)} autoFocus /><span className="muted" style={{ fontSize: 12 }}>{name.length}/{COMMUNITY_LIMITS.name}</span></div></div>
-          <div className="ys-field"><label className="ys-field__label" htmlFor="cm-about">Description</label><div className="ys-field__box"><textarea id="cm-about" className="ys-input" value={about} maxLength={COMMUNITY_LIMITS.about} onChange={(e) => setAbout(e.target.value)} /></div><span className="ys-field__hint">Shown to people before they join.</span></div>
-          <div className="report-box" style={{ padding: '0 14px' }}>
+        <form className="ys-col" style={{ padding: 0, gap: 14 }} onSubmit={(e) => { e.preventDefault(); if (name.trim()) setStep(2); }}>
+          <div className="photo-row">
+            <PhotoPick url={photo?.url ?? null} onFile={(f) => void pickPhoto(f)} busy={uploading} label="Community photo" />
+            <span className="photo-row__hint">Add a photo so members recognise it.<br />Square, at least 256 × 256.</span>
+          </div>
+          <div className="ys-field"><label className="ys-field__label" htmlFor="cm-name">Community name</label><div className="ys-field__box"><input id="cm-name" className="ys-input" value={name} maxLength={COMMUNITY_LIMITS.name} onChange={(e) => setName(e.target.value)} autoFocus /></div><span className="ys-field__hint">{name.length} / {COMMUNITY_LIMITS.name}</span></div>
+          <div className="ys-field"><label className="ys-field__label" htmlFor="cm-about">Description</label><div className="ys-field__box ys-field__box--area"><textarea id="cm-about" className="ys-input" rows={4} value={about} maxLength={COMMUNITY_LIMITS.about} onChange={(e) => setAbout(e.target.value)} /></div><span className="ys-field__hint">Shown to people before they join.</span></div>
+          <div className="report-box" style={{ padding: '0 16px' }}>
             <Switch on={approveNew} onChange={setApproveNew} label="Admins approve new members" hint="People with the link send a request" />
             <Switch on={membersSuggest} onChange={setMembersSuggest} label="Members can suggest groups" hint="Admins still decide what gets added" />
           </div>
-          <div className="info-row" style={{ fontSize: 12, color: 'var(--ink-soft)' }}><Icon name="megaphone" size={16} /><span>Every community gets an <strong>Announcements</strong> group where only admins post. Up to {COMMUNITY_LIMITS.members.toLocaleString()} members and {COMMUNITY_LIMITS.groups} groups.</span></div>
-          <div className="modal__actions"><button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button><button type="submit" className="btn btn--primary" disabled={!name.trim()}>Next: add groups</button></div>
+          <div className="modal__actions"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /><OvalButton type="submit" icon="arrow-right" label="Next: add groups" size="sm" variant="primary" disabled={!name.trim()} /></div>
         </form>
       ) : (
         <div className="ys-col" style={{ padding: 0, gap: 12 }}>
@@ -262,11 +289,11 @@ export function CreateCommunityDialog({ onClose, onCreated }: { onClose: () => v
           {mine === null ? <span className="ys-spin" aria-label="Loading" /> : !mine.length ? <span className="muted" style={{ fontSize: 13 }}>None to bring in.</span> : mine.map((g) => (
             <label key={g.id} className="ys-row-item pick-row">
               <input type="checkbox" checked={picked.includes(g.id)} onChange={() => setPicked(picked.includes(g.id) ? picked.filter((x) => x !== g.id) : [...picked, g.id])} aria-label={g.group!.name} />
-              <Avatar name={g.group!.name} photoUrl={g.group!.photoUrl} size={36} />
+              <Avatar name={g.group!.name} photoUrl={g.group!.photoUrl} size={36} group />
               <span className="ys-row-item__text"><span className="ys-row-item__title">{g.group!.name}</span><span className="ys-row-item__sub">{plural(g.group!.memberCount, 'member')}</span></span>
             </label>
           ))}
-          <div className="modal__actions"><button type="button" className="btn btn--ghost" onClick={() => setStep(1)}>Back</button><button type="button" className="btn btn--primary" disabled={busy} onClick={() => void create()}>Create community</button></div>
+          <div className="modal__actions"><OvalButton icon="arrow-left" label="Back" size="sm" variant="soft" onClick={() => setStep(1)} /><OvalButton icon="check" label="Create community" size="sm" variant="primary" disabled={busy} onClick={() => void create()} /></div>
         </div>
       )}
     </Modal>
@@ -288,14 +315,14 @@ function ManageCommunity({ c, onBack }: { c: CommunityInfo; onBack: () => void }
         <OvalButton icon="arrow-left" label="Back" size="sm" variant="ghost" onClick={onBack} />
         <CommunityMark c={info} size={44} />
         <span className="manage__title"><strong>Manage {info.name}</strong><span>You’re an admin · {info.memberCount.toLocaleString()} of {info.limits.members.toLocaleString()} members</span></span>
+        <div className="manage__tabs"><div className="ys-tabs" role="tablist" aria-label="Manage">
+          {tabs.map(([t, l]) => <button key={t} type="button" role="tab" className="ys-tab" aria-selected={tab === t} onClick={() => setTab(t)}>{l}{t === 'requests' && info.pendingRequests > 0 && <span className="search__count">{info.pendingRequests}</span>}</button>)}
+        </div></div>
       </header>
-      <div className="manage__tabs"><div className="ys-tabs" role="tablist" aria-label="Manage">
-        {tabs.map(([t, l]) => <button key={t} type="button" role="tab" className="ys-tab" aria-selected={tab === t} onClick={() => setTab(t)}>{l}{t === 'requests' && info.pendingRequests > 0 && <span className="search__count">{info.pendingRequests}</span>}</button>)}
-      </div></div>
-      <div className="manage__body">
+      <div className={`manage__body${tab === 'requests' ? ' manage__body--wide' : ''}`}>
         {error && <Banner>{error}</Banner>}
         {notice && <Banner tone="success">{notice}</Banner>}
-        {tab === 'requests' && <Requests c={info} run={run} />}
+        {tab === 'requests' && <div className="manage__split"><Requests c={info} run={run} /><div className="manage__side"><Reports c={info} run={run} /></div></div>}
         {tab === 'members' && <Members c={info} run={run} />}
         {tab === 'groups' && <Groups c={info} run={run} />}
         {tab === 'reports' && <Reports c={info} run={run} />}
@@ -340,7 +367,7 @@ function Members({ c, run }: { c: CommunityInfo; run: Run }) {
   if (!list) return <span className="ys-spin" aria-label="Loading" />;
   return (
     <section className="set-card" aria-label="Members">
-      <h3>{c.memberCount.toLocaleString()} members</h3>
+      <h3>{plural(c.memberCount, 'member')}</h3>
       {list.map((m) => (
         <div key={m.id} className="ys-row-item member-row" style={{ cursor: 'default' }} data-testid="community-member">
           <Avatar name={m.displayName} photoUrl={m.photoUrl} size={40} />
@@ -372,7 +399,7 @@ function Groups({ c, run }: { c: CommunityInfo; run: Run }) {
           <h3>Suggested by members · {c.suggestions.length}</h3>
           {c.suggestions.map((s) => (
             <div key={s.group.id} className="ys-row-item" style={{ cursor: 'default' }}>
-              <Avatar name={s.group.name} photoUrl={s.group.photoUrl} size={40} />
+              <Avatar name={s.group.name} photoUrl={s.group.photoUrl} size={40} group />
               <span className="ys-row-item__text"><span className="ys-row-item__title">{s.group.name}</span><span className="ys-row-item__sub">From {s.by.displayName} · {plural(s.group.memberCount, 'member')}</span></span>
               <OvalButton icon="close" label="Decline" size="sm" variant="ghost" onClick={() => void run(() => api().declineSuggestion(c.id, s.group.id))} />
               <OvalButton icon="check" label="Add" size="sm" variant="soft" onClick={() => void run(() => api().approveSuggestion(c.id, s.group.id), `${s.group.name} was added.`)} />
@@ -384,7 +411,7 @@ function Groups({ c, run }: { c: CommunityInfo; run: Run }) {
         <h3>{plural(c.groupCount, 'group')} · up to {c.limits.groups}</h3>
         {c.groups.map((g) => (
           <div key={g.id} className="ys-row-item" style={{ cursor: 'default' }}>
-            {g.announcements ? <span className="ys-oval ys-oval--ember" style={{ width: 40 }}><Icon name="megaphone" size={18} /></span> : <Avatar name={g.name} photoUrl={g.photoUrl} size={40} />}
+            {g.announcements ? <span className="ys-oval ys-oval--ember" style={{ width: 40 }}><Icon name="megaphone" size={18} /></span> : <Avatar name={g.name} photoUrl={g.photoUrl} group size={40} />}
             <span className="ys-row-item__text"><span className="ys-row-item__title">{g.name}</span><span className="ys-row-item__sub">{plural(g.memberCount, 'member')}{g.announcements ? ' · everyone in the community' : ''}</span></span>
             {!g.announcements && <ConfirmButton label="Remove" icon="close" danger={false} confirm="Remove" question={`Take ${g.name} out of the community? The group stays.`} onConfirm={() => run(() => api().removeCommunityGroup(c.id, g.id), `${g.name} was taken out.`)} />}
           </div>

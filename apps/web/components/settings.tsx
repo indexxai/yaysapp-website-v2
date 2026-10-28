@@ -8,7 +8,7 @@ import { Icon, type IconName } from '@/lib/icons';
 import { disablePush } from '@/lib/push';
 import { AppShell } from './app-shell';
 import { useMe } from './use-me';
-import { Avatar, Banner, OvalButton } from './ui';
+import { Avatar, Banner, LineArt, OvalButton } from './ui';
 
 export const SECTIONS: Array<{ key: string; href: string; label: string; sub: string; icon: IconName }> = [
   { key: 'profile', href: '/settings/profile', label: 'Profile and account', sub: 'Name, photo, number, two-step', icon: 'key' },
@@ -39,8 +39,9 @@ export function SettingsFrame({ title, children }: { title?: string; children: (
           <div className="chats__head"><h1>Settings</h1></div>
           {me && (
             <Link href="/settings/profile" className="settings__me">
-              <Avatar name={me.displayName} photoUrl={me.photoUrl} size={52} />
-              <span><strong>{me.displayName}</strong><span>{me.username ? `@${me.username}` : me.phone ?? me.email}</span></span>
+              <LineArt name="selfie" width={110} opacity={0.14} className="settings__me-art" />
+              <Avatar name={me.displayName} photoUrl={me.photoUrl} size={56} />
+              <span className="settings__me-text"><strong>{me.displayName}</strong><span>{[me.username ? `@${me.username}` : null, me.phone ?? me.email].filter(Boolean).join(' · ')}</span></span>
             </Link>
           )}
           <nav aria-label="Sections">

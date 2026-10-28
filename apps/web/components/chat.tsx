@@ -7,7 +7,8 @@ import { ActionBar, ActionsCtx, DeleteDialog, ForwardDialog, MessageInfoPanel, P
 import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
 import { CallButtons, CallLine } from './call';
-import { Avatar, Banner, OvalButton } from './ui';
+import { EmojiPicker } from './emoji';
+import { Avatar, Banner, LineArt, OvalButton } from './ui';
 import { InChatSearch } from './search';
 import { BlockReportDialog, isMuted, MUTE_CHOICES } from './contact';
 import { MessageText, PollContent, PollDialog } from './poll';
@@ -185,7 +186,7 @@ function ChatRow({ c, me, active, typing, onOpen }: { c: ConversationSummary; me
     <div className={`chat-row${menu ? ' chat-row--menu' : ''}`} onContextMenu={(e) => { e.preventDefault(); setMenu(true); }}>
       <a href={`/chats?c=${c.id}`} className="ys-row-item" aria-current={active ? 'true' : undefined} data-testid="chat-row"
         onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey) return; e.preventDefault(); onOpen(c.id); }} style={{ textDecoration: 'none', color: 'inherit' }}>
-        <Avatar name={name} photoUrl={chatPhoto(c)} size={48} />
+        <Avatar name={name} photoUrl={chatPhoto(c)} size={48} group={c.kind === 'group'} />
         <span className="ys-row-item__text">
           <span className="ys-row-item__title">{name}</span>
           <span className="ys-row-item__sub" style={typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>
@@ -388,18 +389,19 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
       <header className="convo__head">
         <span className="convo__back"><OvalButton icon="arrow-left" label="Chats" size="sm" variant="ghost" onClick={onBack} /></span>
         <button type="button" className="convo__whobtn" onClick={onInfo} disabled={!onInfo} aria-expanded={!!infoOpen} aria-label={c.kind === 'group' ? 'Group info' : 'Contact info'}>
-          <Avatar name={name} photoUrl={chatPhoto(c)} size={44} online={!!p?.online} />
+          <Avatar name={name} photoUrl={chatPhoto(c)} size={44} online={!!p?.online} group={c.kind === 'group'} />
           <span className="convo__who">
             <strong>{name}</strong>
-            <span data-testid="peer-status" style={offline ? { color: 'var(--warning-ink)', fontWeight: 700 } : typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : undefined}>{status}</span>
+            <span data-testid="peer-status" style={offline ? { color: 'var(--warning-ink)', fontWeight: 700 } : typing ? { color: 'var(--ember-ink)', fontWeight: 700 } : status === 'online' ? { color: 'var(--success-ink)', fontWeight: 700 } : undefined}>{status}</span>
           </span>
         </button>
         <CallButtons conversationId={id} canCall={c.canSend && !(c.kind === 'group' && c.group?.announcements)} live={c.call} />
         <OvalButton icon="search" label="Search" size="sm" variant={searching ? 'soft' : 'ghost'} onClick={() => setSearching((v) => !v)} />
-        {onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'soft' : 'ghost'} onClick={onInfo} />}
+        {onInfo && <OvalButton icon="info" label="Info" size="sm" variant={infoOpen ? 'primary' : 'ghost'} onClick={onInfo} />}
       </header>
       {searching && <InChatSearch convId={id} onJump={(seq) => jump.current(seq)} onClose={() => setSearching(false)} />}
       <PinnedBar c={c} />
+      <LineArt name="chat" width={180} opacity={0.08} className="convo__art" />
       {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
       {notice && <div className="convo__error"><Banner tone="success">{notice}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon name="close" size={16} /></button></div>}
       <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />
@@ -475,6 +477,11 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpe
           const prev = items[i - 1];
           // In groups, others' messages carry the sender's name at the start of each run.
           const showName = group && m.type !== 'system' && m.senderId !== me && (sep || !prev || prev.type === 'system' || prev.senderId !== m.senderId);
+          // …and their picture beside the last message of the run.
+          const next = items[i + 1];
+          const lastOfRun = !next || next.type === 'system' || next.senderId !== m.senderId || dayLabel(next.createdAt) !== day;
+          const who = group && m.type !== 'system' && m.senderId !== me ? s.groups[id]?.members.find((x) => x.id === m.senderId) : undefined;
+          const face = group && m.type !== 'system' && m.senderId !== me ? (lastOfRun ? { name: who?.displayName ?? engine.nameOf(m.senderId), photoUrl: who?.photoUrl ?? null } : 'space' as const) : undefined;
           return (
             <div key={m.key} style={{ display: 'contents' }}>
               {sep && <div className="day-sep">{day}</div>}
@@ -482,7 +489,7 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpe
                 ? <CallLine e={m.system} mine={m.senderId === me} at={clock(m.createdAt)} conversationId={id} canCall={c.canSend} />
                 : m.type === 'system' && m.system
                 ? <div className="sys-line" data-testid="system-line">{systemText(m.system, m.senderId, (u) => engine.nameOf(u))}</div>
-                : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} c={c} onOpenMedia={onOpenMedia} />}
+                : <Bubble m={m} mine={m.senderId === me} sender={showName ? engine.nameOf(m.senderId) : null} c={c} onOpenMedia={onOpenMedia} face={face} />}
             </div>
           );
         })}
@@ -493,13 +500,14 @@ function Thread({ id, items, me, typing, loading, hasMore, group, c, jump, onOpe
   );
 }
 
-function Bubble({ m, mine, sender, c, onOpenMedia }: { m: ThreadItem; mine: boolean; sender?: string | null; c: ConversationSummary; onOpenMedia: (key: string) => void }) {
+function Bubble({ m, mine, sender, c, onOpenMedia, face }: { m: ThreadItem; mine: boolean; sender?: string | null; c: ConversationSummary; onOpenMedia: (key: string) => void; face?: { name: string; photoUrl: string | null } | 'space' }) {
   const engine = useEngine();
   const act = useActions();
   const failed = m.tick === 'failed';
   return (
     <div className={`msg ${mine ? 'msg--me' : 'msg--them'}`} data-testid="message" data-tick={m.tick ?? undefined} data-seq={m.seq ?? undefined}>
       <div className="msg__row">
+      {face && <span className="msg__face" aria-hidden>{face !== 'space' && <Avatar name={face.name} photoUrl={face.photoUrl} size={28} />}</span>}
       <div className={`ys-bubble ys-bubble--${mine ? 'me' : 'them'}${m.deleted ? ' ys-bubble--deleted' : ''}${m.attachment && !m.deleted ? ` ys-bubble--media ys-bubble--${m.attachment.kind}` : ''}`} style={(m.tick === 'pending' && !m.upload) || failed ? { opacity: m.upload ? 1 : 0.75 } : undefined}>
         {sender && <span className="msg__sender" style={{ color: senderColor(m.senderId) }}>{sender}</span>}
         {m.forwarded && !m.deleted && <span className="msg__fwd"><Icon name="forward" size={12} /> Forwarded</span>}
@@ -528,7 +536,7 @@ function Bubble({ m, mine, sender, c, onOpenMedia }: { m: ThreadItem; mine: bool
 }
 
 /** Sender names get one of a few readable colours, the same for a person every time. */
-const SENDER_COLORS = ['var(--ember-ink)', 'var(--info)', 'var(--success-ink)', 'var(--danger-ink)', 'var(--warning-ink)'];
+const SENDER_COLORS = ['var(--name-pink)', 'var(--success-ink)', 'var(--ember-ink)', 'var(--info)', 'var(--warning-ink)'];
 function senderColor(id: string) { let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return SENDER_COLORS[h % SENDER_COLORS.length]; }
 
 function LockedComposer({ c, onGone }: { c: ConversationSummary; onGone: () => void }) {
@@ -564,6 +572,14 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
   const group = s.conversations[id]?.kind === 'group';
   const [recording, setRecording] = useState(false);
   const [attachMenu, setAttachMenu] = useState(false);
+  useEffect(() => {
+    if (!attachMenu) return;
+    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape') setAttachMenu(false); };
+    const away = (e: globalThis.MouseEvent) => { if (!(e.target as HTMLElement).closest?.('.attach-wrap')) setAttachMenu(false); };
+    document.addEventListener('keydown', esc); document.addEventListener('mousedown', away);
+    return () => { document.removeEventListener('keydown', esc); document.removeEventListener('mousedown', away); };
+  }, [attachMenu]);
+  const [emoji, setEmoji] = useState(false);
   const [polling, setPolling] = useState(false);
   const members = useMentionables(id);
   const [mention, setMention] = useState<{ start: number; query: string; at: number } | null>(null);
@@ -596,6 +612,14 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
     setText(next); drafts.current[id] = next; setMention(null);
     const pos = mention.start + m.name.length + 2;
     requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(pos, pos); });
+  };
+  /** An emoji goes in where the cursor is. */
+  const insertEmoji = (e: string) => {
+    const el = ta.current;
+    const a = el?.selectionStart ?? text.length, b = el?.selectionEnd ?? text.length;
+    const next = text.slice(0, a) + e + text.slice(b);
+    setText(next); drafts.current[id] = next; setError(null);
+    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(a + e.length, a + e.length); });
   };
   /** The people still named in the text when it's sent. */
   const mentionsIn = (t: string) => [...picked.current].filter(([, name]) => t.includes(`@${name}`)).map(([u]) => u);
@@ -644,6 +668,10 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
       {(error || tooLong) && <span className="composer__error" role="alert">{tooLong ? `Messages can be up to ${MAX_TEXT} characters (${len} now).` : error}</span>}
       {recording ? <RecorderBar convId={id} replyToId={replyTo?.id ?? undefined} onDone={() => { setRecording(false); onDone(); }} /> : (
       <div className="composer__row">
+        <span className="attach-wrap">
+          <OvalButton icon="smile" label="Emoji" size="sm" variant="ghost" data-emoji-toggle aria-expanded={emoji} onClick={() => setEmoji((v) => !v)} />
+          {emoji && <EmojiPicker onPick={insertEmoji} onClose={() => setEmoji(false)} />}
+        </span>
         {!editing && (
           <span className="attach-wrap">
             <OvalButton icon="paperclip" label="Attach" size="sm" variant="ghost" aria-haspopup="menu" aria-expanded={attachMenu} onClick={() => setAttachMenu((v) => !v)} />
@@ -658,7 +686,7 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
         <input ref={fileInput} type="file" multiple hidden aria-label="Attach files" onChange={(e) => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; if (fs.length) onFiles(fs); }} />
         <label htmlFor="composer" className="sr-only">Message</label>
         <span className="composer__box">
-          <textarea id="composer" ref={ta} rows={1} value={text} placeholder="Message" maxLength={MAX_TEXT * 2 + 10}
+          <textarea id="composer" ref={ta} rows={1} value={text} placeholder="Type a message" maxLength={MAX_TEXT * 2 + 10}
             aria-autocomplete={group ? 'list' : undefined} aria-controls={matches.length ? 'mention-list' : undefined} aria-expanded={group ? matches.length > 0 : undefined}
             onChange={(e) => { setText(e.target.value); drafts.current[id] = e.target.value; setError(null); engine.typing(id, e.target.value.trim().length > 0); trackMention(e.target.value, e.target.selectionStart); }}
             onKeyDown={onKey} onPaste={onPaste} onBlur={() => { engine.typing(id, false); setTimeout(() => setMention(null), 150); }} />
@@ -673,7 +701,7 @@ function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; reply
           )}
         </span>
         {!text.trim() && !editing
-          ? <OvalButton icon="mic" label="Record" size="md" onClick={() => setRecording(true)} />
+          ? <OvalButton icon="mic" label="Voice" aria-label="Record a voice message" size="md" onClick={() => setRecording(true)} />
           : <OvalButton type="submit" icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} size="md" disabled={!text.trim() || tooLong} />}
       </div>)}
     </form>

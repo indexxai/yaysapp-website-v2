@@ -24,13 +24,19 @@ export async function db<T>(fn: (d: import('mongodb').Db) => Promise<T>): Promis
 export const seedLegacy = (email: string, extra: Record<string, unknown> = {}) =>
   db((d) => d.collection('users').insertOne({ _id: new ObjectId(), email, firstName: 'Bilal', lastName: 'Khan', username: 'bilal_btcy', referralCode: 'BILAL1', userWallets: [{ coin: 'BTCY', balance: 50 }], ...extra }));
 
+/** The sign-in page opens on the QR code; this switches to signing in with a phone number or email. */
+export async function openCodeSignIn(page: Page) {
+  await page.goto('/sign-in');
+  await page.getByRole('button', { name: 'Sign in with a code instead' }).click();
+}
+
 export async function typeCode(page: Page, code: string) {
   await page.getByLabel('6-digit code').fill(code);
 }
 
 /** Phone sign-up through the UI, ending on whatever page comes after the email step. */
 export async function signUpWithPhone(page: Page, phone: string, email: string) {
-  await page.goto('/sign-in');
+  await openCodeSignIn(page);
   await page.getByLabel('Phone number').fill(local(phone));
   await page.getByRole('button', { name: 'Send code' }).click();
   await expect(page.getByRole('heading', { name: 'Enter the code' })).toBeVisible();
@@ -43,7 +49,7 @@ export async function signUpWithPhone(page: Page, phone: string, email: string) 
 }
 
 export async function signInWithEmail(page: Page, email: string) {
-  await page.goto('/sign-in');
+  await openCodeSignIn(page);
   await page.getByRole('tab', { name: 'Email' }).click();
   await page.getByLabel('Email').fill(email);
   await page.getByRole('button', { name: 'Send code' }).click();

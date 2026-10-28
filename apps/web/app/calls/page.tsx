@@ -7,7 +7,7 @@ import { useCalls } from '@/components/call';
 import { chatName } from '@/components/chat';
 import { Modal } from '@/components/message-actions';
 import { Switch } from '@/components/group';
-import { Avatar, Banner, OvalButton } from '@/components/ui';
+import { Avatar, Banner, LineArt, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
 import { api } from '@/lib/api';
 import { clock, dayLabel, lastSeen, useChatState, useEngine } from '@/lib/chat';
@@ -119,7 +119,7 @@ function CallsLayout() {
                 {sep && <div className="calls__day">{day}</div>}
                 <div className="ys-row-item call-row" aria-current={sel?.id === i.id ? 'true' : undefined} data-testid="call-row">
                   <button type="button" className="call-row__open" onClick={() => router.push(`/calls?id=${i.id}`)} aria-label={`${i.title}, ${resultText(i, r.count)}, ${clock(i.at)}`}>
-                    <Avatar name={i.title} photoUrl={i.photoUrl} size={44} />
+                    <Avatar name={i.title} photoUrl={i.photoUrl} size={44} group={i.kind === 'group'} />
                     <span className="ys-row-item__text">
                       <span className="ys-row-item__title" style={red ? { color: 'var(--danger-ink)' } : undefined}>{i.title}</span>
                       <span className="ys-row-item__sub" style={{ display: 'flex', alignItems: 'center', gap: 4, ...(red || i.result === 'silenced' ? { color: 'var(--danger-ink)' } : {}) }}><Icon name={dirIcon(i)} size={14} />{resultText(i, r.count)}</span>
@@ -133,7 +133,7 @@ function CallsLayout() {
               </div>
             );
           })}
-          {next && <button type="button" className="btn btn--ghost" style={{ margin: 12 }} onClick={() => void load(next)}>Show older calls</button>}
+          {next && <OvalButton icon="clock" label="Show older calls" size="sm" variant="soft" style={{ margin: 12 }} onClick={() => void load(next)} />}
         </nav>
       </aside>
       <main className="chats__pane calls__main">
@@ -158,7 +158,7 @@ function CallDetail({ item, onBack }: { item: CallHistoryItem; onBack: () => voi
   }, [item]);
   const c = item.conversationId ? s.conversations[item.conversationId] : undefined;
   const pres = item.peerId ? s.presence[item.peerId] : undefined;
-  const sub = c?.kind === 'group' ? `${c.memberIds.length} members` : [c?.peer?.username ? `@${c.peer.username}` : null, pres?.online ? 'online' : pres?.lastSeenAt ? lastSeen(pres.lastSeenAt) : null].filter(Boolean).join(' · ');
+  const sub = c?.kind === 'group' ? `${c.memberIds.length} member${c.memberIds.length === 1 ? '' : 's'}` : [c?.peer?.username ? `@${c.peer.username}` : null, pres?.online ? 'online' : pres?.lastSeenAt ? lastSeen(pres.lastSeenAt) : null].filter(Boolean).join(' · ');
   const canCall = !!item.conversationId && (c ? c.canSend : true);
   const start = (m: CallMedia) => { if (item.conversationId) void calls.start(item.conversationId, m).catch(() => undefined); };
   return (
@@ -166,7 +166,7 @@ function CallDetail({ item, onBack }: { item: CallHistoryItem; onBack: () => voi
       <span className="call-detail__back"><OvalButton icon="arrow-left" label="Calls" size="sm" variant="ghost" onClick={onBack} /></span>
       <span className="ys-feature__deco b" style={{ width: 420, top: -180, right: -140, opacity: 0.45 }} aria-hidden />
       <div className="call-detail__body">
-        <Avatar name={item.title} photoUrl={item.photoUrl} size={96} online={!!pres?.online} />
+        <Avatar name={item.title} photoUrl={item.photoUrl} size={96} online={!!pres?.online} group={item.kind === 'group'} />
         <h2>{item.title}</h2>
         {sub && <span className="muted" style={{ fontSize: 14 }}>{sub}</span>}
         <div style={{ display: 'flex', gap: 28, margin: '16px 0 8px' }}>
@@ -214,10 +214,19 @@ function PermissionCard({ compact }: { compact?: boolean }) {
   const ask = async () => {
     try { const st = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }); st.getTracks().forEach((t) => t.stop()); setState('granted'); } catch { setState('denied'); }
   };
-  if (state === 'granted' || state === 'unknown') return compact ? null : <div className="pane-center"><span className="ys-oval ys-oval--wash" style={{ width: 72 }}><Icon name="phone" size={30} /></span><strong style={{ font: '700 18px var(--font-display)' }}>Pick a call to see its details</strong><span className="muted">Or start a new call, or make a link anyone can join.</span></div>;
+  if (state === 'granted' || state === 'unknown') return compact ? null : (
+    <div className="pane-center pane-welcome">
+      <span className="ys-feature__deco a" style={{ width: 460, top: -200, left: -160, opacity: 0.5 }} aria-hidden />
+      <div className="pane-welcome__body">
+        <LineArt name="selfie" width={170} />
+        <h2 className="pane-welcome__title" style={{ fontSize: 24 }}>Pick a call to see its details</h2>
+        <p>Or start a new call, or make a link anyone can join.</p>
+      </div>
+    </div>
+  );
   const card = (
     <div className="perm-card">
-      <span className="ys-oval ys-oval--wash" style={{ width: 52, flex: 'none' }}><Icon name="mic" size={22} /></span>
+      <LineArt name="selfie" width={58} opacity={0.7} style={{ flex: 'none' }} />
       <span style={{ flex: 1, fontSize: 13, lineHeight: '19px', color: 'var(--ink-soft)' }}>
         <strong style={{ color: 'var(--ink)' }}>{state === 'denied' ? 'Microphone and camera are blocked' : 'Allow microphone and camera'}</strong><br />
         {state === 'denied' ? 'Turn them on for this site in your browser’s settings (the icon next to the address).' : 'Your browser asks once. Without it, calls from this tab can’t start.'}
@@ -241,8 +250,8 @@ function NewCallDialog({ onClose }: { onClose: () => void }) {
         {!list.length && <p className="muted" style={{ margin: 8 }}>{q ? 'No chats match.' : 'Start a chat first, then call from here.'}</p>}
         {list.map((c) => (
           <div key={c.id} className="call-request" data-testid="new-call-row">
-            <Avatar name={chatName(c)} photoUrl={c.group?.photoUrl ?? c.peer?.photoUrl ?? null} size={40} />
-            <span style={{ flex: 1, minWidth: 0 }}><strong>{chatName(c)}</strong>{c.kind === 'group' && <span className="muted" style={{ display: 'block', fontSize: 12 }}>Group · {c.memberIds.length} members</span>}</span>
+            <Avatar name={chatName(c)} photoUrl={c.group?.photoUrl ?? c.peer?.photoUrl ?? null} size={40} group={c.kind === 'group'} />
+            <span style={{ flex: 1, minWidth: 0 }}><strong>{chatName(c)}</strong>{c.kind === 'group' && <span className="muted" style={{ display: 'block', fontSize: 12 }}>Group · {c.memberIds.length} member{c.memberIds.length === 1 ? '' : 's'}</span>}</span>
             <button type="button" className="icon-btn" style={{ color: 'var(--ember-ink)' }} aria-label={`Voice call ${chatName(c)}`} onClick={() => go(c.id, 'voice')}><Icon name="phone" size={20} /></button>
             <button type="button" className="icon-btn" style={{ color: 'var(--ember-ink)' }} aria-label={`Video call ${chatName(c)}`} onClick={() => go(c.id, 'video')}><Icon name="video" size={20} /></button>
           </div>
@@ -278,7 +287,7 @@ function CallLinkDialog({ onClose }: { onClose: () => void }) {
             <span className="ys-oval ys-oval--ember" style={{ width: 52 }}><Icon name="link" size={22} /></span>
             <span><h2 id="cl-t" style={{ margin: 0, font: '800 22px var(--font-display)' }}>{link ? 'Call link ready' : 'Making a call link…'}</h2><span className="muted" style={{ fontSize: 13 }}>Anyone with the link can ask to join.</span></span>
           </div>
-          <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}><Icon name="close" size={20} /></button>
+          <span className="modal__close"><OvalButton icon="close" label="Close" size="sm" variant="soft" onClick={onClose} /></span>
         </div>
         {error && <Banner>{error}</Banner>}
         {sent && <Banner tone="success">Sent to {sent}.</Banner>}
@@ -303,7 +312,7 @@ function CallLinkDialog({ onClose }: { onClose: () => void }) {
         {sending && (
           <div className="new-call__list" aria-label="Send to">
             {s.order.slice(0, 30).map((id) => s.conversations[id]).filter((c) => c?.canSend).map((c) => (
-              <button key={c!.id} type="button" className="ys-row-item" style={{ minHeight: 52 }} onClick={() => sendTo(c!.id)}><Avatar name={chatName(c!)} photoUrl={c!.group?.photoUrl ?? c!.peer?.photoUrl ?? null} size={32} /><span className="ys-row-item__title">{chatName(c!)}</span></button>
+              <button key={c!.id} type="button" className="ys-row-item" style={{ minHeight: 52 }} onClick={() => sendTo(c!.id)}><Avatar name={chatName(c!)} photoUrl={c!.group?.photoUrl ?? c!.peer?.photoUrl ?? null} size={32} group={c!.kind === 'group'} /><span className="ys-row-item__title">{chatName(c!)}</span></button>
             ))}
           </div>
         )}

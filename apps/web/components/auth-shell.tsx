@@ -1,15 +1,22 @@
 import type { ReactNode } from 'react';
+import { LineArt } from './ui';
 
-export function AuthShell({ children }: { children: ReactNode }) {
+/** The sign-in frame: the orange brand panel with the wordmark and line art, and the form beside it. */
+export function AuthShell({ children, wide }: { children: ReactNode; wide?: boolean }) {
   return (
     <main className="auth-shell">
       <section className="auth-art" aria-hidden="true">
-        <span className="ys-feature__deco a" style={{ width: 420, top: -160, right: -120 }} />
-        <span className="ys-feature__deco b" style={{ width: 260, bottom: 120, left: -90 }} />
-        <h2>Chat. Earn. Together.</h2>
-        <p>Messages, calls and communities, with your old YaysApp chats brought over.</p>
+        <span className="ys-feature__deco a" style={{ width: 420, top: -150, right: -120 }} />
+        <span className="ys-feature__deco b" style={{ width: 260, bottom: -90, left: -80 }} />
+        <span className="auth-art__dots" />
+        <img className="auth-art__logo" src="/brand/wordmark.png" alt="" width={180} height={49} />
+        <LineArt name="chat" width={260} ink="#ffffff" opacity={0.9} className="auth-art__art" />
+        <div className="auth-art__copy">
+          <h2>Your chats, on a bigger screen.</h2>
+          <p>Messages, calls and communities stay in sync with your phone.</p>
+        </div>
       </section>
-      <section className="auth-panel"><div className="auth-card">{children}</div></section>
+      <section className="auth-panel"><div className={`auth-card${wide ? ' auth-card--wide' : ''}`}>{children}</div></section>
     </main>
   );
 }

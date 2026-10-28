@@ -3,10 +3,11 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, USERNAME_RE, type MeProfile } from '@yays/shared';
 import { api } from '@/lib/api';
 import { Avatar, Banner, Field, OvalButton } from './ui';
+import { Icon } from '@/lib/icons';
 
 const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-export function ProfileForm({ me, submitLabel, onSaved }: { me: MeProfile; submitLabel: string; onSaved: (m: MeProfile) => void }) {
+export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me: MeProfile; submitLabel: string; onSaved: (m: MeProfile) => void; layout?: 'setup' | 'settings' }) {
   // A name made up from the email is a placeholder, not the person's choice: start empty.
   const [name, setName] = useState(me.pending.includes('profile') ? '' : me.displayName);
   const [username, setUsername] = useState(me.username ?? '');
@@ -68,6 +69,41 @@ export function ProfileForm({ me, submitLabel, onSaved }: { me: MeProfile; submi
     } finally { setBusy(false); }
   };
 
+  const removePhoto = async () => { setPhoto({ key: null, url: null }); try { onSaved(await api().updateMe({ photoKey: null })); } catch { /* shown on next save */ } };
+  if (layout === 'settings') {
+    const discard = () => { setName(me.displayName); setUsername(me.username ?? ''); setAbout(me.about); setPhoto({ key: null, url: me.photoUrl }); setFieldErr({}); setError(null); };
+    return (
+      <form onSubmit={submit} className="profile-side" noValidate>
+        <input ref={file} type="file" accept={TYPES.join(',')} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
+        <div className="profile-side__photo">
+          <button type="button" className="profile-photo" aria-label={photo.url ? 'Change photo' : 'Add photo'} onClick={() => file.current?.click()} disabled={uploading}>
+            <Avatar name={name || me.displayName} photoUrl={photo.url} size={116} />
+            <span className="profile-photo__badge">{uploading ? <span className="ys-spin" aria-hidden /> : <Icon name="camera" size={16} />}</span>
+          </button>
+          {photo.url && <button type="button" className="link-btn link-btn--danger" style={{ fontSize: 13 }} onClick={() => void removePhoto()}>Remove photo</button>}
+        </div>
+        <div className="profile-side__fields">
+          {error && <Banner>{error}</Banner>}
+          <Field id="name" label="Name" hint="Shown to people you chat with." error={fieldErr.name}>
+            <input id="name" className="ys-input" autoComplete="name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field id="username" label="Username" error={fieldErr.username ?? (uname.state === 'bad' ? uname.msg : null)} hint={uname.state === 'ok' ? uname.msg : uname.state === 'checking' ? 'Checking…' : 'People can find you by it without your number.'}>
+            <span style={{ fontWeight: 700 }}>@</span>
+            <input id="username" className="ys-input" autoComplete="username" maxLength={30} value={username} onChange={(e) => setUsername(e.target.value.toLowerCase())} />
+            {(uname.state === 'ok' || (username && username === me.username)) && <span style={{ color: 'var(--success-ink)', display: 'inline-flex' }}><Icon name="check" size={16} /></span>}
+          </Field>
+          <Field id="about" label="About">
+            <input id="about" className="ys-input" maxLength={80} value={about} onChange={(e) => setAbout(e.target.value)} placeholder="Say something about yourself" />
+            <span className="field-count">{about.length}/80</span>
+          </Field>
+          <div className="profile-side__actions">
+            <OvalButton icon="close" label="Discard" size="sm" variant="soft" onClick={discard} />
+            <OvalButton type="submit" icon="check" label={submitLabel} size="sm" loading={busy} disabled={uploading} />
+          </div>
+        </div>
+      </form>
+    );
+  }
   return (
     <form onSubmit={submit} className="ys-col" style={{ padding: 0, gap: 20 }} noValidate>
       {error && <Banner>{error}</Banner>}
@@ -75,7 +111,7 @@ export function ProfileForm({ me, submitLabel, onSaved }: { me: MeProfile; submi
         <Avatar name={name || me.displayName} photoUrl={photo.url} size={96} />
         <input ref={file} type="file" accept={TYPES.join(',')} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
         <OvalButton icon="camera" label={photo.url ? 'Change photo' : 'Add photo'} size="md" variant="soft" loading={uploading} onClick={() => file.current?.click()} />
-        {photo.url && <OvalButton icon="trash" label="Remove" size="md" variant="ghost" onClick={async () => { setPhoto({ key: null, url: null }); try { onSaved(await api().updateMe({ photoKey: null })); } catch { /* shown on next save */ } }} />}
+        {photo.url && <OvalButton icon="trash" label="Remove" size="md" variant="ghost" onClick={() => void removePhoto()} />}
       </div>
       <Field id="name" label="Your name" hint="This is how friends see you in chats." error={fieldErr.name}>
         <input id="name" className="ys-input" autoComplete="name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />

@@ -152,7 +152,7 @@ function IncomingCall({ call }: { call: CallView }) {
   return (
     <div className="call-alert" role="alertdialog" aria-labelledby={`ic-${call.id}`} aria-describedby={`icd-${call.id}`} data-testid="incoming-call">
       <div className="call-alert__who">
-        <Avatar name={call.title} photoUrl={call.photoUrl} size={64} />
+        <Avatar name={call.title} photoUrl={call.photoUrl} size={64} group={call.kind === 'group'} />
         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <span className="call-alert__kind" id={`icd-${call.id}`}><Icon name={call.media === 'video' ? 'video' : 'phone'} size={14} />Incoming {kind}</span>
           <strong id={`ic-${call.id}`} className="call-alert__name">{call.title}</strong>
@@ -185,8 +185,8 @@ export function JoinRequests({ call, inline }: { call: CallView; inline?: boolea
         <div key={p.userId} className="call-request" data-testid="join-request">
           <Avatar name={p.name} photoUrl={p.photoUrl} size={36} />
           <span style={{ flex: 1, minWidth: 0 }}><strong>{p.name}</strong> wants to join</span>
-          <button type="button" className="btn btn--ghost" onClick={() => decide(p.userId, false)} aria-label={`Deny ${p.name}`}>Deny</button>
-          <button type="button" className="btn" onClick={() => decide(p.userId, true)} aria-label={`Let ${p.name} in`}>Let in</button>
+          <OvalButton icon="close" label="Deny" size="sm" variant="soft" onClick={() => decide(p.userId, false)} aria-label={`Deny ${p.name}`} />
+          <OvalButton icon="check" label="Let in" size="sm" variant="secondary" onClick={() => decide(p.userId, true)} aria-label={`Let ${p.name} in`} />
         </div>
       ))}
     </div>
@@ -206,8 +206,8 @@ export function CallButtons({ conversationId, canCall, live }: { conversationId:
   );
   return (
     <>
-      <OvalButton icon="video" label="Video" size="sm" variant="ghost" aria-label="Video call" disabled={!!busy || !!onThis} onClick={() => void go('video')} />
-      <OvalButton icon="phone" label="Voice" size="sm" variant="ghost" aria-label="Voice call" disabled={!!busy || !!onThis} onClick={() => void go('voice')} />
+      <OvalButton icon="video" label="Video" size="sm" variant="soft" aria-label="Video call" disabled={!!busy || !!onThis} onClick={() => void go('video')} />
+      <OvalButton icon="phone" label="Call" size="sm" variant="soft" aria-label="Voice call" disabled={!!busy || !!onThis} onClick={() => void go('voice')} />
     </>
   );
 }
@@ -221,7 +221,7 @@ export function CallLine({ e, mine, at, conversationId, canCall }: { e: Extract<
     <div className={`call-line${missed ? ' call-line--missed' : ''}`} data-testid="call-line">
       <span className="ys-oval" style={{ width: 32 }}><Icon name={missed ? 'call-missed' : mine ? 'call-outgoing' : 'call-incoming'} size={16} /></span>
       <span className="call-line__text"><strong>{callText(e, mine)}</strong><span>{at}</span></span>
-      {canCall && <button type="button" className="btn btn--ghost call-line__back" onClick={() => void calls.start(conversationId, e.media).catch(() => undefined)} aria-label={`Call back (${e.media})`}><Icon name={e.media === 'video' ? 'video' : 'phone'} size={16} /></button>}
+      {canCall && <span className="call-line__back"><OvalButton icon={e.media === 'video' ? 'video' : 'phone'} label="Call back" size="sm" variant="soft" onClick={() => void calls.start(conversationId, e.media).catch(() => undefined)} aria-label={`Call back (${e.media})`} /></span>}
     </div>
   );
 }

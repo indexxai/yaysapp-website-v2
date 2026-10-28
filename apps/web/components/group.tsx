@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { ApiError, MAX_GROUP_ABOUT, MAX_GROUP_NAME, textLength, type GroupInfo, type GroupMember, type GroupSettings, type JoinRequest, type PublicProfile } from '@yays/shared';
 import { Icon } from '@/lib/icons';
 import { useChatState, useEngine } from '@/lib/chat';
-import { Avatar, Banner, OvalButton } from './ui';
+import { Avatar, Banner, OvalButton, PhotoPick, shareInvite } from './ui';
+import { Modal } from './message-actions';
 import { BlockReportDialog, MuteRow } from './contact';
 
 const msg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
@@ -89,55 +90,96 @@ function PeoplePicker({ picked, setPicked, exclude = [] }: { picked: PublicProfi
 // ---------------- new group (w05) ----------------
 export function NewGroup({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const engine = useEngine();
-  const [step, setStep] = useState<1 | 2>(1);
+  const s = useChatState();
   const [picked, setPicked] = useState<PublicProfile[]>([]);
+  const [found, setFound] = useState<PublicProfile[]>([]);
   const [name, setName] = useState('');
-  const [about, setAbout] = useState('');
   const [adminsOnly, setAdminsOnly] = useState(false);
+  const [photo, setPhoto] = useState<{ key: string; url: string } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [q, setQ] = useState('');
+  const [findError, setFindError] = useState<string | null>(null);
+  const [finding, setFinding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
   const nameLen = textLength(name.trim());
+  const known = useMemo(() => s.order.map((id) => s.conversations[id]).filter((c) => c?.kind === 'direct' && c.peer).map((c) => c.peer!) as PublicProfile[], [s.order, s.conversations]);
+  const people = [...known, ...found.filter((f) => !known.some((k) => k.id === f.id))];
+  const term = q.trim().toLowerCase().replace(/^@/, '');
+  const list = people.filter((p) => !term || p.displayName.toLowerCase().includes(term) || (p.username ?? '').includes(term));
+  const isPicked = (id: string) => picked.some((p) => p.id === id);
+  const toggle = (p: PublicProfile) => setPicked(isPicked(p.id) ? picked.filter((x) => x.id !== p.id) : [...picked, p]);
+  const find = async () => {
+    if (!q.trim()) return;
+    setFinding(true); setFindError(null);
+    try {
+      const p = await engine.lookup(q.trim());
+      if (p.id === engine.me) setFindError("That's you. You're in the group already.");
+      else { setFound((f) => (f.some((x) => x.id === p.id) ? f : [...f, p])); if (!isPicked(p.id)) setPicked([...picked, p]); setQ(''); }
+    } catch (err) { setFindError(msg(err, 'Search failed. Try again.')); } finally { setFinding(false); }
+  };
+  const pickPhoto = async (f: File) => {
+    setUploading(true); setError(null);
+    try { const key = await engine.uploadPhoto(f); setPhoto({ key, url: URL.createObjectURL(f) }); } catch (err) { setError(msg(err, "The photo didn't upload.")); } finally { setUploading(false); }
+  };
   const create = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError('Give the group a name.'); return; }
+    if (!picked.length) { setError('Pick at least one person.'); return; }
     setBusy(true); setError(null);
-    try { const c = await engine.createGroup({ name, about: about.trim() || undefined, memberIds: picked.map((p) => p.id), adminsOnly }); onCreated(c.id); }
-    catch (err) { setError(msg(err, 'Could not create the group. Try again.')); setBusy(false); }
+    try {
+      const c = await engine.createGroup({ name, memberIds: picked.map((p) => p.id), adminsOnly });
+      if (photo) await engine.updateGroup(c.id, { photoKey: photo.key }).catch(() => undefined);
+      onCreated(c.id);
+    } catch (err) { setError(msg(err, 'Could not create the group. Try again.')); setBusy(false); }
   };
   return (
-    <section aria-label="New group" className="new-chat">
-      <div className="pane-head">
-        <OvalButton icon="arrow-left" label="Back" size="sm" variant="ghost" onClick={step === 1 ? onClose : () => setStep(1)} />
-        <div><h2>New group</h2><span className="step">Step {step} of 2</span></div>
-      </div>
-      {step === 1 ? (
-        <div className="pane-body">
-          <PeoplePicker picked={picked} setPicked={setPicked} />
-          <div className="pane-foot">
-            <span>{picked.length ? `${picked.length + 1} of 1,024 members` : 'Pick at least one person'}</span>
-            <OvalButton icon="arrow-right" label="Next" size="md" disabled={!picked.length} onClick={() => setStep(2)} />
+    <Modal title="New group" onClose={onClose} eyebrow={<span className="caps">Group chat</span>}>
+      <form className="new-group" onSubmit={create} aria-label="New group">
+        <div className="new-group__top">
+          <PhotoPick url={photo?.url ?? null} onFile={(f) => void pickPhoto(f)} busy={uploading} label="Group photo" />
+          <div className="new-group__fields">
+            <div className={`ys-field${error && !name.trim() ? ' ys-field--error' : ''}`}>
+              <label className="ys-field__label" htmlFor="gname">Group name</label>
+              <div className="ys-field__box"><input id="gname" className="ys-input" value={name} autoFocus maxLength={MAX_GROUP_NAME * 2} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="Family, Team, Sunday football…" /><span className="field-count">{nameLen}/{MAX_GROUP_NAME}</span></div>
+            </div>
+            <label className="check-row"><input type="checkbox" checked={adminsOnly} onChange={(e) => setAdminsOnly(e.target.checked)} /> Only admins can send messages</label>
           </div>
         </div>
-      ) : (
-        <form className="pane-body" onSubmit={create}>
-          <div className={`ys-field${error ? ' ys-field--error' : ''}`}>
-            <label className="ys-field__label" htmlFor="gname">Group name</label>
-            <div className="ys-field__box"><input id="gname" className="ys-input" value={name} autoFocus maxLength={MAX_GROUP_NAME * 2} onChange={(e) => { setName(e.target.value); setError(null); }} placeholder="Family, Team, Sunday football…" /></div>
-            <span className="ys-field__hint" role={error ? 'alert' : undefined}>{error ?? `${nameLen}/${MAX_GROUP_NAME}`}</span>
+        {error && <span className="new-group__error" role="alert">{error}</span>}
+        <div className="new-group__members">
+          <div className="new-group__label"><span className="ys-field__label">Members</span><span className="muted">{picked.length + 1} of 1,024</span></div>
+          {picked.length > 0 && (
+            <div className="chips" aria-label="Picked">
+              {picked.map((p) => <button key={p.id} type="button" className="chip" onClick={() => toggle(p)} aria-label={`Remove ${p.displayName}`}><Avatar name={p.displayName} photoUrl={p.photoUrl} size={22} />{p.displayName.split(' ')[0]}<Icon name="close" size={14} /></button>)}
+            </div>
+          )}
+          <div className={`ys-field ys-field--pill new-group__search${findError ? ' ys-field--error' : ''}`}>
+            <div className="ys-field__box"><Icon name="search" size={18} />
+              <input className="ys-input" aria-label="Add people" value={q} onChange={(e) => { setQ(e.target.value); setFindError(null); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void find(); } }} placeholder="Search your chats, or type @username, phone or email" autoComplete="off" />
+              {finding && <span className="ys-spin" aria-label="Finding" />}
+            </div>
+            {findError ? <span className="ys-field__hint" role="alert">{findError}</span> : term && !list.length ? <span className="ys-field__hint">Press Enter to find someone by username, phone or email.</span> : null}
           </div>
-          <div className="ys-field">
-            <label className="ys-field__label" htmlFor="gabout">Description (optional)</label>
-            <div className="ys-field__box"><input id="gabout" className="ys-input" value={about} maxLength={MAX_GROUP_ABOUT} onChange={(e) => setAbout(e.target.value)} placeholder="What this group is for" /></div>
+          <div className="pick-list" role="group" aria-label="People">
+            {list.map((p) => (
+              <label key={p.id} className="pick-line">
+                <Avatar name={p.displayName} photoUrl={p.photoUrl} size={40} />
+                <span className="ys-row-item__text"><span className="ys-row-item__title">{p.displayName}</span><span className="ys-row-item__sub">{p.about || (p.username ? `@${p.username}` : '')}</span></span>
+                <input type="checkbox" checked={isPicked(p.id)} onChange={() => toggle(p)} aria-label={p.displayName} />
+              </label>
+            ))}
+            {!people.length && <span className="picker__empty">No chats yet. Type someone's @username, phone or email and press Enter.</span>}
           </div>
-          <Switch on={adminsOnly} onChange={setAdminsOnly} label="Only admins can send messages" hint="For announcements. You can change this later." />
-          <div className="chips">{picked.map((p) => <span key={p.id} className="chip"><Avatar name={p.displayName} photoUrl={p.photoUrl} size={24} />{p.displayName}</span>)}</div>
-          <div className="pane-foot">
-            <span>{picked.length + 1} members</span>
-            <OvalButton type="submit" icon="check" label="Create group" size="md" loading={busy} disabled={nameLen > MAX_GROUP_NAME} />
-          </div>
-        </form>
-      )}
-    </section>
+          <p className="new-group__invite">Not on YaysApp? <button type="button" className="link-btn link-btn--inline" onClick={() => void shareInvite().then((c) => { if (c) { setCopied(true); setTimeout(() => setCopied(false), 2000); } })}>{copied ? 'Invite link copied' : 'Share an invite link'}</button></p>
+        </div>
+        <div className="modal__actions new-group__foot">
+          <OvalButton icon="arrow-left" label="Back" size="sm" variant="soft" onClick={onClose} />
+          <OvalButton type="submit" icon="check" label="Create group" size="sm" loading={busy} disabled={nameLen > MAX_GROUP_NAME} />
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -171,34 +213,37 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
   const canAdd = member && !g.announcements && (admin || g.settings.addMembers === 'all');
   return (
     <aside className="info-panel" aria-label="Group info">
-      <div className="pane-head">
-        <OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={onClose} />
+      <div className="pane-head pane-head--end">
         <h2>Group info</h2>
+        <OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={onClose} />
       </div>
       <div className="info-panel__body">
         {error && <Banner>{error}</Banner>}
         {notice && <Banner tone="success">{notice}</Banner>}
         {mode === 'edit' ? <EditGroup g={g} onDone={(ok) => { setMode('view'); if (ok) setNotice('Saved.'); }} /> : (
           <div className="info-hero">
-            <Avatar name={g.name} photoUrl={g.photoUrl} size={96} />
+            <Avatar name={g.name} photoUrl={g.photoUrl} size={96} group />
             <h3>{g.name}</h3>
-            <span className="muted">{g.announcements ? 'Announcements' : 'Group'} · {g.memberCount} member{g.memberCount === 1 ? '' : 's'}</span>
+            <span className="muted" style={{ fontSize: 13 }}>{g.announcements ? 'Announcements' : 'Group'} · {g.memberCount} member{g.memberCount === 1 ? '' : 's'}</span>
             {g.community && <a className="link-btn" href={`/communities?id=${g.community.id}`}>Part of {g.community.name}</a>}
             {g.about && <p>{g.about}</p>}
-            {canEdit && <OvalButton icon="edit" label="Edit" size="sm" variant="soft" onClick={() => setMode('edit')} />}
+            {(canEdit || (canAdd && mode !== 'add')) && (
+              <div className="row" style={{ gap: 22, justifyContent: 'center' }}>
+                {canEdit && <OvalButton icon="edit" label="Edit" size="sm" variant="soft" onClick={() => setMode('edit')} />}
+                {canAdd && mode !== 'add' && <OvalButton icon="person-add" label="Add members" size="sm" variant="soft" onClick={() => setMode('add')} />}
+              </div>
+            )}
           </div>
         )}
         {!member && <Banner tone="info">You’re no longer in this group. You can still read what was said while you were.</Banner>}
         <section className="info-section"><MuteRow c={c} run={run} /></section>
 
-        {mode === 'add' ? (
-          <AddMembers g={g} onDone={(n) => { setMode('view'); if (n) setNotice(`Added ${n} ${n === 1 ? 'person' : 'people'}.`); }} />
-        ) : canAdd && <div className="row"><OvalButton icon="person-add" label="Add members" size="sm" variant="soft" onClick={() => setMode('add')} /></div>}
+        {mode === 'add' && <AddMembers g={g} onDone={(n) => { setMode('view'); if (n) setNotice(`Added ${n} ${n === 1 ? 'person' : 'people'}.`); }} />}
 
         {admin && g.pendingRequests > 0 && <Requests id={id} count={g.pendingRequests} onError={setError} />}
 
         <section aria-label="Members" className="info-section">
-          <h4>{g.memberCount} members</h4>
+          <h5 className="info-label">{g.memberCount} member{g.memberCount === 1 ? '' : 's'}</h5>
           <div className="ys-list">
             {g.members.map((m) => <MemberRow key={m.id} m={m} me={me} admin={admin && !g.announcements} run={run} groupId={id} />)}
           </div>
@@ -206,16 +251,15 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
 
         {(canAdd || admin) && member && <InviteAndPermissions g={g} admin={admin} canAdd={canAdd} run={run} />}
 
-        <section className="info-section info-danger">
-          <div className="row" style={{ gap: 18, flexWrap: 'wrap' }}>
-            <OvalButton icon="flag" label="Report group" size="sm" variant="danger" onClick={() => setReporting(true)} />
-            <ConfirmButton label="Clear chat" icon="trash" danger={false} confirm="Clear" question="Clear all messages in this group for you?" onConfirm={() => run(() => engine.clearChat(id), 'Chat cleared.')} />
-          </div>
-          {g.announcements && member ? <span className="muted" style={{ fontSize: 13 }}>Everyone in the community is in this group. To leave it, exit the community.</span> : member
-            ? <ConfirmButton label="Leave group" confirm="Leave" question={`Leave ${g.name}?`} onConfirm={() => run(async () => { await engine.leaveGroup(id); onLeft(); })} />
-            : <ConfirmButton label="Delete group" icon="trash" confirm="Delete" question="Delete this group and its messages from your chats?" onConfirm={() => run(async () => { await engine.deleteGroup(id); onLeft(); })} />}
-        </section>
+        {g.announcements && member && <span className="muted" style={{ fontSize: 13, padding: '0 20px' }}>Everyone in the community is in this group. To leave it, exit the community.</span>}
       </div>
+      <footer className="info-footer">
+        <OvalButton icon="flag" label="Report" size="sm" variant="ghost" aria-label="Report group" onClick={() => setReporting(true)} />
+        <ConfirmButton label="Clear chat" icon="trash" danger={false} confirm="Clear" question="Clear all messages in this group for you?" onConfirm={() => run(() => engine.clearChat(id), 'Chat cleared.')} />
+        {g.announcements && member ? null : member
+          ? <ConfirmButton label="Exit group" confirm="Exit" question={`Exit ${g.name}?`} onConfirm={() => run(async () => { await engine.leaveGroup(id); onLeft(); })} />
+          : <ConfirmButton label="Delete group" icon="trash" confirm="Delete" question="Delete this group and its messages from your chats?" onConfirm={() => run(async () => { await engine.deleteGroup(id); onLeft(); })} />}
+      </footer>
       {reporting && <BlockReportDialog mode="report" c={c} onClose={() => setReporting(false)} onDone={(t) => { setReporting(false); setNotice(t); }} />}
     </aside>
   );
@@ -277,7 +321,7 @@ function EditGroup({ g, onDone }: { g: GroupInfo; onDone: (saved: boolean) => vo
   return (
     <form className="info-edit" onSubmit={save} aria-label="Edit group">
       <div className="info-hero">
-        <Avatar name={name || g.name} photoUrl={photo.url} size={96} />
+        <Avatar name={name || g.name} photoUrl={photo.url} size={96} group />
         <div className="row center">
           <OvalButton icon="camera" label={photo.url ? 'Change photo' : 'Add photo'} size="sm" variant="soft" onClick={() => file.current?.click()} disabled={busy} />
           {photo.url && <OvalButton icon="trash" label="Remove photo" size="sm" variant="ghost" onClick={() => setPhoto({ key: null, url: null })} />}

@@ -7,8 +7,7 @@ test.describe('Linking a browser, and loading, offline and error states', () => 
     const a = await pageAs(browser, ali);
     const fresh = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
     const b = await fresh.newPage();
-    await b.goto('/sign-in');
-    await b.getByRole('button', { name: /Scan a QR code/ }).click();
+    await b.goto('/sign-in'); // the QR code is what a signed-out browser sees first
     await expect(b.getByRole('heading', { name: 'Scan to sign in' })).toBeVisible();
     await expect(b.getByRole('img', { name: 'QR code to link this browser' }).locator('svg')).toBeVisible();
     await expect(b.getByText(/Code refreshes in [01]:\d\d/)).toBeVisible();

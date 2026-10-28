@@ -34,6 +34,7 @@ function Devices() {
 
   return (
     <>
+        <p className="settings__lead">Use YaysApp in more than one browser as well as on your phone. Messages stay in sync on all of them.</p>
         {msg && <Banner tone={msg.tone}>{msg.text}</Banner>}
         <section className="set-card" aria-label="Signed-in devices">
           {list?.map((d) => (
@@ -74,8 +75,8 @@ function LinkDeviceDialog({ onClose, onLinked }: { onClose: () => void; onLinked
         {error && <Banner>{error}</Banner>}
         <input className="ys-input link-device__code" aria-label="Code from the other device" placeholder="XXXX-XXXX" maxLength={9} autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} autoFocus />
         <div className="modal__actions">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn" disabled={busy || code.replace(/[^a-z0-9]/gi, '').length !== 8}>Link device</button>
+          <OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} />
+          <OvalButton type="submit" icon="link" label="Link device" size="sm" variant="secondary" disabled={busy || code.replace(/[^a-z0-9]/gi, '').length !== 8} />
         </div>
       </form>
     </Modal>

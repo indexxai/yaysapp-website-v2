@@ -93,11 +93,11 @@ test.describe('Calls on the web', () => {
     await expect(incoming(s.page)).toBeVisible();
     await expect(callScreen(a.page).getByTestId('call-status')).toHaveText('No answer', { timeout: 15_000 });
     await expect(incoming(s.page)).toHaveCount(0);
-    const badge = s.page.getByRole('link', { name: 'Calls' }).getByLabel('1 missed call');
+    const badge = s.page.getByLabel('1 missed call');
     await expect(badge).toBeVisible();
     await expect(s.page.getByTestId('chat-row').filter({ hasText: 'Ali' })).toContainText('Missed voice call');
     await s.page.getByRole('link', { name: 'Calls' }).click();
-    await expect(s.page.getByRole('link', { name: 'Calls' }).getByLabel(/missed call/)).toHaveCount(0);
+    await expect(s.page.getByLabel(/missed call/)).toHaveCount(0);
     const rows = s.page.getByTestId('call-row');
     await expect(rows.first()).toContainText('Missed');
     await expect(rows.nth(1)).toContainText('Declined');

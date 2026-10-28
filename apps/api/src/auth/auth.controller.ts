@@ -49,7 +49,7 @@ export class AuthController {
 
   @Post('link/start') @HttpCode(200)
   async linkStart(@Body() b: unknown, @Req() r: Request) {
-    await this.limiter.hit(`link:start:${ipOf(r)}`, 60, 3600, 'Too many codes. Wait a few minutes and try again.');
+    await this.limiter.hit(`link:start:${ipOf(r)}`, 300, 3600, 'Too many codes. Wait a few minutes and try again.');
     return this.auth.linkStart(parse(linkStartSchema, b).device, ipOf(r));
   }
   @Get('link/:pollId') linkPoll(@Param('pollId') id: string) { return this.auth.linkPoll(id); }

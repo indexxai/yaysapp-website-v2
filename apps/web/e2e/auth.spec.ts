@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { codeFor, freshEmail, freshPhone, local, seedLegacy, signInWithEmail, signUpWithPhone, typeCode, db } from './helpers';
+import { codeFor, openCodeSignIn, freshEmail, freshPhone, local, seedLegacy, signInWithEmail, signUpWithPhone, typeCode, db } from './helpers';
 
 test.describe('Week 2 · sign-in on the web', () => {
   test('signed-out visitors land on sign-in', async ({ page }) => {
     await page.goto('/chats');
     await expect(page).toHaveURL(/\/sign-in$/);
+    // A big screen starts with the QR code; the code form is one click away.
+    await expect(page.getByRole('heading', { name: 'Scan to sign in' })).toBeVisible();
+    await page.getByRole('button', { name: 'Sign in with a code instead' }).click();
     await expect(page.getByRole('heading', { name: 'Sign in to YaysApp' })).toBeVisible();
   });
 
@@ -51,7 +54,7 @@ test.describe('Week 2 · sign-in on the web', () => {
   });
 
   test('wrong code shows tries left; invalid number is caught; change number goes back', async ({ page }) => {
-    await page.goto('/sign-in');
+    await openCodeSignIn(page);
     await page.getByLabel('Phone number').fill('12345');
     await page.getByRole('button', { name: 'Send code' }).click();
     await expect(page.getByText(/Enter a mobile number/)).toBeVisible();
@@ -82,7 +85,7 @@ test.describe('Week 2 · sign-in on the web', () => {
     await signInWithEmail(page, freshEmail('mail'));
     await expect(page).toHaveURL(/\/setup\/profile$/);
     await page.evaluate(() => localStorage.clear());
-    await page.goto('/sign-in');
+    await openCodeSignIn(page);
     const g = freshEmail('google');
     page.once('dialog', (d) => d.accept(g));
     await page.getByRole('button', { name: 'Google (dev)' }).click();

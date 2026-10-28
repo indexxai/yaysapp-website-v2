@@ -1,7 +1,7 @@
 // Starts everything the web and mobile end-to-end tests need: MongoDB replica set, Redis and the built API.
 // Stays in the foreground; Playwright stops it when the run ends.
 import { spawn, execSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -14,11 +14,18 @@ const mongod = process.env.MONGOD_BIN || which('mongod') || '/home/claude/tools/
 const redisBin = process.env.REDIS_BIN || which('redis-server');
 const MP = Number(process.env.STACK_MONGO_PORT || 27120), RP = Number(process.env.STACK_REDIS_PORT || 6420), AP = Number(process.env.STACK_API_PORT || 4100);
 const DBNAME = process.env.STACK_DB || 'web_e2e';
+// Earlier runs that were killed outright leave their data behind; clear anything older than an hour.
+for (const d of readdirSync(tmpdir())) {
+  if (!d.startsWith('yays-web-e2e-')) continue;
+  const p = path.join(tmpdir(), d);
+  try { if (Date.now() - statSync(p).mtimeMs > 3_600_000) rmSync(p, { recursive: true, force: true }); } catch {}
+}
 const dir = mkdtempSync(path.join(tmpdir(), 'yays-web-e2e-'));
 const kids = [];
 const run = (cmd, args, opts = {}) => { const c = spawn(cmd, args, { stdio: ['ignore', 'inherit', 'inherit'], ...opts }); kids.push(c); return c; };
 const stop = () => { for (const k of kids) { try { k.kill('SIGTERM'); } catch {} } rmSync(dir, { recursive: true, force: true }); process.exit(0); };
-process.on('SIGTERM', stop); process.on('SIGINT', stop);
+process.on('SIGTERM', stop); process.on('SIGINT', stop); process.on('SIGHUP', stop);
+process.on('exit', () => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
 
 run(mongod, ['--replSet', 'rs0', '--bind_ip', '127.0.0.1', '--port', String(MP), '--dbpath', path.join(dir), '--quiet', '--setParameter', 'diagnosticDataCollectionEnabled=false'], { stdio: 'ignore' });
 run(redisBin, ['--port', String(RP), '--save', '', '--appendonly', 'no'], { stdio: 'ignore' });

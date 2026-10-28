@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import QRCode from 'qrcode';
 import { ApiError, ErrorCode, needsPin, normalizeEmail, normalizePhone, type CodeSent, type LinkStart, type SignInResult } from '@yays/shared';
-import { api, hasSession } from '@/lib/api';
+import { api, hasSession, keepSignedIn, setKeepSignedIn } from '@/lib/api';
 import { AuthShell } from '@/components/auth-shell';
 import { Banner, Field, OvalButton } from '@/components/ui';
 import { useCountdown } from '@/components/use-countdown';
@@ -19,7 +19,7 @@ const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something 
 
 export default function SignIn() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>({ s: 'phone' });
+  const [step, setStep] = useState<Step>({ s: 'qr' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendAt, setResendAt] = useState(0);
@@ -27,6 +27,8 @@ export default function SignIn() {
 
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
+    // A phone can't scan its own screen: phones start with the phone number.
+    if (window.matchMedia('(max-width: 860px)').matches) setStep((x) => (x.s === 'qr' ? { s: 'phone' } : x));
     if (hasSession()) router.replace('/chats');
     else if (new URLSearchParams(window.location.search).get('deleted') === '1') setNotice('Your account was deleted. You can make a new one any time with the same steps.');
   }, [router]);
@@ -45,7 +47,8 @@ export default function SignIn() {
   const sent = (s: CodeSent) => setResendAt(Date.now() + s.resendInSeconds * 1000);
 
   return (
-    <AuthShell>
+    <AuthShell wide={step.s === 'qr'}>
+      {step.s === 'qr' && notice && <Banner tone="success">{notice}</Banner>}
       {step.s === 'qr' && <QrStep onBack={() => setStep({ s: 'phone' })} onLinked={() => router.replace('/chats')} />}
       {step.s === 'phone' || step.s === 'email' ? (
         <>
@@ -63,7 +66,7 @@ export default function SignIn() {
             : <EmailForm busy={busy} label="Email" submitLabel="Send code" onSubmit={(email) => run(async () => { const r = await api().startEmail(email); sent(r); setStep({ s: 'email-code', email, sent: r }); })} />}
           <div className="divider">or</div>
           <GoogleButton onToken={(t) => run(async () => done(await api().google(t)))} busy={busy} />
-          <button type="button" className="link-btn qr-switch" onClick={() => { setError(null); setStep({ s: 'qr' }); }}><Icon name="qr" size={18} />Already signed in on another device? Scan a QR code</button>
+          <button type="button" className="link-btn qr-switch" onClick={() => { setError(null); setStep({ s: 'qr' }); }}><Icon name="qr" size={18} />Scan a QR code instead</button>
         </>
       ) : null}
 
@@ -264,25 +267,27 @@ function QrStep({ onBack, onLinked }: { onBack: () => void; onLinked: () => void
     return () => { alive = false; clearInterval(t); };
   }, [link, onLinked]);
   const secs = link ? Math.max(0, Math.round((Date.parse(link.expiresAt) - now) / 1000)) : 0;
+  const [keep, setKeep] = useState(() => keepSignedIn());
   return (
     <div className="qr-step">
       <div className="qr-step__text">
         <h1>Scan to sign in</h1>
         <ol>
-          <li>Open YaysApp on your phone or another signed-in browser</li>
-          <li>Go to <strong>Settings</strong>, then <strong>Linked devices</strong></li>
-          <li>Tap <strong>Link a device</strong> and point your phone at this code, or type the code below it</li>
+          <li>Open YaysApp on your phone</li>
+          <li>Go to <strong>Me</strong> (or <strong>Settings</strong> in a browser), then <strong>Linked devices</strong></li>
+          <li>Tap <strong>Link a device</strong> and point your phone at this code</li>
         </ol>
+        <label className="check-row"><input type="checkbox" checked={keep} onChange={(e) => { setKeep(e.target.checked); setKeepSignedIn(e.target.checked); }} />Keep me signed in on this browser</label>
         {error && <Banner>{error}</Banner>}
-        <button type="button" className="link-btn" onClick={onBack}>No other device? Sign in with a code instead</button>
+        <p className="qr-step__alt">No phone with you? <button type="button" className="link-btn link-btn--inline" onClick={onBack}>Sign in with a code instead</button></p>
       </div>
       <div className="qr-step__code">
         <div className="qr-box" role="img" aria-label="QR code to link this browser">
           {svg ? <span className="qr-box__svg" dangerouslySetInnerHTML={{ __html: svg }} /> : <span className="ys-spin" aria-hidden />}
-          {svg && <span className="qr-box__logo" aria-hidden>Y</span>}
+          {svg && <span className="qr-box__logo" aria-hidden><img src="/brand/mark.png" alt="" /></span>}
         </div>
-        {link && <strong className="qr-code-text" data-testid="link-code">{link.code}</strong>}
         <span className="muted" style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{link ? `Code refreshes in ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` : 'Getting a code…'}</span>
+        {link && <span className="qr-code-hint">On a computer, type <strong className="qr-code-text" data-testid="link-code">{link.code}</strong></span>}
       </div>
     </div>
   );
