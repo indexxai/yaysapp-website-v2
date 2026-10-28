@@ -11,7 +11,8 @@ export type SystemEvent =
   | { kind: 'added'; userIds: string[] }
   | { kind: 'removed'; userIds: string[] }
   | { kind: 'left' }
-  | { kind: 'joined'; via: 'link' | 'request' }
+  | { kind: 'joined'; via: 'link' | 'request' | 'community' }
+  | { kind: 'community'; name: string; added: boolean }
   | { kind: 'renamed'; name: string }
   | { kind: 'about' }
   | { kind: 'photo'; removed: boolean }
@@ -150,6 +151,10 @@ export interface GroupMeta {
   ownerId: string;
   adminIds: string[];
   settings: GroupSettings;
+  /** The community this group belongs to. */
+  community?: { id: string; name: string } | null;
+  /** The community's announcements group: only admins post, everyone in the community is in it. */
+  announcements?: boolean;
 }
 export interface GroupMember extends PublicProfile { admin: boolean; owner: boolean }
 export interface GroupInfo extends GroupMeta {
@@ -369,6 +374,8 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
 export const reportSchema = z.object({
   userId: objectIdSchema.optional(),
   conversationId: objectIdSchema.optional(),
+  /** One message in particular (with conversationId). */
+  messageId: objectIdSchema.optional(),
   reason: z.enum(REPORT_REASONS),
   note: z.string().max(500).optional(),
   block: z.boolean().optional(),
@@ -386,3 +393,61 @@ export interface ChatOverview {
   commonGroups: Array<{ id: string; name: string; photoUrl: string | null; memberCount: number }>;
   blocked: boolean;
 }
+
+// ---- communities ----
+export const COMMUNITY_LIMITS = { members: 5000, groups: 50, name: 100, about: 2048 };
+export interface CommunitySettings {
+  /** People with the invite link send a request that an admin approves. */
+  approveNew: boolean;
+  /** Members can suggest their groups; admins decide. */
+  membersSuggest: boolean;
+}
+export interface CommunitySummary {
+  id: string; name: string; about: string; photoUrl: string | null;
+  memberCount: number; groupCount: number;
+  role: 'admin' | 'member';
+  /** Groups here I'm in with unread messages (announcements included). */
+  unreadChats: number;
+}
+export interface CommunityGroup {
+  id: string; name: string; photoUrl: string | null; memberCount: number;
+  joined: boolean; full: boolean; needsApproval: boolean; requested: boolean; announcements: boolean;
+}
+export interface CommunityInfo extends CommunitySummary {
+  ownerId: string;
+  settings: CommunitySettings;
+  /** Admins only. */
+  inviteCode: string | null;
+  announcementsId: string;
+  groups: CommunityGroup[];
+  /** Admins only. */
+  pendingRequests: number;
+  /** Admins only: groups members suggested. */
+  suggestions: Array<{ group: CommunityGroup; by: PublicProfile; at: string }>;
+  limits: { members: number; groups: number };
+}
+export interface CommunityMember extends PublicProfile { admin: boolean; owner: boolean; joinedAt: string }
+export interface CommunityInvitePreview { code: string; id: string; name: string; about: string; photoUrl: string | null; memberCount: number; groupCount: number; alreadyMember: boolean; needsApproval: boolean; requested: boolean }
+export type CommunityJoinResult = { status: 'joined'; community: CommunityInfo } | { status: 'requested' };
+/** A report about a message in one of the community's groups, for its admins. */
+export interface CommunityReport {
+  id: string; reason: string; reports: number; at: string;
+  chat: { id: string; name: string };
+  sender: PublicProfile | null;
+  message: ChatMessage | null;
+}
+
+const communityName = z.string().transform((v) => v.replace(/\s+/g, ' ').trim()).pipe(z.string().min(1, 'Give the community a name.').max(COMMUNITY_LIMITS.name, `Names can be up to ${COMMUNITY_LIMITS.name} characters.`));
+const communityAbout = z.string().max(COMMUNITY_LIMITS.about, 'The description is too long.').transform((v) => v.trim());
+export const createCommunitySchema = z.object({
+  name: communityName, about: communityAbout.optional(), photoKey: z.string().max(512).nullable().optional(),
+  approveNew: z.boolean().default(false), membersSuggest: z.boolean().default(false),
+  /** Groups I'm an admin of, to bring in. */
+  groupIds: z.array(objectIdSchema).max(COMMUNITY_LIMITS.groups).default([]),
+  /** New groups to create inside it. */
+  newGroups: z.array(z.string().transform((v) => v.trim()).pipe(z.string().min(1).max(100))).max(10).default([]),
+});
+export const updateCommunitySchema = z.object({ name: communityName.optional(), about: communityAbout.optional(), photoKey: z.string().max(512).nullable().optional(), approveNew: z.boolean().optional(), membersSuggest: z.boolean().optional() })
+  .refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
+export const communityGroupSchema = z.union([z.object({ groupId: objectIdSchema }), z.object({ name: z.string().transform((v) => v.trim()).pipe(z.string().min(1, 'Give the group a name.').max(100)) })]);
+export const moderateSchema = z.object({ action: z.enum(['delete', 'remove', 'keep']) });

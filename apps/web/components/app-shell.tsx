@@ -8,6 +8,7 @@ import { Avatar } from './ui';
 
 const NAV: Array<{ href: string; icon: IconName; label: string }> = [
   { href: '/chats', icon: 'chats', label: 'Chats' },
+  { href: '/communities', icon: 'people', label: 'Communities' },
   { href: '/settings', icon: 'settings', label: 'Settings' },
 ];
 

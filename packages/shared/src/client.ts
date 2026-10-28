@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
-import type { AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
+import type { AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
   get(): Tokens | null | Promise<Tokens | null>;
@@ -215,6 +215,32 @@ export class YaysClient {
     if (!r.ok) throw new ApiError(r.status, ErrorCode.INTERNAL, "The photo didn't upload. Try again.");
     return t.key;
   }
+
+  // ---- communities ----
+  communities() { return this.request<CommunitySummary[]>('GET', '/v1/communities'); }
+  createCommunity(v: { name: string; about?: string; photoKey?: string | null; approveNew?: boolean; membersSuggest?: boolean; groupIds?: string[]; newGroups?: string[] }) { return this.request<CommunityInfo>('POST', '/v1/communities', v); }
+  community(id: string) { return this.request<CommunityInfo>('GET', `/v1/communities/${encodeURIComponent(id)}`); }
+  updateCommunity(id: string, v: { name?: string; about?: string; photoKey?: string | null; approveNew?: boolean; membersSuggest?: boolean }) { return this.request<CommunityInfo>('PATCH', `/v1/communities/${encodeURIComponent(id)}`, v); }
+  leaveCommunity(id: string) { return this.request<void>('POST', `/v1/communities/${encodeURIComponent(id)}/leave`, {}); }
+  addCommunityGroup(id: string, v: { groupId: string } | { name: string }) { return this.request<CommunityInfo>('POST', `/v1/communities/${encodeURIComponent(id)}/groups`, v); }
+  removeCommunityGroup(id: string, gid: string) { return this.request<CommunityInfo>('DELETE', `/v1/communities/${encodeURIComponent(id)}/groups/${encodeURIComponent(gid)}`); }
+  joinCommunityGroup(id: string, gid: string) { return this.request<JoinResult>('POST', `/v1/communities/${encodeURIComponent(id)}/groups/${encodeURIComponent(gid)}/join`, {}); }
+  suggestCommunityGroup(id: string, gid: string) { return this.request<void>('POST', `/v1/communities/${encodeURIComponent(id)}/suggestions/${encodeURIComponent(gid)}`, {}); }
+  approveSuggestion(id: string, gid: string) { return this.request<CommunityInfo>('POST', `/v1/communities/${encodeURIComponent(id)}/suggestions/${encodeURIComponent(gid)}/approve`, {}); }
+  declineSuggestion(id: string, gid: string) { return this.request<void>('DELETE', `/v1/communities/${encodeURIComponent(id)}/suggestions/${encodeURIComponent(gid)}`); }
+  communityMembers(id: string, before?: string) { return this.request<{ items: CommunityMember[]; next: string | null }>('GET', `/v1/communities/${encodeURIComponent(id)}/members${before ? `?before=${encodeURIComponent(before)}` : ''}`); }
+  removeCommunityMember(id: string, uid: string) { return this.request<void>('DELETE', `/v1/communities/${encodeURIComponent(id)}/members/${encodeURIComponent(uid)}`); }
+  setCommunityAdmin(id: string, uid: string, on: boolean) { return this.request<void>(on ? 'PUT' : 'DELETE', `/v1/communities/${encodeURIComponent(id)}/admins/${encodeURIComponent(uid)}`, on ? {} : undefined); }
+  communityInvite(id: string) { return this.request<{ inviteCode: string }>('POST', `/v1/communities/${encodeURIComponent(id)}/invite`, {}); }
+  revokeCommunityInvite(id: string) { return this.request<void>('DELETE', `/v1/communities/${encodeURIComponent(id)}/invite`); }
+  previewCommunityInvite(code: string) { return this.request<CommunityInvitePreview>('GET', `/v1/community-invites/${encodeURIComponent(code)}`); }
+  joinCommunity(code: string) { return this.request<CommunityJoinResult>('POST', `/v1/community-invites/${encodeURIComponent(code)}/join`, {}); }
+  cancelCommunityRequest(code: string) { return this.request<void>('DELETE', `/v1/community-invites/${encodeURIComponent(code)}/request`); }
+  communityRequests(id: string) { return this.request<JoinRequest[]>('GET', `/v1/communities/${encodeURIComponent(id)}/requests`); }
+  approveCommunityRequest(id: string, uid: string | 'all') { return this.request<{ approved: number }>('POST', `/v1/communities/${encodeURIComponent(id)}/requests/${encodeURIComponent(uid)}/approve`, {}); }
+  declineCommunityRequest(id: string, uid: string) { return this.request<void>('DELETE', `/v1/communities/${encodeURIComponent(id)}/requests/${encodeURIComponent(uid)}`); }
+  communityReports(id: string) { return this.request<CommunityReport[]>('GET', `/v1/communities/${encodeURIComponent(id)}/reports`); }
+  moderate(id: string, reportId: string, action: 'delete' | 'remove' | 'keep') { return this.request<void>('POST', `/v1/communities/${encodeURIComponent(id)}/reports/${encodeURIComponent(reportId)}`, { action }); }
 
   // ---- search ----
   search(q: string, type: 'all' | 'chats' | 'people' | 'messages' | 'files' = 'all', before?: string) {

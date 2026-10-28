@@ -33,6 +33,10 @@ export interface ConversationDoc {
   inviteCode?: string | null;
   /** Pinned messages, newest last. */
   pins?: Array<{ msgId: ObjectId; seq: number; by: ObjectId; at: Date }>;
+  /** The community this group belongs to. */
+  communityId?: ObjectId | null;
+  /** The community's announcements group. */
+  announcements?: boolean;
 }
 export interface MessageDoc {
   _id: ObjectId;
@@ -181,9 +185,11 @@ export class ChatService {
   readonly stars: Collection<StarDoc>;
   readonly prefs: Collection<ChatPrefDoc>;
   readonly blocks: Collection<BlockDoc>;
+  readonly communities: Collection<{ _id: ObjectId; name: string }>;
 
   constructor(readonly client: MongoClient, readonly db: Db, readonly storage: Storage) {
     this.blocks = db.collection(C.blocks);
+    this.communities = db.collection(C.communities);
     this.stars = db.collection(C.stars);
     this.prefs = db.collection(C.chatPrefs);
     this.convs = db.collection(C.conversations);
@@ -351,7 +357,10 @@ export class ChatService {
   }
 
   async groupMeta(c: ConversationDoc, me: ObjectId): Promise<GroupMeta> {
+    const community = c.communityId ? await this.communities.findOne({ _id: c.communityId }, { projection: { name: 1 } }) : null;
     return {
+      community: community ? { id: community._id.toHexString(), name: community.name } : null,
+      ...(c.announcements ? { announcements: true } : {}),
       name: c.name ?? 'Group', about: c.about ?? '', photoUrl: c.photoKey ? await this.photo(c.photoKey) : null, memberCount: c.members.length,
       role: !has(c.members, me) ? 'former' : this.isAdmin(c, me) ? 'admin' : 'member',
       ownerId: (c.ownerId ?? c.createdBy).toHexString(), adminIds: (c.admins ?? []).map((a) => a.toHexString()), settings: this.settingsOf(c),
@@ -375,7 +384,9 @@ export class ChatService {
     const senderIds = lastMsgs.map((m) => m?.senderId).filter((x): x is ObjectId => !!x);
     const people = await this.users.find({ _id: { $in: [...peerIds, ...senderIds] } }).toArray();
     const byId = new Map(people.map((u) => [u._id.toHexString(), u]));
-    const recs = await this.receipts.find({ convId: { $in: ids } }).toArray();
+    // Everyone's ticks for ordinary chats; in very big groups (community announcements) only mine.
+    const small = convs.filter((c) => c.members.length <= 300).map((c) => c._id);
+    const recs = [...await this.receipts.find({ convId: { $in: small } }).toArray(), ...[...mine.values()].filter((r) => !small.some((x) => x.equals(r.convId)))];
     const prefs = new Map((await this.prefs.find({ _id: { $in: ids.map((i) => rKey(i, me)) } }).toArray()).map((p) => [p.convId.toHexString(), p]));
     const blocks = await this.blocks.find({ $or: [{ by: me, target: { $in: peerIds } }, { target: me, by: { $in: peerIds } }] }).toArray();
     const profiles = await this.profilesFor(me, people.filter((u) => peerIds.some((p) => p.equals(u._id))));

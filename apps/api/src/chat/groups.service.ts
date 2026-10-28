@@ -27,6 +27,10 @@ export class GroupsService {
     if (c.kind !== 'group') throw AppError.notFound('Group not found.');
     return c;
   }
+  /** The announcements group's members follow the community; nobody manages them here. */
+  private notAnnouncements(c: ConversationDoc) {
+    if (c.announcements) throw AppError.validation('This is the community’s announcements group. People join and leave it with the community.');
+  }
   private requireAdmin(c: ConversationDoc, me: ObjectId) { if (!this.chat.isAdmin(c, me)) throw AppError.forbidden('Only group admins can do that.'); }
 
   /** People who exist, aren't turned off, and aren't me. Unknown ids are refused rather than silently dropped. */
@@ -74,11 +78,13 @@ export class GroupsService {
   async info(me: ObjectId, convId: string): Promise<GroupInfo> {
     const { c, member } = await this.chat.access(convId, me);
     if (c.kind !== 'group') throw AppError.notFound('Group not found.');
-    const people = await this.chat.users.find({ _id: { $in: c.members } }).toArray();
+    // Community announcements can have thousands of members: admins first, then the first few hundred.
+    const shown = c.announcements ? [...(c.admins ?? []), ...c.members.filter((u) => !has(c.admins, u))].slice(0, 300) : c.members;
+    const people = await this.chat.users.find({ _id: { $in: shown } }).toArray();
     const byId = new Map(people.map((u) => [u._id.toHexString(), u]));
     const owner = c.ownerId ?? c.createdBy;
     const seen = await this.chat.profilesFor(me, people);
-    const members = await Promise.all(c.members.map(async (u) => {
+    const members = await Promise.all(shown.map(async (u) => {
       const doc = byId.get(u.toHexString());
       const p = doc ? seen.get(u.toHexString())! : { id: u.toHexString(), displayName: 'Deleted account', username: null, about: '', photoUrl: null };
       return { ...p, admin: this.chat.isAdmin(c, u), owner: u.equals(owner) };
@@ -122,6 +128,7 @@ export class GroupsService {
 
   async setSettings(me: ObjectId, convId: string, changes: Partial<GroupSettings>): Promise<ConversationSummary> {
     const c0 = await this.group(convId, me);
+    this.notAnnouncements(c0);
     this.requireAdmin(c0, me);
     const cur = this.chat.settingsOf(c0);
     const diff: Partial<GroupSettings> = {};
@@ -137,19 +144,20 @@ export class GroupsService {
   /** Adds people (or brings back former members). Admins, or everyone when the group allows it. */
   async addMembers(me: ObjectId, convId: string, raw: string[]): Promise<ConversationSummary> {
     const c0 = await this.group(convId, me);
+    this.notAnnouncements(c0);
     if (!this.chat.may(c0, me, 'addMembers')) throw AppError.forbidden('Only admins can add people to this group.');
     const people = (await this.realPeople(me, raw)).filter((u) => !has(c0.members, u));
     if (!people.length) throw AppError.validation('Everyone you picked is already in the group.');
     return this.addPeople(me, c0, people, { kind: 'added', userIds: ids(people) }, me);
   }
 
-  private async addPeople(me: ObjectId, c0: ConversationDoc, people: ObjectId[], event: SystemEvent, actor: ObjectId) {
+  async addPeople(me: ObjectId, c0: ConversationDoc, people: ObjectId[], event: SystemEvent, actor: ObjectId, max = MAX_GROUP_MEMBERS) {
     const { c, m } = await this.chat.tx(async (s) => {
       const fresh = await this.chat.convs.findOne({ _id: c0._id }, { session: s });
       if (!fresh) throw AppError.notFound('Group not found.');
       const adding = people.filter((u) => !has(fresh.members, u));
       if (!adding.length) throw AppError.conflict('Already in the group.');
-      if (fresh.members.length + adding.length > MAX_GROUP_MEMBERS) throw AppError.conflict(`A group can have up to ${MAX_GROUP_MEMBERS} members. This would make ${fresh.members.length + adding.length}.`);
+      if (fresh.members.length + adding.length > max) throw AppError.conflict(`A group can have up to ${max} members. This would make ${fresh.members.length + adding.length}.`);
       const r = await this.chat.appendSystem(s, c0._id, actor, event, { $addToSet: { members: { $each: adding } }, $pull: { former: { $in: adding } } });
       await this.startFrom(s, c0._id, adding, r.c.seq - 1, actor, r.c.seq);
       await this.requests.deleteMany({ convId: c0._id, userId: { $in: adding } }, { session: s });
@@ -172,6 +180,7 @@ export class GroupsService {
 
   async removeMember(me: ObjectId, convId: string, userId: string): Promise<ConversationSummary> {
     const c0 = await this.group(convId, me);
+    this.notAnnouncements(c0);
     this.requireAdmin(c0, me);
     const target = new ObjectId(userId);
     if (target.equals(me)) throw AppError.validation('To leave the group, use Leave group.');
@@ -182,11 +191,12 @@ export class GroupsService {
 
   async leave(me: ObjectId, convId: string): Promise<ConversationSummary> {
     const c0 = await this.group(convId, me);
+    if (c0.announcements) throw AppError.validation('To leave the announcements group, leave the community.');
     return this.takeOut(me, c0, me, { kind: 'left' }, me);
   }
 
   /** Moves someone from members to former members; if the last admin goes, the longest-standing member takes over. */
-  private async takeOut(me: ObjectId, c0: ConversationDoc, target: ObjectId, event: SystemEvent, actor: ObjectId) {
+  async takeOut(me: ObjectId, c0: ConversationDoc, target: ObjectId, event: SystemEvent, actor: ObjectId) {
     const { c, m, promoted } = await this.chat.tx(async (s) => {
       const fresh = await this.chat.convs.findOne({ _id: c0._id, members: target }, { session: s });
       if (!fresh) throw AppError.notFound('That person is not in this group.');
@@ -209,6 +219,7 @@ export class GroupsService {
 
   async setAdmin(me: ObjectId, convId: string, userId: string, on: boolean): Promise<ConversationSummary> {
     const c0 = await this.group(convId, me);
+    if (c0.announcements) throw AppError.validation('Admins of the announcements group are the community’s admins.');
     this.requireAdmin(c0, me);
     const target = new ObjectId(userId);
     if (!has(c0.members, target)) throw AppError.notFound('That person is not in this group.');
@@ -235,6 +246,7 @@ export class GroupsService {
   // ---------------- invite links ----------------
   async resetInvite(me: ObjectId, convId: string): Promise<{ inviteCode: string }> {
     const c0 = await this.group(convId, me);
+    this.notAnnouncements(c0);
     if (!this.chat.may(c0, me, 'addMembers')) throw AppError.forbidden('Only admins can share an invite link for this group.');
     const code = newInviteCode();
     const hadOne = !!c0.inviteCode;
@@ -282,6 +294,19 @@ export class GroupsService {
     }
     return { status: 'joined', conversation: await this.addPeople(me, c, [me], { kind: 'joined', via: 'link' }, me) };
   }
+
+  /** A community member joining one of its groups: straight in, or a request when the group wants approval. */
+  async joinFromCommunity(me: ObjectId, c: ConversationDoc): Promise<JoinResult> {
+    if (has(c.members, me)) return { status: 'joined', conversation: await this.summary(c, me) };
+    if (c.members.length >= MAX_GROUP_MEMBERS) throw AppError.conflict('This group is full.');
+    if (this.chat.settingsOf(c).approveNew) {
+      await this.requests.updateOne({ _id: rKey(c._id, me) }, { $setOnInsert: { convId: c._id, userId: me, createdAt: new Date() } }, { upsert: true });
+      this.chat.events.conversationChanged(c.admins ?? [], c._id.toHexString());
+      return { status: 'requested' };
+    }
+    return { status: 'joined', conversation: await this.addPeople(me, c, [me], { kind: 'joined', via: 'community' }, me) };
+  }
+  hasRequest(convId: ObjectId, u: ObjectId) { return this.requests.findOne({ _id: rKey(convId, u) }).then((r) => !!r); }
 
   async cancelRequest(me: ObjectId, code: string) {
     const c = await this.byCode(code);

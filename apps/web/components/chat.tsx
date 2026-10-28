@@ -8,7 +8,7 @@ import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
 import { InChatSearch } from './search';
-import { isMuted, MUTE_CHOICES } from './contact';
+import { BlockReportDialog, isMuted, MUTE_CHOICES } from './contact';
 import { MessageText, PollContent, PollDialog } from './poll';
 import { getPrefs } from '@/lib/prefs';
 import { useRouter } from 'next/navigation';
@@ -41,7 +41,7 @@ export function ConnectionNotice() {
 }
 
 // ---------------- chat list ----------------
-type ListFilter = 'all' | 'unread' | 'groups';
+type ListFilter = 'all' | 'unread' | 'groups' | 'communities';
 const hasUnread = (c: ConversationSummary) => c.unread > 0 || !!c.markedUnread;
 
 export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId: string | null; onOpen: (id: string) => void; onNewChat: () => void; onArchived: () => void }) {
@@ -65,13 +65,14 @@ export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId
     );
   }
   const unreadCount = main.filter((id) => hasUnread(s.conversations[id])).length;
-  const shown = main.filter((id) => { const c = s.conversations[id]; return filter === 'all' || (filter === 'unread' ? hasUnread(c) : c.kind === 'group'); });
+  const shown = main.filter((id) => { const c = s.conversations[id]; return filter === 'all' || (filter === 'unread' ? hasUnread(c) : filter === 'communities' ? !!c.group?.community : c.kind === 'group'); });
+  const inCommunities = main.some((id) => !!s.conversations[id]?.group?.community);
   const archivedUnread = archived.filter((id) => hasUnread(s.conversations[id])).length;
   return (
     <>
       <div className="list-filters">
         <div className="ys-tabs" role="tablist" aria-label="Filter chats">
-          {([['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups']] as Array<[ListFilter, string]>).map(([f, label]) => (
+          {([['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups'], ...(inCommunities ? [['communities', 'Communities']] : [])] as Array<[ListFilter, string]>).map(([f, label]) => (
             <button key={f} type="button" role="tab" className="ys-tab" aria-selected={filter === f} onClick={() => setFilter(f)}>
               {label}{f === 'unread' && unreadCount > 0 && <span className="search__count">{unreadCount}</span>}
             </button>
@@ -87,7 +88,7 @@ export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId
           </button>
         )}
         {shown.map((id) => <ChatRow key={id} c={s.conversations[id]} me={me} active={id === activeId} typing={typingLabel(engine, s.conversations[id])} onOpen={onOpen} />)}
-        {!shown.length && <div className="list-empty list-empty--small">{filter === 'unread' ? 'No unread chats.' : filter === 'groups' ? 'No groups yet.' : 'All your chats are archived.'}</div>}
+        {!shown.length && <div className="list-empty list-empty--small">{filter === 'unread' ? 'No unread chats.' : filter === 'groups' ? 'No groups yet.' : filter === 'communities' ? 'No community groups.' : 'All your chats are archived.'}</div>}
         {s.listNext && filter === 'all' && (
           <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
             <OvalButton icon="chevron-down" label="Older chats" size="sm" variant="ghost" loading={loadingMore} onClick={() => { setLoadingMore(true); void engine.loadList(true).finally(() => setLoadingMore(false)); }} />
@@ -301,7 +302,9 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
   const [forwarding, setForwarding] = useState<ThreadItem | null>(null);
   const [deleting, setDeleting] = useState<ThreadItem | null>(null);
   const [infoOf, setInfoOf] = useState<ThreadItem | null>(null);
+  const [reportOf, setReportOf] = useState<ThreadItem | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [attachFiles, setAttachFiles] = useState<File[] | null>(null);
   const [viewerAt, setViewerAt] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -310,9 +313,9 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
   const jumped = useRef<string | null>(null);
   const actions = useMemo<Actions>(() => ({
     reply: (m) => { setEditing(null); setReplyTo(m); }, edit: (m) => { setReplyTo(null); setEditing(m); },
-    forward: setForwarding, remove: setDeleting, info: setInfoOf, jumpTo: (seq) => jump.current(seq), error: setActionError,
+    forward: setForwarding, remove: setDeleting, info: setInfoOf, report: setReportOf, jumpTo: (seq) => jump.current(seq), error: setActionError,
   }), []);
-  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setAttachFiles(null); setViewerAt(null); setSearching(false); }, [id]);
+  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setNotice(null); setReportOf(null); setAttachFiles(null); setViewerAt(null); setSearching(false); }, [id]);
   useEffect(() => {
     setError(null);
     void engine.open(id).then(() => { if (engine.getState().conversations[id]?.kind === 'group') return engine.loadGroup(id); }).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
@@ -358,6 +361,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
       {searching && <InChatSearch convId={id} onJump={(seq) => jump.current(seq)} onClose={() => setSearching(false)} />}
       <PinnedBar c={c} />
       {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
+      {notice && <div className="convo__error"><Banner tone="success">{notice}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon name="close" size={16} /></button></div>}
       <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />
       {c.canSend ? <Composer id={id} replyTo={replyTo} editing={editing} onDone={() => { setReplyTo(null); setEditing(null); }} onFiles={setAttachFiles} /> : <LockedComposer c={c} onGone={onBack} />}
       {dragging && <div className="drop-hint" aria-hidden><Icon name="upload" size={32} /> Drop files to send them to {name}</div>}
@@ -367,6 +371,7 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
     {forwarding && <ForwardDialog m={forwarding} from={id} onClose={() => setForwarding(null)} />}
     {deleting && <DeleteDialog m={deleting} c={c} onClose={() => setDeleting(null)} />}
     {infoOf && <MessageInfoPanel convId={id} m={infoOf} onClose={() => setInfoOf(null)} />}
+    {reportOf && <BlockReportDialog mode="report" c={c} message={reportOf} onClose={() => setReportOf(null)} onDone={(t) => { setReportOf(null); setActionError(null); setNotice(t); }} />}
     </ActionsCtx.Provider>
   );
 }

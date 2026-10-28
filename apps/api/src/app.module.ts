@@ -34,6 +34,8 @@ import { CHAT_PREFS, ChatPrefsService } from './chat/prefs.service';
 import { SAFETY, SafetyService } from './chat/safety.service';
 import { ChatPrefsController } from './chat/prefs.controller';
 import { ACCOUNT, AccountService } from './users/account.service';
+import { COMMUNITIES, CommunitiesService } from './chat/communities.service';
+import { CommunitiesController, CommunityInvitesController } from './chat/communities.controller';
 import { SUPPORT, SupportService } from './users/support.service';
 import { SupportController } from './users/support.controller';
 import { PushController } from './push/push.controller';
@@ -61,16 +63,18 @@ export class AppModule {
     const chatPrefs = new ChatPrefsService(chat);
     const safety = new SafetyService(chat);
     const support = new SupportService(users, chat, db);
+    const communities = new CommunitiesService(chat, groups, db);
     const account = new AccountService(users, otp, sessions, chat, groups, chatPrefs, push, storage, limiter, db);
+    account.leaveCommunities = (id) => communities.leaveAll(id);
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
-      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support },
+      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }

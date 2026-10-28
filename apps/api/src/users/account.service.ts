@@ -48,6 +48,8 @@ export class AccountService {
     this.onPrivacyChanged(id);
     return toMe(out, this.photo);
   }
+  /** Set by the app: leaves every community (before the groups). */
+  leaveCommunities: (id: ObjectId) => Promise<void> = async () => undefined;
   /** Set by the app: online status watchers re-check what they may see. */
   onPrivacyChanged: (id: ObjectId) => void = () => undefined;
 
@@ -78,6 +80,7 @@ export class AccountService {
   async delete(id: ObjectId, code: string, reason?: string) {
     const u = await this.me(id);
     await this.otp.verify('delete_account', this.target(u), code, id.toHexString());
+    await this.leaveCommunities(id).catch(() => undefined);
     const convs = await this.chat.convs.find({ $or: [{ members: id }, { former: id }] }, { projection: { _id: 1, kind: 1, members: 1 } }).toArray();
     for (const c of convs) {
       if (c.kind === 'group' && c.members.some((m) => m.equals(id))) await this.groups.leave(id, c._id.toHexString()).catch(() => undefined);

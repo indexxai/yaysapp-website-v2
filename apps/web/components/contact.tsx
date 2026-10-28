@@ -145,11 +145,13 @@ export function MuteRow({ c, run }: { c: ConversationSummary; run: (fn: () => Pr
 }
 
 /** Block (m53) or report a person, or report a group. The other side is never told. */
-export function BlockReportDialog({ mode, c, onClose, onDone }: { mode: 'block' | 'report'; c: ConversationSummary; onClose: () => void; onDone: (notice: string) => void }) {
+export function BlockReportDialog({ mode, c, message, onClose, onDone }: { mode: 'block' | 'report'; c: ConversationSummary; message?: ThreadItem; onClose: () => void; onDone: (notice: string) => void }) {
   const engine = useEngine();
-  const person = c.kind === 'direct' ? c.peer : null;
-  const name = person?.displayName ?? c.group?.name ?? 'this chat';
-  const [also, setAlso] = useState(mode === 'report' && !!person);
+  // Reporting one message reports its sender.
+  const person = message ? { id: message.senderId, displayName: engine.nameOf(message.senderId) } : c.kind === 'direct' ? c.peer : null;
+  const name = message ? 'this message' : person?.displayName ?? c.group?.name ?? 'this chat';
+  const who = person?.displayName ?? name;
+  const [also, setAlso] = useState(mode === 'report' && !!person && !message);
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,10 +160,10 @@ export function BlockReportDialog({ mode, c, onClose, onDone }: { mode: 'block' 
     if (reporting && !reason) { setError('Pick a reason for the report.'); return; }
     setBusy(true); setError(null);
     try {
-      if (reporting) await engine.report({ ...(person ? { userId: person.id } : {}), conversationId: c.id, reason: reason!, block: !!person && (mode === 'block' || also) });
+      if (reporting) await engine.report({ ...(message?.id ? { messageId: message.id } : person ? { userId: person.id } : {}), conversationId: c.id, reason: reason!, block: !!person && (mode === 'block' || also) });
       else await engine.block(person!.id);
       if (reporting && person && (mode === 'block' || also)) await engine.block(person.id).catch(() => undefined);
-      onDone(mode === 'block' ? (reporting ? `${name} is blocked and reported.` : `${name} is blocked.`) : also ? `Thanks. ${name} is reported and blocked.` : 'Thanks for reporting. Our team will look at it.');
+      onDone(mode === 'block' ? (reporting ? `${who} is blocked and reported.` : `${who} is blocked.`) : also ? `Thanks. ${who} is reported and blocked.` : c.group?.community && message ? 'Thanks for reporting. The community’s admins will look at it.' : 'Thanks for reporting. Our team will look at it.');
     } catch (e) { setError(errText(e, 'That did not work. Try again.')); setBusy(false); }
   };
   return (
@@ -175,13 +177,13 @@ export function BlockReportDialog({ mode, c, onClose, onDone }: { mode: 'block' 
         </ul>
       )}
       <div className="report-box">
-        {person && <Switch on={mode === 'block' ? also : also} onChange={setAlso} label={mode === 'block' ? 'Also report to YaysApp' : `Also block ${name}`} />}
+        {person && <Switch on={also} onChange={setAlso} label={mode === 'block' ? 'Also report to YaysApp' : `Also block ${who}`} />}
         {reporting && (
           <>
             <div role="radiogroup" aria-label="Reason" className="reason-chips">
               {REPORT_REASONS.map((r) => <button key={r} type="button" role="radio" aria-checked={reason === r} className="reason-chip" onClick={() => setReason(r)}>{REASON_LABEL[r]}</button>)}
             </div>
-            <span className="muted" style={{ fontSize: 12, lineHeight: '17px' }}>{person ? `The last 5 messages from ${name} are sent with your report.` : 'The last 5 messages in this group are sent with your report.'} Nobody in the chat is told.</span>
+            <span className="muted" style={{ fontSize: 12, lineHeight: '17px' }}>{message ? 'This message is sent with your report.' : person ? `The last 5 messages from ${who} are sent with your report.` : 'The last 5 messages in this group are sent with your report.'} Nobody in the chat is told.</span>
           </>
         )}
       </div>

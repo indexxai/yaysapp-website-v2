@@ -42,7 +42,8 @@ export function systemText(e: SystemEvent, actorId: string, name: (id: string) =
     case 'added': return `${a} added ${listNames(e.userIds.map(obj))}`;
     case 'removed': return `${a} removed ${listNames(e.userIds.map(obj))}`;
     case 'left': return `${a} left`;
-    case 'joined': return e.via === 'link' ? `${a} joined using an invite link` : `${a} joined`;
+    case 'joined': return e.via === 'link' ? `${a} joined using an invite link` : e.via === 'community' ? `${a} joined from the community` : `${a} joined`;
+    case 'community': return e.added ? `${a} added this group to the community “${e.name}”` : `${a} removed this group from the community “${e.name}”`;
     case 'renamed': return `${a} changed the group name to “${e.name}”`;
     case 'about': return `${a} changed the group description`;
     case 'photo': return e.removed ? `${a} removed the group photo` : `${a} changed the group photo`;

@@ -6,10 +6,12 @@ import { toPublic } from '../users/users.repo';
 import { has, type ChatService } from './chat.service';
 
 export interface ReportDoc {
-  _id: ObjectId; by: ObjectId; targetUserId?: ObjectId; convId?: ObjectId; reason: ReportReason; note?: string;
+  _id: ObjectId; by: ObjectId; targetUserId?: ObjectId; convId?: ObjectId; messageId?: ObjectId; reason: ReportReason; note?: string;
   /** The last few messages from them (or from the group) that the reporter could see, kept as they were. */
   evidence: Array<{ id: ObjectId; senderId: ObjectId; seq: number; text: string; type: string; attachmentKey?: string; at: Date }>;
-  at: Date; status: 'open';
+  at: Date; status: 'open' | 'closed';
+  /** Who looked at it and what they did. */
+  handled?: { by: ObjectId; action: 'delete' | 'remove' | 'keep'; at: Date };
 }
 const EVIDENCE = 5;
 const MAX_BLOCKS = 5000;
@@ -53,7 +55,22 @@ export class SafetyService {
    * Reports a person (optionally in a chat we share) or a group. The last few messages I could see from them
    * go with it, so moderators see what happened even if they are deleted later.
    */
-  async report(me: ObjectId, v: { userId?: string; conversationId?: string; reason: ReportReason; note?: string; block?: boolean }) {
+  async report(me: ObjectId, v: { userId?: string; conversationId?: string; messageId?: string; reason: ReportReason; note?: string; block?: boolean }) {
+    if (v.messageId) {
+      // One message: it is the evidence, and its sender is the one reported.
+      if (!v.conversationId) throw AppError.validation('Say which chat the message is in.');
+      const a = await this.chat.access(v.conversationId, me);
+      const m = await this.chat.msgs.findOne({ _id: new ObjectId(v.messageId), convId: a.c._id });
+      if (!m || m.seq <= a.fromSeq || m.seq > a.untilSeq || has(m.hiddenFor, me) || m.type === 'system') throw AppError.notFound('Message not found.');
+      if (m.senderId.equals(me)) throw AppError.validation("You can't report your own message.");
+      await this.reports.insertOne({
+        _id: new ObjectId(), by: me, targetUserId: m.senderId, convId: a.c._id, messageId: m._id, reason: v.reason, ...(v.note ? { note: v.note.trim() } : {}),
+        evidence: [{ id: m._id, senderId: m.senderId, seq: m.seq, text: m.text, type: m.type, ...(m.attachment ? { attachmentKey: m.attachment.key } : {}), at: m.createdAt }],
+        at: new Date(), status: 'open',
+      });
+      if (v.block) await this.block(me, m.senderId.toHexString());
+      return;
+    }
     let convId: ObjectId | undefined;
     let range = { from: 0, until: 0 };
     if (v.conversationId) {

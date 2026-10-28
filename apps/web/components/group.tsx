@@ -168,7 +168,7 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
   const admin = g.role === 'admin';
   const member = g.role !== 'former';
   const canEdit = member && (admin || g.settings.editInfo === 'all');
-  const canAdd = member && (admin || g.settings.addMembers === 'all');
+  const canAdd = member && !g.announcements && (admin || g.settings.addMembers === 'all');
   return (
     <aside className="info-panel" aria-label="Group info">
       <div className="pane-head">
@@ -182,7 +182,8 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
           <div className="info-hero">
             <Avatar name={g.name} photoUrl={g.photoUrl} size={96} />
             <h3>{g.name}</h3>
-            <span className="muted">Group · {g.memberCount} member{g.memberCount === 1 ? '' : 's'}</span>
+            <span className="muted">{g.announcements ? 'Announcements' : 'Group'} · {g.memberCount} member{g.memberCount === 1 ? '' : 's'}</span>
+            {g.community && <a className="link-btn" href={`/communities?id=${g.community.id}`}>Part of {g.community.name}</a>}
             {g.about && <p>{g.about}</p>}
             {canEdit && <OvalButton icon="edit" label="Edit" size="sm" variant="soft" onClick={() => setMode('edit')} />}
           </div>
@@ -199,7 +200,7 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
         <section aria-label="Members" className="info-section">
           <h4>{g.memberCount} members</h4>
           <div className="ys-list">
-            {g.members.map((m) => <MemberRow key={m.id} m={m} me={me} admin={admin} run={run} groupId={id} />)}
+            {g.members.map((m) => <MemberRow key={m.id} m={m} me={me} admin={admin && !g.announcements} run={run} groupId={id} />)}
           </div>
         </section>
 
@@ -210,7 +211,7 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
             <OvalButton icon="flag" label="Report group" size="sm" variant="danger" onClick={() => setReporting(true)} />
             <ConfirmButton label="Clear chat" icon="trash" danger={false} confirm="Clear" question="Clear all messages in this group for you?" onConfirm={() => run(() => engine.clearChat(id), 'Chat cleared.')} />
           </div>
-          {member
+          {g.announcements && member ? <span className="muted" style={{ fontSize: 13 }}>Everyone in the community is in this group. To leave it, exit the community.</span> : member
             ? <ConfirmButton label="Leave group" confirm="Leave" question={`Leave ${g.name}?`} onConfirm={() => run(async () => { await engine.leaveGroup(id); onLeft(); })} />
             : <ConfirmButton label="Delete group" icon="trash" confirm="Delete" question="Delete this group and its messages from your chats?" onConfirm={() => run(async () => { await engine.deleteGroup(id); onLeft(); })} />}
         </section>

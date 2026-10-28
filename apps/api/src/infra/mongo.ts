@@ -26,6 +26,10 @@ export const C = {
   reports: 'yc_reports',
   accountDeletions: 'yc_account_deletions',
   problemReports: 'yc_problem_reports',
+  communities: 'yc_communities',
+  communityMembers: 'yc_community_members',
+  communityRequests: 'yc_community_requests',
+  communitySuggestions: 'yc_community_suggestions',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -45,8 +49,12 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
   ]);
   await db.collection(C.pushSubs).createIndexes([{ key: { userId: 1 }, name: 'user' }, { key: { sid: 1 }, name: 'session' }]);
   await db.collection(C.chatPrefs).createIndexes([{ key: { userId: 1 }, name: 'user' }, { key: { userId: 1, archived: 1 }, name: 'user_archived' }, { key: { userId: 1, pinnedAt: -1 }, name: 'user_pinned' }]);
+  await db.collection(C.communities).createIndexes([{ key: { inviteCode: 1 }, name: 'invite', unique: true, partialFilterExpression: { inviteCode: { $type: 'string' } } }]);
+  await db.collection(C.communityMembers).createIndexes([{ key: { userId: 1, joinedAt: -1 }, name: 'user' }, { key: { communityId: 1, joinedAt: 1 }, name: 'community' }]);
+  await db.collection(C.communityRequests).createIndexes([{ key: { communityId: 1, createdAt: 1 }, name: 'community' }]);
+  await db.collection(C.conversations).createIndex({ communityId: 1 }, { name: 'community', partialFilterExpression: { communityId: { $type: 'objectId' } } });
   await db.collection(C.blocks).createIndexes([{ key: { by: 1, at: -1 }, name: 'by' }]);
-  await db.collection(C.reports).createIndexes([{ key: { at: -1 }, name: 'recent' }, { key: { targetUserId: 1, at: -1 }, name: 'target' }]);
+  await db.collection(C.reports).createIndexes([{ key: { at: -1 }, name: 'recent' }, { key: { targetUserId: 1, at: -1 }, name: 'target' }, { key: { convId: 1, status: 1, at: -1 }, name: 'conv_open' }]);
   await db.collection(C.messages).createIndex({ convId: 1, 'attachment.kind': 1, seq: -1 }, { name: 'conv_media', partialFilterExpression: { type: 'media' } });
   await db.collection(C.stars).createIndexes([{ key: { userId: 1, at: -1 }, name: 'user_recent' }, { key: { userId: 1, msgId: 1 }, name: 'user_msg' }]);
   await db.collection(C.joinRequests).createIndexes([{ key: { convId: 1, createdAt: 1 }, name: 'conv_time' }]);

@@ -17,6 +17,7 @@ export interface Actions {
   forward(m: ThreadItem): void;
   remove(m: ThreadItem): void;
   info(m: ThreadItem): void;
+  report(m: ThreadItem): void;
   jumpTo(seq: number): void;
   error(msg: string): void;
 }
@@ -59,6 +60,7 @@ export function ActionBar({ m, c }: { m: ThreadItem; c: ConversationSummary }) {
     ...(canPin ? [['pin', pinned ? 'Unpin' : 'Pin', () => run(() => engine.pin(c.id, m.id!, !pinned), 'Could not pin.')] as [IconName, string, () => void]] : []),
     ['star', m.starred ? 'Unstar' : 'Star', () => run(() => engine.star(c.id, m.id!, !m.starred), 'Could not star.')],
     ...(m.mine ? [['info', 'Message info', () => { setOpen(null); act.info(m); }] as [IconName, string, () => void]] : []),
+    ...(!m.mine ? [['flag', 'Report', () => { setOpen(null); act.report(m); }] as [IconName, string, () => void]] : []),
     ['trash', 'Delete', () => { setOpen(null); act.remove(m); }, true],
   ];
   return (
