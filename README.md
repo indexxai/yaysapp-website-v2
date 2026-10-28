@@ -72,3 +72,16 @@ GitHub Actions runs the same suites on every push (`.github/workflows/ci.yml`).
 - The indexes v2 adds to `users` are partial: they only cover documents that have the v2 field.
 - A phone number is linked to an old account only after a code sent to that account's email is entered. The old app's unverified `phone` field is never used to link.
 - The mobile app keeps the old app's identifiers (`com.indexx.yaysapp`) so the store treats v2 as an update.
+
+## Demo data
+
+With the app running locally (start-mac.command), double-click **demo-mac.command** (or run `pnpm demo`).
+It signs up Sara Ahmed and 14 friends, writes chats with photos, a voice note, a PDF, replies, reactions,
+a poll and pinned and starred messages, adds groups, two communities (with join requests and a reported
+message) and call history, spreads it over the last week, and opens the app signed in as Sara.
+
+- `pnpm demo --link` prints a fresh sign-in link for Sara.
+- `pnpm demo --reset` removes the demo people and everything they made, then seeds again.
+- Sara's own sign-in: phone 0300 0000001; the code is at http://localhost:4000/v1/_test/outbox?to=%2B923000000001
+
+Local development only: the script reads apps/api/.env and refuses production settings or a non-local database.

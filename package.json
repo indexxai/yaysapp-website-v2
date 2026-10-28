@@ -5,6 +5,7 @@
   "scripts": {
     "infra:up": "bash infra/dev-up.sh",
     "infra:down": "bash infra/dev-down.sh",
+    "demo": "node infra/demo-seed.mjs",
     "build": "pnpm -r --filter ./packages/** build && pnpm -r --filter ./apps/** --if-present build",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
