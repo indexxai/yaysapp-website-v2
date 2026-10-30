@@ -8,7 +8,7 @@ export default function SetupProfile() {
   const router = useRouter();
   const { me } = useMe();
   return (
-    <AuthShell>
+    <AuthShell art="selfie">
       <div>
         <h1>Set up your profile</h1>
         <p className="lead">This is how friends will see you in chats.</p>

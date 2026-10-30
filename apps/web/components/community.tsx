@@ -8,7 +8,9 @@ import { Icon } from '@/lib/icons';
 import { listTime } from '@/lib/chat';
 import { ConfirmButton, Switch } from './group';
 import { Modal } from './message-actions';
-import { markFill, LineArt, Avatar, Banner, OvalButton, PhotoPick } from './ui';
+import { markFill, LineArt, Avatar, Banner, OvalButton, PhotoPick, artFor } from './ui';
+
+const BANNER_ART = ['hype', 'skater', 'trader', 'explorer', 'coins', 'snap'] as const;
 
 const errText = (e: unknown, f = 'That did not work. Try again.') => (e instanceof ApiError ? e.message : f);
 const plural = (n: number, w: string) => (w === 'person' ? `${n.toLocaleString()} ${n === 1 ? 'person' : 'people'}` : `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`);
@@ -25,7 +27,7 @@ export function CommunityList({ list, active, onOpen, onNew }: { list: Community
   if (!list.length) {
     return (
       <div className="list-empty">
-        <span className="ys-oval ys-oval--wash" style={{ width: 72 }}><Icon name="people" size={30} /></span>
+        <LineArt name="explorer" width={90} />
         <strong>No communities yet</strong>
         <span>Bring related groups together, with announcements that reach everyone.</span>
         <OvalButton icon="plus" label="New community" size="md" onClick={onNew} />
@@ -85,7 +87,7 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
     <section className="community" aria-label={c.name}>
       <div className="community__hero">
         <span className="ys-feature__deco a" style={{ width: 380, top: -170, right: 120 }} aria-hidden />
-        <LineArt name="hype" width={170} ink="#ffffff" opacity={0.85} className="community__art" />
+        <LineArt name={artFor(c.id, BANNER_ART)} height={150} ink="#ffffff" opacity={0.85} className="community__art" />
         <span className="convo__back" style={{ marginBottom: 10 }}><OvalButton icon="arrow-left" label="Communities" size="sm" variant="soft" href="/communities" /></span>
         <div className="row" style={{ gap: 18 }}>
           <span className="community__mark"><CommunityMark c={c} size={72} onBanner /></span>
@@ -311,6 +313,7 @@ function ManageCommunity({ c, onBack }: { c: CommunityInfo; onBack: () => void }
   const tabs: Array<[typeof tab, string]> = [['requests', 'Requests'], ['members', 'Members'], ['groups', 'Groups'], ['reports', 'Reports'], ['settings', 'Settings']];
   return (
     <section className="community community--manage" aria-label={`Manage ${c.name}`}>
+      <LineArt name="coins" height={240} opacity={0.08} className="manage__art" />
       <header className="manage__head">
         <OvalButton icon="arrow-left" label="Back" size="sm" variant="ghost" onClick={onBack} />
         <CommunityMark c={info} size={44} />

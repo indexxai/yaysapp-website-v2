@@ -8,7 +8,7 @@ import { Icon } from '@/lib/icons';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '@/lib/chat';
 import { CallButtons, CallLine } from './call';
 import { EmojiPicker } from './emoji';
-import { Avatar, Banner, LineArt, OvalButton } from './ui';
+import { Avatar, Banner, LineArt, OvalButton, artFor } from './ui';
 import { InChatSearch } from './search';
 import { BlockReportDialog, isMuted, MUTE_CHOICES } from './contact';
 import { MessageText, PollContent, PollDialog } from './poll';
@@ -77,7 +77,7 @@ export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId
   if (!main.length && !archived.length) {
     return (
       <div className="list-empty">
-        <span className="ys-oval ys-oval--wash" style={{ width: 72 }}><Icon name="chats" size={30} /></span>
+        <LineArt name="chat" width={110} />
         <strong>No chats yet</strong>
         <span>Start one with anyone on YaysApp by their username, phone number or email.</span>
         <OvalButton icon="edit" label="New chat" size="md" onClick={onNewChat} />
@@ -401,7 +401,9 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
       </header>
       {searching && <InChatSearch convId={id} onJump={(seq) => jump.current(seq)} onClose={() => setSearching(false)} />}
       <PinnedBar c={c} />
-      <LineArt name="chat" width={180} opacity={0.08} className="convo__art" />
+      {/* Each chat keeps its own piece of brand art behind the messages. */}
+      <LineArt name={artFor(id, c.kind === 'group' ? GROUP_ART : DIRECT_ART)} width={190} opacity={0.08} className="convo__art" />
+      <LineArt name={artFor(id + ':2', CORNER_ART)} width={150} opacity={0.06} className="convo__art convo__art--low" />
       {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
       {notice && <div className="convo__error"><Banner tone="success">{notice}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon name="close" size={16} /></button></div>}
       <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />
@@ -534,6 +536,10 @@ function Bubble({ m, mine, sender, c, onOpenMedia, face }: { m: ThreadItem; mine
     </div>
   );
 }
+
+const DIRECT_ART = ['chat', 'selfie', 'reader', 'morning', 'lantern', 'snap'] as const;
+const GROUP_ART = ['hype', 'explorer', 'skater', 'gear', 'trader', 'chat'] as const;
+const CORNER_ART = ['coins', 'pay', 'wallet', 'lantern', 'gear'] as const;
 
 /** Sender names get one of a few readable colours, the same for a person every time. */
 const SENDER_COLORS = ['var(--name-pink)', 'var(--success-ink)', 'var(--ember-ink)', 'var(--info)', 'var(--warning-ink)'];

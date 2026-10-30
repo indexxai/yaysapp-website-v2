@@ -35,7 +35,7 @@ function Demo() {
     }
   }, [router]);
   return (
-    <AuthShell>
+    <AuthShell art="morning">
       <div><h1>Opening the demo…</h1><p className="lead">Signing you in as the demo account.</p></div>
       {error ? <Banner>{error}</Banner> : <span className="ys-spin" aria-label="Loading" />}
     </AuthShell>

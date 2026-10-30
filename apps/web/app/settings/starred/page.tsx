@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { dayLabel, clock } from '@/lib/chat';
 import { Icon } from '@/lib/icons';
 import { SettingsFrame } from '@/components/settings';
-import { Avatar, Banner, OvalButton } from '@/components/ui';
+import { Avatar, Banner, LineArt, OvalButton } from '@/components/ui';
 
 export default function StarredPage() {
   return <SettingsFrame>{(me) => <Starred me={me.id} />}</SettingsFrame>;
@@ -38,7 +38,7 @@ function Starred({ me }: { me: string }) {
       {items === null && !error && <span className="ys-spin" aria-label="Loading" />}
       {items && !items.length && (
         <div className="pane-center pane-welcome" style={{ minHeight: 280 }}>
-          <span className="ys-oval ys-oval--wash" style={{ width: 80 }}><Icon name="star" size={32} /></span>
+          <LineArt name="lantern" width={80} />
           <strong>No starred messages</strong>
           <span>Star a message from its menu to find it here later.</span>
         </div>

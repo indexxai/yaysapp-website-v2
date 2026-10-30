@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } 
 import { ApiError, MAX_GROUP_ABOUT, MAX_GROUP_NAME, textLength, type GroupInfo, type GroupMember, type GroupSettings, type JoinRequest, type PublicProfile } from '@yays/shared';
 import { Icon } from '@/lib/icons';
 import { useChatState, useEngine } from '@/lib/chat';
-import { Avatar, Banner, OvalButton, PhotoPick, shareInvite } from './ui';
+import { Avatar, Banner, LineArt, OvalButton, PhotoPick, shareInvite } from './ui';
 import { Modal } from './message-actions';
 import { BlockReportDialog, MuteRow } from './contact';
 
@@ -222,6 +222,7 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
         {notice && <Banner tone="success">{notice}</Banner>}
         {mode === 'edit' ? <EditGroup g={g} onDone={(ok) => { setMode('view'); if (ok) setNotice('Saved.'); }} /> : (
           <div className="info-hero">
+            <LineArt name="explorer" height={150} opacity={0.08} className="info-hero__art" />
             <Avatar name={g.name} photoUrl={g.photoUrl} size={96} group />
             <h3>{g.name}</h3>
             <span className="muted" style={{ fontSize: 13 }}>{g.announcements ? 'Announcements' : 'Group'} · {g.memberCount} member{g.memberCount === 1 ? '' : 's'}</span>

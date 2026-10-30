@@ -47,7 +47,7 @@ export default function SignIn() {
   const sent = (s: CodeSent) => setResendAt(Date.now() + s.resendInSeconds * 1000);
 
   return (
-    <AuthShell wide={step.s === 'qr'}>
+    <AuthShell wide={step.s === 'qr'} art={step.s === 'qr' ? 'chat' : step.s === 'pin' ? 'lantern' : step.s === 'phone' || step.s === 'email' ? 'trader' : 'skater'}>
       {step.s === 'qr' && notice && <Banner tone="success">{notice}</Banner>}
       {step.s === 'qr' && <QrStep onBack={() => setStep({ s: 'phone' })} onLinked={() => router.replace('/chats')} />}
       {step.s === 'phone' || step.s === 'email' ? (

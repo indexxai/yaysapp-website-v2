@@ -38,11 +38,17 @@ export function Avatar({ name, photoUrl, size = 44, online, group, fill }: { nam
   );
 }
 
-export type ArtName = 'chat' | 'gear' | 'hype' | 'reader' | 'selfie' | 'snap' | 'explorer';
-const ART_RATIO: Record<ArtName, string> = { chat: '792 / 1200', gear: '1200 / 1016', hype: '1005 / 785', reader: '826 / 1200', selfie: '971 / 1200', snap: '1200 / 1072', explorer: '612 / 1200' };
+export type ArtName = 'chat' | 'gear' | 'hype' | 'reader' | 'selfie' | 'snap' | 'explorer' | 'coins' | 'pay' | 'wallet' | 'lantern' | 'skater' | 'trader' | 'morning';
+const ART_RATIO: Record<ArtName, string> = {
+  chat: '792 / 1200', gear: '1200 / 1016', hype: '1005 / 785', reader: '826 / 1200', selfie: '971 / 1200', snap: '1200 / 1072', explorer: '612 / 1200',
+  coins: '1012 / 1200', pay: '663 / 1200', wallet: '663 / 1200', lantern: '506 / 835', skater: '555 / 1200', trader: '837 / 1200', morning: '717 / 1200',
+};
+/** The same piece of art for the same thing every time (a chat, a community), picked from a set. */
+export const artFor = (id: string, set: readonly ArtName[]): ArtName => set[[...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 11) % set.length]!;
 /** A hand-drawn line drawing painted in one colour (ember by default), always decoration. */
-export function LineArt({ name, width, ink, opacity, className, style }: { name: ArtName; width: number; ink?: string; opacity?: number; className?: string; style?: CSSProperties }) {
-  return <span aria-hidden className={`ys-lineart${className ? ` ${className}` : ''}`} style={{ ['--ys-art-src' as string]: `url("/lineart/${name}.webp")`, ['--ys-art-ink' as string]: ink ?? 'var(--ember)', width, aspectRatio: ART_RATIO[name], ...(opacity !== undefined ? { opacity } : {}), ...style }} />;
+/** One of the brand drawings, in a single ink (ember by default). Give a width, or a height for tall spaces. */
+export function LineArt({ name, width, height, ink, opacity, className, style }: { name: ArtName; width?: number; height?: number; ink?: string; opacity?: number; className?: string; style?: CSSProperties }) {
+  return <span aria-hidden className={`ys-lineart${className ? ` ${className}` : ''}`} style={{ ['--ys-art-src' as string]: `url("/lineart/${name}.webp")`, ['--ys-art-ink' as string]: ink ?? 'var(--ember)', ...(height !== undefined && width === undefined ? { height } : { width: width ?? 160 }), aspectRatio: ART_RATIO[name], ...(opacity !== undefined ? { opacity } : {}), ...style }} />;
 }
 
 /** The brand palette for things that need telling apart (community marks, sender names). No new hues. */

@@ -4,7 +4,7 @@ import { ApiError, attachmentLabel, type SearchMessage, type SearchResults } fro
 import { Icon } from '@/lib/icons';
 import { listTime, useEngine } from '@/lib/chat';
 import { api } from '@/lib/api';
-import { Avatar, Banner, OvalButton } from './ui';
+import { Avatar, Banner, LineArt, OvalButton } from './ui';
 
 type Tab = 'all' | 'chats' | 'people' | 'messages' | 'files';
 const TABS: Array<[Tab, string]> = [['all', 'All'], ['chats', 'Chats'], ['people', 'People'], ['messages', 'Messages'], ['files', 'Files']];
@@ -87,7 +87,7 @@ export function SearchPanel({ onClose, onOpen }: { onClose: () => void; onOpen: 
       <div className="search__results" aria-live="polite">
         {error && <div style={{ padding: '0 20px' }}><Banner>{error}</Banner></div>}
         {term.length < 2 && <p className="search__hint">Search your chats, the people in them, messages and files. Find anyone else by their exact @username.</p>}
-        {none && !busy && <p className="search__hint" role="status">Nothing found for “{hq}”.</p>}
+        {none && !busy && <div className="search__none"><LineArt name="lantern" width={70} opacity={0.8} /><p className="search__hint" role="status">Nothing found for “{hq}”.</p></div>}
         {res && show('chats') && res.chats.length > 0 && (
           <Group title="Chats">
             {res.chats.map((c) => (

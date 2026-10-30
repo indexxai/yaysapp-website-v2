@@ -8,7 +8,10 @@ import { Icon, type IconName } from '@/lib/icons';
 import { disablePush } from '@/lib/push';
 import { AppShell } from './app-shell';
 import { useMe } from './use-me';
-import { Avatar, Banner, LineArt, OvalButton } from './ui';
+import { Avatar, Banner, LineArt, OvalButton, type ArtName } from './ui';
+
+/** The brand art in the corner of each settings section. */
+const SECTION_ART: Record<string, ArtName> = { profile: 'selfie', privacy: 'lantern', notifications: 'morning', appearance: 'gear', starred: 'trader', storage: 'wallet', devices: 'pay', help: 'explorer' };
 
 export const SECTIONS: Array<{ key: string; href: string; label: string; sub: string; icon: IconName }> = [
   { key: 'profile', href: '/settings/profile', label: 'Profile and account', sub: 'Name, photo, number, two-step', icon: 'key' },
@@ -56,6 +59,7 @@ export function SettingsFrame({ title, children }: { title?: string; children: (
           <div className="row center" style={{ padding: 14 }}><OvalButton icon="logout" label="Log out of this browser" size="sm" variant="danger" loading={leaving} onClick={() => void logOut()} /></div>
         </aside>
         <main className="settings__pane">
+          {open && SECTION_ART[open.key] && <LineArt key={open.key} name={SECTION_ART[open.key]!} height={220} opacity={0.1} className="settings__art" />}
           {open ? (
             <div className="settings__content">
               <div className="settings__title">
@@ -67,8 +71,11 @@ export function SettingsFrame({ title, children }: { title?: string; children: (
             </div>
           ) : (
             <div className="pane-center pane-welcome">
-              <span className="ys-oval ys-oval--wash" style={{ width: 96 }}><Icon name="settings" size={40} /></span>
-              <strong>Settings</strong><span>Pick a section on the left.</span>
+              <div className="pane-welcome__body">
+                <LineArt name="gear" width={190} />
+                <h2 className="pane-welcome__title" style={{ fontSize: 26 }}>Settings</h2>
+                <p>Pick a section on the left.</p>
+              </div>
             </div>
           )}
         </main>

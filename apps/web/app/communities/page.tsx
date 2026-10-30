@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { Icon } from '@/lib/icons';
 import { AppShell } from '@/components/app-shell';
 import { CommunityList, CommunityView, CreateCommunityDialog } from '@/components/community';
-import { Banner, OvalButton } from '@/components/ui';
+import { Banner, LineArt, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
 
 export default function CommunitiesPage() { return <Suspense fallback={null}><Communities /></Suspense>; }
@@ -34,10 +34,15 @@ function Communities() {
         <main className="chats__pane">
           {active && me ? <CommunityView key={active} id={active} onChanged={() => void load()} onLeft={() => { void load(); router.push('/communities'); }} /> : (
             <div className="pane-center pane-welcome">
-              <span className="ys-oval ys-oval--wash" style={{ width: 96 }}><Icon name="people" size={40} /></span>
-              <strong>Communities</strong>
-              <span>Bring related groups together under one roof, with an announcements group that reaches every member.</span>
-              <OvalButton icon="plus" label="New community" size="md" onClick={() => setCreating(true)} />
+              <span className="ys-feature__deco a" style={{ width: 480, top: -200, right: -150, opacity: 0.5 }} aria-hidden />
+              <span className="ys-feature__deco c" style={{ width: 300, bottom: -120, left: -100, opacity: 0.5 }} aria-hidden />
+              <LineArt name="coins" width={130} opacity={0.12} className="pane-welcome__corner pane-welcome__corner--bl" />
+              <div className="pane-welcome__body">
+                <LineArt name="skater" width={150} />
+                <h2 className="pane-welcome__title" style={{ fontSize: 26 }}>Communities</h2>
+                <p>Bring related groups together under one roof, with an announcements group that reaches every member.</p>
+                <div className="row" style={{ justifyContent: 'center' }}><OvalButton icon="plus" label="New community" size="md" onClick={() => setCreating(true)} /></div>
+              </div>
             </div>
           )}
         </main>

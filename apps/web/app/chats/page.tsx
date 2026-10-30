@@ -104,6 +104,8 @@ function ChatsLayout({ name, migrated }: { name: string; migrated: boolean }) {
           <div className="pane-center pane-welcome" data-testid="chats-ready">
             <span className="ys-feature__deco a" style={{ width: 520, top: -220, right: -160, opacity: 0.5 }} aria-hidden />
             <span className="ys-feature__deco c" style={{ width: 300, bottom: -120, left: -100, opacity: 0.5 }} aria-hidden />
+            <LineArt name="coins" width={120} opacity={0.12} className="pane-welcome__corner pane-welcome__corner--bl" />
+            <LineArt name="morning" width={110} opacity={0.12} className="pane-welcome__corner pane-welcome__corner--tr" />
             <div className="pane-welcome__body">
               <LineArt name="chat" width={230} className="pane-welcome__art" />
               <h2 className="pane-welcome__title">Pick a chat to start</h2>

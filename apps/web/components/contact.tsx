@@ -8,7 +8,7 @@ import { ConfirmButton, Switch } from './group';
 import { MediaViewer } from './media';
 import { Modal } from './message-actions';
 import { useCalls } from './call';
-import { Avatar, Banner, OvalButton } from './ui';
+import { Avatar, Banner, LineArt, OvalButton } from './ui';
 
 const errText = (e: unknown, f: string) => (e instanceof ApiError ? e.message : f);
 const REASON_LABEL: Record<ReportReason, string> = { spam: 'Spam', scam: 'Scam or fraud', harassment: 'Harassment', other: 'Something else' };
@@ -60,6 +60,7 @@ export function ContactInfoPanel({ id, onClose, onJump, onSearch, onOpenChat }: 
         {error && <Banner>{error}</Banner>}
         {notice && <Banner tone="success">{notice}</Banner>}
         <div className="info-hero">
+          <LineArt name="reader" height={150} opacity={0.08} className="info-hero__art" />
           <Avatar name={p.displayName} photoUrl={p.photoUrl} size={88} online={!!presence?.online} />
           <h3>{p.displayName}</h3>
           <span className="muted" style={{ fontSize: 13 }}>{p.username ? `@${p.username}` : 'On YaysApp'}{presence?.online ? ' · online' : ''}</span>

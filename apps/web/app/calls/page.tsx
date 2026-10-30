@@ -165,6 +165,7 @@ function CallDetail({ item, onBack }: { item: CallHistoryItem; onBack: () => voi
     <div className="call-detail" role="region" aria-label={`Calls with ${item.title}`}>
       <span className="call-detail__back"><OvalButton icon="arrow-left" label="Calls" size="sm" variant="ghost" onClick={onBack} /></span>
       <span className="ys-feature__deco b" style={{ width: 420, top: -180, right: -140, opacity: 0.45 }} aria-hidden />
+      <LineArt name={item.kind === 'group' ? 'hype' : 'reader'} height={260} opacity={0.08} className="call-detail__art" />
       <div className="call-detail__body">
         <Avatar name={item.title} photoUrl={item.photoUrl} size={96} online={!!pres?.online} group={item.kind === 'group'} />
         <h2>{item.title}</h2>
@@ -218,7 +219,7 @@ function PermissionCard({ compact }: { compact?: boolean }) {
     <div className="pane-center pane-welcome">
       <span className="ys-feature__deco a" style={{ width: 460, top: -200, left: -160, opacity: 0.5 }} aria-hidden />
       <div className="pane-welcome__body">
-        <LineArt name="selfie" width={170} />
+        <LineArt name="morning" width={150} />
         <h2 className="pane-welcome__title" style={{ fontSize: 24 }}>Pick a call to see its details</h2>
         <p>Or start a new call, or make a link anyone can join.</p>
       </div>
