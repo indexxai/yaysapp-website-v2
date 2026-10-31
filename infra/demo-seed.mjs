@@ -8,6 +8,7 @@
 //   pnpm demo            seed (refuses if the demo people already exist)
 //   pnpm demo --reset    remove the demo people and everything they made, then seed again
 //   pnpm demo --link     only print a fresh sign-in link for Sara
+//   pnpm demo --popups   show Sara's opening pop-ups again (check-in, Jack's AI bonus, BTCY bonus)
 //
 // Local development only: it reads apps/api/.env and stops if that isn't a development setup.
 import { readFileSync, existsSync } from 'node:fs';
@@ -157,6 +158,21 @@ async function reset() {
   await clearLimits();
   log(`Removed ${ids.length} demo people, ${cids.length} chats and ${commIds.length} communities.`);
 }
+/** Today's check-in undone and today's pop-ups unseen, so the next new tab shows them all again. */
+async function popupsAgain() {
+  const sara = await db.collection('users').findOne({ 'yc.phoneE164': CAST.sara.phone });
+  if (!sara) die('No demo data yet. Run "pnpm demo" first.');
+  const id = sara._id, tz = sara.yc?.tz ?? 'UTC', today = new Date().toLocaleDateString('en-CA', { timeZone: tz });
+  const c = await db.collection('yc_checkins').findOneAndDelete({ _id: `${id}:${today}` });
+  if (c) {
+    await db.collection('yc_points_ledger').deleteOne({ userId: id, key: `checkin:${today}` });
+    await db.collection('yc_points').updateOne({ _id: id }, { $inc: { balance: -c.points } });
+  }
+  await db.collection('yc_popups').deleteMany({ userId: id });
+  await db.collection('users').updateOne({ _id: id }, { $unset: { 'yc.popups': '' } });
+  console.log('\n✔ Sara\'s pop-ups are back. Open the app in a NEW browser tab (or reload after closing this one):');
+  console.log('  first the daily check-in, then the Jack’s AI bonus, then the BTCY bonus, one per new tab.\n');
+}
 async function printLink(sara) {
   const s = sara ?? await person('sara');
   const blob = Buffer.from(JSON.stringify({ tokens: s.tokens, deviceId: s.deviceId })).toString('base64url');
@@ -166,6 +182,7 @@ async function printLink(sara) {
 }
 
 if (args.has('--link')) { await printLink(); await done(); }
+if (args.has('--popups')) { await popupsAgain(); await done(); }
 if (args.has('--reset')) { console.log('\n▶ Removing the old demo data'); await reset(); }
 else if ((await demoUserIds()).length) {
   await printLink();
