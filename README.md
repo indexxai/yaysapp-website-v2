@@ -73,6 +73,15 @@ GitHub Actions runs the same suites on every push (`.github/workflows/ci.yml`).
 - A phone number is linked to an old account only after a code sent to that account's email is entered. The old app's unverified `phone` field is never used to link.
 - The mobile app keeps the old app's identifiers (`com.indexx.yaysapp`) so the store treats v2 as an update.
 
+## Phase 2: points, wallet, Jack's AI
+
+- **IndexxPoints** are a ledger (`yc_points_ledger`); every award has a key, so nothing pays twice. Daily check-in (7-day cycle), everyday tasks (capped at 200 a day), invites (pending until the friend verifies a phone number and sends a first message), and two bonus campaigns: Jack's AI (daily, all tasks required) and BTCY (weekly, each task pays). Days follow the person's own time zone (the apps send `X-Time-Zone`).
+- **Pop-ups** as the app opens: check-in first, then one bonus at a time, each at most once a day on any device (`GET /v1/rewards/popup`).
+- **Indexx account** (BTCY, Indexx Pay USDXX, Exchange, EMMM) goes through `IndexxProvider`. `INDEXX_DRIVER=dev` is a stand-in kept in this database so every screen works locally; production uses `off` until the real Indexx API is connected (one class to write: `apps/api/src/indexx/indexx.provider.ts`).
+- **Pay in chat**: USDXX requests and payments in one-to-one chats, with a 6-digit payment PIN. Money only moves through the Indexx provider; the chat keeps a card for each.
+- **Jack's AI**: conversations, documents (download as Word or PDF), web answers with sources, chat summaries (asks first, per chat), the Support desk's first answer and the website's Ask Jack box. `AI_DRIVER=anthropic` with `ANTHROPIC_API_KEY` uses Claude; `dev` gives labelled sample answers. 30 free messages a day; 50 points buy 10 more.
+- **Website**: signed-out visitors to `/` see the landing page; `/?ref=CODE` keeps an invite code for sign-up.
+
 ## Demo data
 
 With the app running locally (start-mac.command), double-click **demo-mac.command** (or run `pnpm demo`).

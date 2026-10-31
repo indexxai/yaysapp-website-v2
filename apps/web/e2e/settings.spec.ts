@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { API, apiCall, apiUser, codeFor, db, pageAs, signInWithEmail, typeCode, type ApiUser } from './helpers';
+import { expect, test } from './test';
+import { API, NO_POPUPS, apiCall, apiUser, codeFor, db, pageAs, signInWithEmail, typeCode, type ApiUser } from './helpers';
 
 const say = (u: ApiUser, c: string, text: string) => apiCall(`/v1/conversations/${c}/messages`, { clientId: crypto.randomUUID(), text }, u.tokens.accessToken);
 const me = async (u: ApiUser) => (await fetch(`${API}/v1/me`, { headers: { authorization: `Bearer ${u.tokens.accessToken}` } })).json();
@@ -26,6 +26,7 @@ test.describe('Settings on the web', () => {
 
     // A new browser: code, then PIN.
     const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
+    await ctx.addInitScript(NO_POPUPS);
     const page = await ctx.newPage();
     await signInWithEmail(page, ali.email);
     await expect(page.getByRole('heading', { name: 'Enter your PIN' })).toBeVisible();
@@ -37,6 +38,7 @@ test.describe('Settings on the web', () => {
 
     // Forgot it: signing in by email sends the reset code to the phone.
     const ctx2 = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
+    await ctx2.addInitScript(NO_POPUPS);
     const p2 = await ctx2.newPage();
     await p2.waitForTimeout(5200); // a new email code needs the resend wait
     await signInWithEmail(p2, ali.email);

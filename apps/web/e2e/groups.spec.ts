@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { apiCall, apiUser, pageAs, type ApiUser } from './helpers';
 
 const alert = (p: Page) => p.locator('[role=alert]:not(#__next-route-announcer__)');

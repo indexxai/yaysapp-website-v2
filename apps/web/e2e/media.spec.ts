@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { apiCall, apiUser, pageAs, png } from './helpers';
 
 const bubbles = (p: Page) => p.getByTestId('message');

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 import { apiCall, apiUser, pageAs } from './helpers';
 
 test.describe('Mentions and polls on the web', () => {

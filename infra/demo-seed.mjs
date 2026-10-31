@@ -1,5 +1,7 @@
 // Fills a LOCAL YaysApp with demo data: Sara Ahmed and her friends, chats with photos, a voice note,
-// a PDF, replies, reactions and a poll, groups, two communities, calls, and a few unread messages.
+// a PDF, replies, reactions and a poll, groups, two communities, calls, and a few unread messages;
+// and Phase 2: IndexxPoints and a check-in streak, invites, a linked Indexx account with BTCY mining,
+// payments in chats, and Jack's AI conversations.
 // Everything goes through the API (so it behaves like real use); afterwards the times are spread
 // over the last week so the lists read naturally. Ends by printing a link that signs you in as Sara.
 //
@@ -136,6 +138,18 @@ async function reset() {
     del('yc_community_suggestions', { communityId: { $in: commIds } }),
     del('yc_push_subscriptions', { userId: { $in: ids } }),
     del('yc_sessions', { userId: { $in: ids } }),
+    del('yc_points', { _id: { $in: ids } }),
+    del('yc_points_ledger', { userId: { $in: ids } }),
+    del('yc_activity', { userId: { $in: ids } }),
+    del('yc_checkins', { userId: { $in: ids } }),
+    del('yc_referrals', { $or: [{ _id: { $in: ids } }, { inviterId: { $in: ids } }] }),
+    del('yc_popups', { userId: { $in: ids } }),
+    del('yc_payments', { $or: [{ fromId: { $in: ids } }, { toId: { $in: ids } }] }),
+    del('yc_ai_chats', { userId: { $in: ids } }),
+    del('yc_ai_messages', { userId: { $in: ids } }),
+    del('yc_ai_consent', { userId: { $in: ids } }),
+    del('yc_support_tickets', { userId: { $in: ids } }),
+    del('yc_indexx_dev', { _id: { $regex: '@indexx\\.demo$' } }),
   ]);
   await del('yc_communities', { _id: { $in: commIds } });
   await del('yc_conversations', { _id: { $in: cids } });
@@ -349,6 +363,86 @@ for (const who of [sara, hamza, hana]) await call(`/v1/communities/${runners.id}
 await say(lena, runners.announcementsId, 'Race day bibs are ready, pick them up Saturday 10–1 at Gymkhana', [2, '17:00']);
 await say(hamza, raceDay, 'Who is doing the 10k?', [1, '21:05']);
 await say(hana, raceDay, 'Me! First one 😅', [1, '21:15']);
+
+// ---------------- Phase 2: points, Indexx account, BTCY, pay in chat, Jack's AI ----------------
+console.log('\n▶ Points, Indexx accounts, BTCY, payments and Jack’s AI');
+const TZ = 'Asia/Karachi';
+const dayOf = (d) => d.toLocaleDateString('en-CA', { timeZone: TZ });
+const daysAgo = (n) => new Date(now - n * 86400_000);
+const weekOf = (d) => { const k = dayOf(d); const x = new Date(`${k}T12:00:00Z`); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10); };
+const oid = (x) => new ObjectId(x.id);
+for (const who of [sara, amara, omar, lena, hamza, hana]) await db.collection('users').updateOne({ _id: oid(who) }, { $set: { 'yc.tz': TZ } });
+
+// Indexx accounts (the stand-in Indexx kept in this database while the real one isn't connected).
+for (const who of [sara, amara, omar, lena]) await call('/v1/indexx/link', { email: `${who.key}@indexx.demo` }, who.token);
+const NU = 10_000;
+const last7 = [0.26, 0.28, 0.22, 0.30, 0.24, 0.31, 0.25];
+await db.collection('yc_indexx_dev').updateOne({ _id: 'sara@indexx.demo' }, { $set: {
+  nuggetUnits: Math.round(10.2481 * NU), usdxxCents: 4250, exchangeUsdCents: 31820, btcyTokens: 1240, boostPct: 25,
+  mining: { endsAt: new Date(now + (3 * 60 + 12) * MIN), perHourUnits: 125, streak: 18, best: 31, lastDay: dayOf(new Date(now)), days: Object.fromEntries(last7.map((v, i) => [dayOf(daysAgo(6 - i)), Math.round(v * NU)])) },
+  team: [
+    { name: 'Hana Yusuf', joinedAt: daysAgo(19), lastMinedAt: new Date(now - 2 * 3600_000) },
+    { name: 'Hamza Tariq', joinedAt: daysAgo(25), lastMinedAt: daysAgo(2) },
+    { name: 'Bilal Khan', joinedAt: daysAgo(29), lastMinedAt: new Date(now - 5 * 3600_000) },
+    { name: 'Zainab K', joinedAt: daysAgo(3), lastMinedAt: null },
+  ],
+  [`weeks.${weekOf(new Date(now))}`]: { invites: 4, miningDays: 3, alchemyConversions: 0 },
+  emmm: { handle: '@sara', open: 4, settledThisMonth: 7, markets: [
+    { question: 'Will BTC close above $100k this year?', closes: 'Closes 31 Dec', side: 'yes' },
+    { question: 'Pakistan to win the T20 series?', closes: 'Closes 3 Nov', side: 'no' },
+    { question: 'Will the Fed cut rates in December?', closes: 'Settling · result pending', side: 'pending' },
+  ] },
+} });
+
+// Sara's points: a 5-day check-in streak (today is day 6), last week's activity, a conversion and invites.
+await db.collection('users').updateOne({ _id: oid(sara) }, { $set: { 'yc.refCode': 'SARA-7K2' } });
+const ledger = db.collection('yc_points_ledger');
+const entry = (who, key, kind, title, sub, amount, at, status = 'done', capped = false) => ledger.updateOne({ userId: oid(who), key }, { $setOnInsert: { _id: new ObjectId(), kind, title, sub, amount, status, at, day: dayOf(at), week: weekOf(at), ...(capped ? { capped: true } : {}) } }, { upsert: true });
+const pts = [10, 10, 15, 15, 20];
+for (let i = 0; i < 5; i++) {
+  const at = new Date(daysAgo(5 - i).setHours(9, 2, 0, 0));
+  await db.collection('yc_checkins').updateOne({ _id: `${sara.id}:${dayOf(at)}` }, { $set: { userId: oid(sara), day: dayOf(at), dayOfWeek: i + 1, streak: i + 1, points: pts[i], at } }, { upsert: true });
+  await entry(sara, `checkin:${dayOf(at)}`, 'checkin', 'Daily check-in', `Day ${i + 1} streak`, pts[i], at, 'done', true);
+}
+await entry(sara, 'seed:post', 'activity', 'Posted in BTCY Traders', 'Community post', 15, when([1, '18:15']), 'done', true);
+await entry(sara, 'seed:messages', 'activity', 'Sent 10 messages', 'Daily activity', 10, when([1, '16:02']), 'done', true);
+await entry(sara, 'seed:spam', 'reversal', 'Spam post removed', 'Points taken back by a moderator', -15, when([1, '19:40']));
+await entry(sara, 'seed:convert', 'convert', 'Converted to BTCY Nuggets', '1,000 points → 10 Nuggets', -1000, when(TODAY(520)));
+await entry(sara, `ref:${hana.id}`, 'referral', 'Invited Hana', 'Joined, verified and said hi', 100, daysAgo(19));
+await entry(sara, `ref:${hamza.id}`, 'referral', 'Invited Hamza', 'Waiting for him to verify and say hi', 100, when(TODAY(480)), 'pending');
+await db.collection('yc_referrals').updateOne({ _id: oid(hana) }, { $set: { inviterId: oid(sara), code: 'SARA-7K2', status: 'rewarded', at: daysAgo(19), rewardedAt: daysAgo(19) } }, { upsert: true });
+await db.collection('yc_referrals').updateOne({ _id: oid(hamza) }, { $set: { inviterId: oid(sara), code: 'SARA-7K2', status: 'pending', at: when(TODAY(480)) } }, { upsert: true });
+await db.collection('yc_referrals').updateOne({ _id: oid(omar) }, { $set: { inviterId: oid(sara), code: 'SARA-7K2', status: 'not_eligible', at: daysAgo(3) } }, { upsert: true });
+await db.collection('yc_points').updateOne({ _id: oid(sara) }, { $set: { balance: 2450, pending: 100 } }, { upsert: true });
+await call('/v1/me/socials/instagram', { handle: 'sara.creates' }, sara.token, 'PUT');
+await call('/v1/me/socials/x', { handle: 'sara_ahmed' }, sara.token, 'PUT');
+
+// Money in chats: Sara paid Amara back yesterday; tonight Amara asks for her share of dinner; Sara waits on Omar.
+const payMsg = async (p, ago) => { const m = await db.collection('yc_messages').findOne({ 'payment.id': new ObjectId(p.id) }); if (m) { stamps.set(String(m._id), when(ago)); lastSaid.set(String(m.convId), String(m._id)); } };
+await call('/v1/pay/pin', { pin: '482916' }, sara.token, 'PUT');
+await payMsg(await call('/v1/pay/send', { conversationId: cAmara, amountCents: 500, note: 'Movie tickets', clientId: randomUUID(), pin: '482916' }, sara.token), [1, '22:10']);
+await payMsg(await call('/v1/pay/requests', { conversationId: cOmar, amountCents: 800, note: 'Movie tickets', clientId: randomUUID() }, sara.token), [1, '22:14']);
+await say(amara, cAmara, 'That dinner was great! Splitting the bill', 2);
+await payMsg(await call('/v1/pay/requests', { conversationId: cAmara, amountCents: 1200, note: 'Dinner at Café Aylanto', clientId: randomUUID() }, amara.token), 1);
+
+// Jack's AI: a few conversations, one with a document.
+const aiChats = db.collection('yc_ai_chats'), aiMsgs = db.collection('yc_ai_messages');
+async function aiChat(title, at, turns, o = {}) {
+  const id = new ObjectId();
+  const doc = turns.map((t) => t.document).filter(Boolean).pop();
+  await aiChats.insertOne({ _id: id, userId: oid(sara), title, saved: !!o.saved, mode: o.mode ?? 'chat', createdAt: at, updatedAt: at, ...(doc ? { document: doc } : {}) });
+  await aiMsgs.insertMany(turns.map((t, i) => ({ _id: new ObjectId(), chatId: id, userId: oid(sara), role: i % 2 ? 'assistant' : 'user', text: t.text ?? t, mode: o.mode ?? 'chat', at: new Date(at.getTime() - (turns.length - i) * 20_000), ...(t.document ? { document: t.document } : {}) })));
+}
+await aiChat('Birthday message for Nani', daysAgo(4), ['Write a short birthday message for my Nani, warm and simple', 'Happy birthday, Nani! Thank you for every story, every cup of chai and every prayer. We love you more than words can say. 🎂']);
+await aiChat('Points to Nuggets: how it works', daysAgo(2), ['How do I turn IndexxPoints into BTCY Nuggets?', 'Open **Wallet**, enter how many points to convert and confirm.\n\n- 100 points = 1 Nugget\n- At least 500 points, up to 5,000 a day\n- Nuggets arrive in your BTCY balance straight away\n\nConversions can’t be undone.'], { saved: true });
+await aiChat('Lahore Runners – Sponsorship Proposal', when([1, '20:30']), [
+  'Write a one-page sponsorship proposal for our Lahore running community. Word file please.',
+  { text: 'Done. It’s open on the right. I added a tiers table and a short “why sponsor us” section.', document: { title: 'Sponsor Lahore Runners', version: 1, markdown: '# Sponsor Lahore Runners\n\nProposal for the 2027 season\n\n## Who we are\n\nA community of 2,400 runners who meet every weekend for group runs across Lahore, plus four races a year.\n\n## Sponsor tiers\n\n| Tier | What you get | Price |\n|---|---|---|\n| Gold | Logo on race shirts, 4 posts | [PRICE] |\n| Silver | Logo on banners, 2 posts | [PRICE] |\n| Community | Thank-you post | [PRICE] |\n\n## Next step\n\nReply by 15 November to lock your tier.' } },
+  'Add our Instagram handle at the bottom',
+  { text: 'Added @lahorerunners under “Next step”.', document: { title: 'Sponsor Lahore Runners', version: 2, markdown: '# Sponsor Lahore Runners\n\nProposal for the 2027 season\n\n## Who we are\n\nA community of 2,400 runners who meet every weekend for group runs across Lahore, plus four races a year.\n\n## Sponsor tiers\n\n| Tier | What you get | Price |\n|---|---|---|\n| Gold | Logo on race shirts, 4 posts | [PRICE] |\n| Silver | Logo on banners, 2 posts | [PRICE] |\n| Community | Thank-you post | [PRICE] |\n\n## Next step\n\nReply by 15 November to lock your tier.\n\nFollow us on Instagram: @lahorerunners' } },
+], { mode: 'document' });
+await aiChat('Translate menu to Urdu', when(TODAY(610)), ['Translate “Chicken karahi, garlic naan, mint raita” into Urdu', 'چکن کڑاہی، لہسن والا نان، پودینے کا رائتہ']);
+await aiChat('Plan a referral push for the BTCY community', when(TODAY(690)), ['Give me 3 post ideas to get BTCY Traders members to invite friends this week', 'Here are three ideas that fit a trading community:\n\n1. **Team boost week:** show how a bigger BTCY team raises everyone’s mining boost, with each member’s invite link.\n2. **Beginner Q&A night:** invite friends who are new to crypto to a live voice room with admins.\n3. **Streak challenge:** members who invite 2 friends who keep a 7-day check-in streak get a shout-out.']);
 
 // ---------------- calls ----------------
 console.log('\n▶ Making the call history');

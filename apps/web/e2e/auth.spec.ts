@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test';
-import { codeFor, openCodeSignIn, freshEmail, freshPhone, local, seedLegacy, signInWithEmail, signUpWithPhone, typeCode, db } from './helpers';
+import { expect, test } from './test';
+import { NO_POPUPS, codeFor, openCodeSignIn, freshEmail, freshPhone, local, seedLegacy, signInWithEmail, signUpWithPhone, typeCode, db } from './helpers';
 
 test.describe('Week 2 · sign-in on the web', () => {
   test('signed-out visitors land on sign-in', async ({ page }) => {
@@ -95,6 +95,8 @@ test.describe('Week 2 · sign-in on the web', () => {
   test('an expired access token refreshes silently', async ({ page }) => {
     await signInWithEmail(page, freshEmail('refresh'));
     await expect(page).toHaveURL(/\/setup\/profile$/);
+    // Nothing in flight, so no request from this page refreshes the tokens while the test swaps them.
+    await page.waitForLoadState('networkidle');
     await page.evaluate(() => { const t = JSON.parse(localStorage.getItem('yays.tokens')!); t.accessToken = 'expired.or.broken'; localStorage.setItem('yays.tokens', JSON.stringify(t)); });
     await page.goto('/chats');
     await expect(page.getByTestId('chats-ready')).toBeVisible();
@@ -107,6 +109,7 @@ test.describe('Week 2 · devices and sign-out', () => {
   test('log out another browser from Linked devices', async ({ browser }) => {
     const email = freshEmail('devices');
     const a = await browser.newContext(), b = await browser.newContext();
+    await a.addInitScript(NO_POPUPS); await b.addInitScript(NO_POPUPS);
     const pa = await a.newPage(), pb = await b.newPage();
     await signInWithEmail(pa, email);
     await expect(pa).toHaveURL(/\/setup\/profile$/);

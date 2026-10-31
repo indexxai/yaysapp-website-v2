@@ -1,5 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
+import type { AiChat, AiChatSummary, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PaymentView, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
@@ -26,6 +27,8 @@ export interface ClientOptions {
   timeoutMs?: number;
 }
 
+const timeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch { return undefined; } };
+
 /** One typed client for web and mobile. Refreshes the access token once on 401 and retries. */
 export class YaysClient {
   private refreshing: Promise<boolean> | null = null;
@@ -39,9 +42,12 @@ export class YaysClient {
     const auth = opts.auth ?? true;
     const headers: Record<string, string> = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
+    const tz = timeZone();
+    if (tz) headers['x-time-zone'] = tz;
+    let used: string | undefined;
     if (auth) {
       const t = await this.o.tokens.get();
-      if (t) headers.authorization = `Bearer ${t.accessToken}`;
+      if (t) { headers.authorization = `Bearer ${t.accessToken}`; used = t.accessToken; }
     }
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), this.o.timeoutMs ?? 20000);
@@ -54,6 +60,9 @@ export class YaysClient {
       clearTimeout(timer);
     }
     if (res.status === 401 && auth && opts.retry !== false) {
+      // Another request refreshed the tokens while this one was out: just try again with the new ones.
+      const now = (await this.o.tokens.get())?.accessToken;
+      if (now && now !== used) return this.request<T>(method, path, body, { ...opts, retry: false });
       if (await this.refresh()) return this.request<T>(method, path, body, { ...opts, retry: false });
     }
     if (res.status === 204) return undefined as T;
@@ -299,6 +308,59 @@ export class YaysClient {
   invitePreview(code: string) { return this.request<InvitePreview>('GET', `/v1/invites/${encodeURIComponent(code)}`); }
   joinInvite(code: string) { return this.request<JoinResult>('POST', `/v1/invites/${encodeURIComponent(code)}/join`, {}); }
   cancelJoinRequest(code: string) { return this.request<void>('DELETE', `/v1/invites/${encodeURIComponent(code)}/request`); }
+
+  // ---- points, rewards and pop-ups ----
+  points() { return this.request<PointsSummary>('GET', '/v1/rewards/points'); }
+  pointsHistory(filter: 'all' | 'earned' | 'spent' | 'pending' = 'all', before?: string) { return this.request<PointsHistoryPage>('GET', `/v1/rewards/history?filter=${filter}${before ? `&before=${encodeURIComponent(before)}` : ''}`); }
+  checkin() { return this.request<CheckinStatus>('GET', '/v1/rewards/checkin'); }
+  claimCheckin() { return this.request<CheckinStatus>('POST', '/v1/rewards/checkin', {}); }
+  earnToday() { return this.request<EarnToday>('GET', '/v1/rewards/today'); }
+  referrals() { return this.request<ReferralSummary>('GET', '/v1/rewards/referrals'); }
+  useReferralCode(code: string) { return this.request<{ ok: true; inviter: string }>('POST', '/v1/rewards/referrals/use', { code }); }
+  bonuses() { return this.request<BonusCampaign[]>('GET', '/v1/rewards/bonuses'); }
+  popupNow() { return this.request<PopupNow>('GET', '/v1/rewards/popup'); }
+  dismissPopup(popup: 'checkin' | 'jack-daily' | 'btcy-weekly' | 'bonuses', forever = false) { return this.request<void>('POST', '/v1/rewards/popup/dismiss', { popup, forever }); }
+
+  // ---- Indexx account, wallet, BTCY, products ----
+  indexx() { return this.request<IndexxLink>('GET', '/v1/indexx'); }
+  linkIndexx(email: string) { return this.request<IndexxLink>('POST', '/v1/indexx/link', { email }); }
+  unlinkIndexx() { return this.request<IndexxLink>('DELETE', '/v1/indexx/link'); }
+  wallet() { return this.request<WalletView>('GET', '/v1/wallet'); }
+  walletActivity(filter: 'all' | 'pay' | 'points' = 'all') { return this.request<WalletTx[]>('GET', `/v1/wallet/activity?filter=${filter}`); }
+  convertPoints(points: number) { return this.request<WalletView>('POST', '/v1/wallet/convert', { points }); }
+  btcy() { return this.request<BtcyView>('GET', '/v1/btcy'); }
+  keepMining() { return this.request<BtcyView>('POST', '/v1/btcy/mine', {}); }
+  products() { return this.request<ProductsView>('GET', '/v1/products'); }
+
+  // ---- pay in chat ----
+  setPayPin(pin: string, currentPin?: string) { return this.request<{ hasPayPin: true }>('PUT', '/v1/pay/pin', { pin, ...(currentPin ? { currentPin } : {}) }); }
+  requestMoney(v: { conversationId: string; amountCents: number; note: string; clientId: string }) { return this.request<PaymentView>('POST', '/v1/pay/requests', v); }
+  sendMoney(v: { conversationId: string; amountCents: number; note: string; clientId: string; pin: string }) { return this.request<PaymentView>('POST', '/v1/pay/send', v); }
+  payRequest(id: string, pin: string) { return this.request<PaymentView>('POST', `/v1/pay/${encodeURIComponent(id)}/pay`, { pin }); }
+  declineRequest(id: string) { return this.request<PaymentView>('POST', `/v1/pay/${encodeURIComponent(id)}/decline`, {}); }
+
+  // ---- Jack's AI ----
+  aiChats() { return this.request<AiChatSummary[]>('GET', '/v1/ai/chats'); }
+  aiChat(id: string) { return this.request<AiChat>('GET', `/v1/ai/chats/${encodeURIComponent(id)}`); }
+  aiAsk(chatId: string | null, text: string, mode: AiMode = 'chat') { return this.request<AiReply>('POST', chatId ? `/v1/ai/chats/${encodeURIComponent(chatId)}/messages` : '/v1/ai/chats', { text, mode }); }
+  aiUpdateChat(id: string, v: { title?: string; saved?: boolean }) { return this.request<AiChatSummary>('PATCH', `/v1/ai/chats/${encodeURIComponent(id)}`, v); }
+  aiDeleteChat(id: string) { return this.request<void>('DELETE', `/v1/ai/chats/${encodeURIComponent(id)}`); }
+  aiQuota() { return this.request<AiQuota>('GET', '/v1/ai/quota'); }
+  aiBuyMessages() { return this.request<AiQuota>('POST', '/v1/ai/quota/extra', {}); }
+  aiConsent(conversationId: string) { return this.request<{ consent: boolean }>('GET', `/v1/ai/consent/${encodeURIComponent(conversationId)}`); }
+  aiSetConsent(conversationId: string, on: boolean) { return this.request<{ consent: boolean }>(on ? 'PUT' : 'DELETE', `/v1/ai/consent/${encodeURIComponent(conversationId)}`, on ? {} : undefined); }
+  aiSummarize(conversationId: string) { return this.request<AiSummary>('POST', '/v1/ai/summarize', { conversationId }); }
+  siteAsk(messages: Array<{ role: 'user' | 'assistant'; text: string }>) { return this.request<{ text: string }>('POST', '/v1/site/ask', { messages }, { auth: false }); }
+  siteLead(v: { name: string; email: string; question: string; consent: true }) { return this.request<void>('POST', '/v1/site/leads', v, { auth: false }); }
+
+  // ---- support desk, socials ----
+  supportAsk(question: string) { return this.request<SupportAnswer>('POST', '/v1/support/ask', { question }); }
+  supportTicket(question: string, answer: string) { return this.request<SupportTicket>('POST', '/v1/support/tickets', { question, answer }); }
+  socials() { return this.request<SocialsView>('GET', '/v1/me/socials'); }
+  setSocial(network: SocialNetwork, handle: string) { return this.request<SocialsView>('PUT', `/v1/me/socials/${network}`, { network, handle }); }
+  removeSocial(network: SocialNetwork) { return this.request<SocialsView>('DELETE', `/v1/me/socials/${network}`); }
+  socialVisibility(visibility: 'everyone' | 'contacts' | 'nobody') { return this.request<SocialsView>('PUT', '/v1/me/socials', { visibility }); }
+  userSocials(userId: string) { return this.request<SocialsView>('GET', `/v1/users/${encodeURIComponent(userId)}/socials`); }
 
   /** The current access token, refreshed first when it is about to expire. Used to open the real-time connection. */
   async accessToken(forceRefresh = false): Promise<string | null> {

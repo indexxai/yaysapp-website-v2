@@ -1,3 +1,4 @@
+import type { PaymentView } from './phase2';
 import { io as ioConnect, type Socket } from 'socket.io-client';
 import { ApiError } from './errors';
 import type { UploadTicket, YaysClient } from './client';
@@ -82,7 +83,7 @@ export interface ChatState {
 
 export interface ThreadItem {
   key: string; mine: boolean; type: MessageType; text: string; system?: SystemEvent; attachment?: Attachment;
-  mentions?: string[]; poll?: PollView;
+  mentions?: string[]; poll?: PollView; payment?: PaymentView;
   /** While the file is still uploading. */
   upload?: { sent: number; total: number; status: 'uploading' | 'failed'; error?: string }; createdAt: string; seq: number | null; senderId: string; tick: Tick | null; clientId: string;
   /** The server's id; null while still waiting to send. */
@@ -541,7 +542,7 @@ export class ChatEngine {
     const from = conv?.visibleFrom ?? 0;
     const items: ThreadItem[] = (t?.items ?? []).filter((m) => m.seq > from).map((m) => ({
       key: m.clientId, id: m.id, mine: m.senderId === me && m.type !== 'system', type: m.type, text: m.text, ...(m.system ? { system: m.system } : {}),
-      attachment: m.attachment, replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred, mentions: m.mentions, poll: m.poll && m.poll.myVotes === undefined && !m.poll.anonymous ? { ...m.poll, myVotes: m.poll.options.filter((o) => o.voters?.includes(me)).map((o) => o.id) } : m.poll,
+      attachment: m.attachment, replyTo: m.replyTo, forwarded: m.forwarded, editedAt: m.editedAt, deleted: m.deleted, reactions: m.reactions, starred: m.starred, mentions: m.mentions, payment: m.payment, poll: m.poll && m.poll.myVotes === undefined && !m.poll.anonymous ? { ...m.poll, myVotes: m.poll.options.filter((o) => o.voters?.includes(me)).map((o) => o.id) } : m.poll,
       createdAt: m.createdAt, seq: m.seq, senderId: m.senderId, clientId: m.clientId,
       tick: m.senderId === me && m.type !== 'system' && conv ? tickFor(m, conv) : null,
     }));

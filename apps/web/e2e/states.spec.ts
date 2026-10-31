@@ -1,11 +1,12 @@
-import { expect, test } from '@playwright/test';
-import { apiCall, apiUser, pageAs } from './helpers';
+import { expect, test } from './test';
+import { NO_POPUPS, apiCall, apiUser, pageAs } from './helpers';
 
 test.describe('Linking a browser, and loading, offline and error states', () => {
   test('a new browser signs in by showing a code that a signed-in browser types in', async ({ browser }) => {
     const ali = await apiUser('Ali');
     const a = await pageAs(browser, ali);
     const fresh = await browser.newContext({ baseURL: 'http://127.0.0.1:3100' });
+    await fresh.addInitScript(NO_POPUPS);
     const b = await fresh.newPage();
     await b.goto('/sign-in'); // the QR code is what a signed-out browser sees first
     await expect(b.getByRole('heading', { name: 'Scan to sign in' })).toBeVisible();

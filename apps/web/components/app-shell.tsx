@@ -7,6 +7,8 @@ import { Icon, type IconName } from '@/lib/icons';
 import { Avatar } from './ui';
 import { useOptionalChatState } from '@/lib/chat';
 import { setPrefs, usePrefs } from '@/lib/prefs';
+import { fmtPoints, useBalance } from '@/lib/phase2';
+import { PopupHost } from './popups';
 
 /** Unread chats and missed calls, as the ember count on the rail. */
 function RailBadge({ kind }: { kind: 'chats' | 'calls' }) {
@@ -19,12 +21,25 @@ function RailBadge({ kind }: { kind: 'chats' | 'calls' }) {
   return <span className="rail__badge" aria-label={label}>{n > 99 ? '99+' : n}</span>;
 }
 
-const NAV: Array<{ href: string; icon: IconName; label: string; badge?: 'chats' | 'calls' }> = [
+const NAV: Array<{ href: string; icon: IconName | 'jack'; label: string; badge?: 'chats' | 'calls'; also?: string[] }> = [
   { href: '/chats', icon: 'chats', label: 'Chats', badge: 'chats' },
   { href: '/calls', icon: 'phone', label: 'Calls', badge: 'calls' },
   { href: '/communities', icon: 'people', label: 'Communities' },
-  { href: '/settings', icon: 'settings', label: 'Settings' },
+  { href: '/explore', icon: 'compass', label: 'Explore', also: ['/earn', '/btcy', '/products'] },
+  { href: '/ai', icon: 'jack', label: 'Jack’s AI' },
+  { href: '/wallet', icon: 'wallet', label: 'Wallet' },
 ];
+
+/** IndexxPoints, always in view; opens Earn. */
+function PointsChip() {
+  const n = useBalance();
+  if (n === null) return null;
+  return (
+    <Link href="/earn" className="rail__points" aria-label={`${fmtPoints(n)} IndexxPoints`}>
+      <span className="ys-oval ys-oval--wash" style={{ width: 36 }}><Icon name="star" size={16} /></span>{n >= 100_000 ? `${Math.floor(n / 1000)}k` : fmtPoints(n)}
+    </Link>
+  );
+}
 
 /** Light or dark in one click (Settings › Appearance also has "follow system"). */
 function ThemeButton() {
@@ -45,11 +60,11 @@ export function AppShell({ me, children, bare }: { me: MeProfile | null; childre
       <nav className="rail" aria-label="Main">
         <Link href="/chats" className="rail__logo" aria-label="YaysApp"><img src="/brand/mark.png" alt="" width={40} height={41} /></Link>
         {NAV.map((n) => {
-          const on = path.startsWith(n.href.split('/').slice(0, 2).join('/'));
+          const on = [n.href, ...(n.also ?? [])].some((h) => path === h || path.startsWith(`${h}/`));
           return (
             <span key={n.href} className="rail__slot">
               <Link href={n.href} aria-current={on ? 'page' : undefined} className={`ys-ovalbtn rail__tab${on ? ' rail__tab--on' : ''}`} style={{ textDecoration: 'none' }}>
-                <span className="ys-oval"><Icon name={n.icon} size={20} strokeWidth={2} /></span><span className="ys-ovalbtn__label">{n.label}</span>
+                <span className="ys-oval">{n.icon === 'jack' ? <img src="/brand/jack.png" alt="" className="rail__jack" /> : <Icon name={n.icon} size={20} strokeWidth={2} />}</span><span className="ys-ovalbtn__label">{n.label}</span>
               </Link>
               {n.badge && !on && <RailBadge kind={n.badge} />}
             </span>
@@ -57,8 +72,10 @@ export function AppShell({ me, children, bare }: { me: MeProfile | null; childre
         })}
         <span style={{ flex: 1 }} />
         <ThemeButton />
-        {me && <Link href="/settings/profile" aria-label={`Me: ${me.displayName}`}><Avatar name={me.displayName} photoUrl={me.photoUrl} size={40} /></Link>}
+        {me && <PointsChip />}
+        {me && <Link href="/settings" className="rail__me" aria-label={`Settings and profile: ${me.displayName}`} aria-current={path.startsWith('/settings') ? 'page' : undefined}><Avatar name={me.displayName} photoUrl={me.photoUrl} size={40} /></Link>}
       </nav>
+      {me && <PopupHost me={me} />}
       {bare ? <div className="page page--bare">{children}</div> : <main className="page">{children}</main>}
     </div>
   );

@@ -2,6 +2,8 @@ import { expect, type Page } from '@playwright/test';
 import { MongoClient, ObjectId } from 'mongodb';
 
 export const API = 'http://127.0.0.1:4100';
+/** The daily check-in and bonus pop-ups open as the app starts; most tests are about something else. */
+export const NO_POPUPS = () => { try { sessionStorage.setItem('yays.popup.asked', '1'); } catch { /* about:blank */ } };
 let n = Date.now() % 1_000_000;
 /** A fresh Pakistani mobile number for each test, so tests never collide. */
 export const freshPhone = () => `+92300${String(++n).padStart(7, '0').slice(-7)}`;
@@ -79,10 +81,11 @@ export async function apiUser(name: string): Promise<ApiUser> {
   return { id: r.me.id, name, username, email, phone, tokens: r.tokens };
 }
 /** A browser tab already signed in as this user. */
-export async function pageAs(browser: import('@playwright/test').Browser, u: ApiUser, viewport = { width: 1280, height: 800 }, opts: { askForPermissions?: boolean } = {}) {
+export async function pageAs(browser: import('@playwright/test').Browser, u: ApiUser, viewport = { width: 1280, height: 800 }, opts: { askForPermissions?: boolean; popups?: boolean } = {}) {
   // askForPermissions: a browser that hasn't been asked anything yet (notifications show as "default").
   const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport, ...(opts.askForPermissions ? {} : { permissions: ['microphone', 'camera', 'clipboard-read', 'clipboard-write'] }) });
   await ctx.addInitScript((t) => { if (!localStorage.getItem('yays.tokens')) localStorage.setItem('yays.tokens', t); }, JSON.stringify(u.tokens));
+  if (!opts.popups) await ctx.addInitScript(NO_POPUPS);
   const page = await ctx.newPage();
   return { ctx, page };
 }

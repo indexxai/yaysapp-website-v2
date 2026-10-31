@@ -11,7 +11,7 @@ import { useMe } from './use-me';
 import { Avatar, Banner, LineArt, OvalButton, type ArtName } from './ui';
 
 /** The brand art in the corner of each settings section. */
-const SECTION_ART: Record<string, ArtName> = { profile: 'selfie', privacy: 'lantern', notifications: 'morning', appearance: 'gear', starred: 'trader', storage: 'wallet', devices: 'pay', help: 'explorer' };
+const SECTION_ART: Record<string, ArtName> = { profile: 'selfie', privacy: 'lantern', notifications: 'morning', appearance: 'gear', starred: 'trader', storage: 'wallet', devices: 'pay', help: 'explorer', indexx: 'coins', socials: 'hype' };
 
 export const SECTIONS: Array<{ key: string; href: string; label: string; sub: string; icon: IconName }> = [
   { key: 'profile', href: '/settings/profile', label: 'Profile and account', sub: 'Name, photo, number, two-step', icon: 'key' },
@@ -21,6 +21,8 @@ export const SECTIONS: Array<{ key: string; href: string; label: string; sub: st
   { key: 'starred', href: '/settings/starred', label: 'Starred messages', sub: 'Messages you saved', icon: 'star' },
   { key: 'storage', href: '/settings/storage', label: 'Storage and data', sub: 'What chats take up, this browser’s copy', icon: 'database' },
   { key: 'devices', href: '/settings/devices', label: 'Linked devices', sub: 'Browsers and phones signed in', icon: 'devices' },
+  { key: 'indexx', href: '/settings/indexx', label: 'Indexx account', sub: 'BTCY, wallet balances, pay in chat', icon: 'link' },
+  { key: 'socials', href: '/settings/socials', label: 'Social accounts', sub: 'Show your socials on your profile', icon: 'globe' },
   { key: 'help', href: '/settings/help', label: 'Help and support', sub: 'Questions, contact us', icon: 'help' },
 ];
 

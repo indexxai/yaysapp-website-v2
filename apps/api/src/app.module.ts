@@ -42,6 +42,13 @@ import { PushController } from './push/push.controller';
 import { CALLS, CallsService } from './calls/calls.service';
 import { CallsController, LiveKitWebhookController } from './calls/calls.controller';
 import { MessageActionsController, PollsController, StarredController } from './chat/messages.controller';
+import { REWARDS, RewardsService } from './rewards/rewards.service';
+import { DevIndexx, INDEXX, offIndexx } from './indexx/indexx.provider';
+import { INDEXX_SERVICE, IndexxService } from './indexx/indexx.service';
+import { PAYMENTS, PaymentsService } from './pay/payments.service';
+import { AI_PROVIDER, createAiProvider } from './ai/ai.provider';
+import { AI, AiService } from './ai/ai.service';
+import { AiController, IndexxController, PayController, RewardsController, SiteController, SocialsController, SupportDeskController } from './phase2.controllers';
 
 export interface Infra { config: Config; log: Logger; mongo: MongoClient; db: Db; redis: Redis; storage: Storage }
 
@@ -69,15 +76,27 @@ export class AppModule {
     const account = new AccountService(users, otp, sessions, chat, groups, chatPrefs, push, storage, limiter, db);
     account.leaveCommunities = (id) => communities.leaveAll(id);
     const calls = new CallsService(chat, push, db, c, log);
+    const rewards = new RewardsService(i.mongo, db);
+    const indexxProvider = c.INDEXX_DRIVER === 'dev' ? new DevIndexx(db) : offIndexx;
+    const indexx = new IndexxService(indexxProvider, db, rewards);
+    rewards.indexx = indexx;
+    const payments = new PaymentsService(chat, indexx, limiter, db);
+    indexx.payments = payments;
+    const aiProvider = createAiProvider(c, log);
+    const ai = new AiService(aiProvider, db, redis, chat, rewards);
+    ai.support = support;
+    // Points for activity and referrals; never in the way of the message itself.
+    chat.onSent = (u, conv) => { void rewards.onMessage(u, !!(conv as { communityId?: unknown }).communityId).catch((e) => log.warn({ err: e }, 'points for a message failed')); };
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
       { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities }, { provide: CALLS, useValue: calls },
+      { provide: REWARDS, useValue: rewards }, { provide: INDEXX, useValue: indexxProvider }, { provide: INDEXX_SERVICE, useValue: indexx }, { provide: PAYMENTS, useValue: payments }, { provide: AI_PROVIDER, useValue: aiProvider }, { provide: AI, useValue: ai },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CallsController, LiveKitWebhookController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CallsController, LiveKitWebhookController, RewardsController, IndexxController, PayController, AiController, SiteController, SupportDeskController, SocialsController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }

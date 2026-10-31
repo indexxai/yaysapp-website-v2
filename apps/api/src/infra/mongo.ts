@@ -32,6 +32,18 @@ export const C = {
   communitySuggestions: 'yc_community_suggestions',
   calls: 'yc_calls',
   callLinks: 'yc_call_links',
+  points: 'yc_points',
+  pointsLedger: 'yc_points_ledger',
+  activity: 'yc_activity',
+  checkins: 'yc_checkins',
+  referrals: 'yc_referrals',
+  popups: 'yc_popups',
+  payments: 'yc_payments',
+  aiChats: 'yc_ai_chats',
+  aiMessages: 'yc_ai_messages',
+  aiConsent: 'yc_ai_consent',
+  leads: 'yc_leads',
+  supportTickets: 'yc_support_tickets',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -67,6 +79,20 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { senderId: 1, clientId: 1 }, name: 'sender_client_unique', unique: true },
   ]);
   await db.collection(C.receipts).createIndexes([{ key: { convId: 1 }, name: 'conv' }]);
+  await db.collection(C.pointsLedger).createIndexes([
+    { key: { userId: 1, key: 1 }, name: 'user_key_unique', unique: true },
+    { key: { userId: 1, _id: -1 }, name: 'user_recent' },
+    { key: { userId: 1, day: 1, capped: 1 }, name: 'user_day' },
+    { key: { userId: 1, week: 1 }, name: 'user_week' },
+  ]);
+  await db.collection(C.referrals).createIndexes([{ key: { inviterId: 1, at: -1 }, name: 'inviter' }]);
+  await db.collection(C.payments).createIndexes([
+    { key: { fromId: 1, _id: -1 }, name: 'from' }, { key: { toId: 1, _id: -1 }, name: 'to' },
+    { key: { fromId: 1, clientId: 1 }, name: 'from_client' }, { key: { toId: 1, clientId: 1 }, name: 'to_client' },
+  ]);
+  await db.collection(C.aiChats).createIndexes([{ key: { userId: 1, updatedAt: -1 }, name: 'user_recent' }]);
+  await db.collection(C.aiMessages).createIndexes([{ key: { chatId: 1, _id: 1 }, name: 'chat' }]);
+  await db.collection(C.supportTickets).createIndexes([{ key: { number: 1 }, name: 'number', unique: true }, { key: { userId: 1, at: -1 }, name: 'user' }]);
   if (!c.USERS_INDEXES_ON_BOOT) return;
   // Partial indexes only touch documents that have the v2 field, so existing BTCY users are unaffected.
   const users = db.collection(C.users);
@@ -76,6 +102,8 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { 'yc.googleSub': 1 }, name: 'yc_google_unique', unique: true, partialFilterExpression: { 'yc.googleSub': { $type: 'string' } } },
     { key: { 'yc.username': 1 }, name: 'yc_username_unique', unique: true, partialFilterExpression: { 'yc.username': { $type: 'string' } } },
     { key: { email: 1 }, name: 'email_1' },
+    { key: { 'yc.refCode': 1 }, name: 'yc_refcode_unique', unique: true, partialFilterExpression: { 'yc.refCode': { $type: 'string' } } },
+    { key: { 'yc.indexx.account': 1 }, name: 'yc_indexx_account', partialFilterExpression: { 'yc.indexx.account': { $type: 'string' } } },
   ];
   for (const s of specs) {
     try { const { key, ...opts } = s; await users.createIndex(key, opts); }

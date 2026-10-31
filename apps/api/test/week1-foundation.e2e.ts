@@ -103,8 +103,14 @@ describe('Week 1 · configuration', () => {
     expect(() => loadConfig({ ...prod, PUSH_DRIVER: 'webpush' })).toThrow(/needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY/);
     expect(() => loadConfig({ ...prod, PUSH_INSECURE_TLS: '1' })).toThrow(/PUSH_INSECURE_TLS must be off in production/);
   });
+  it('production needs a real AI model and no stand-in Indexx', () => {
+    const prod = { ...base, NODE_ENV: 'production' };
+    expect(() => loadConfig(prod)).toThrow(/AI_DRIVER=dev is not allowed in production/);
+    expect(() => loadConfig(prod)).toThrow(/INDEXX_DRIVER=dev is not allowed in production/);
+    expect(() => loadConfig({ ...base, AI_DRIVER: 'anthropic' })).toThrow(/needs ANTHROPIC_API_KEY/);
+  });
   it('accepts a full production setup', () => {
-    const c = loadConfig({ ...base, NODE_ENV: 'production', SMS_DRIVER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_VERIFY_SID: 'VA1', EMAIL_DRIVER: 'ses', SES_REGION: 'us-east-1', SES_FROM: 'no-reply@yays.app', GOOGLE_DRIVER: 'google', GOOGLE_CLIENT_IDS: 'a,b', STORAGE_DRIVER: 's3', S3_BUCKET: 'b', S3_REGION: 'us-east-1', CORS_ORIGINS: 'https://web.yays.app, https://yays.app', PUSH_DRIVER: 'webpush', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv' });
+    const c = loadConfig({ ...base, NODE_ENV: 'production', SMS_DRIVER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_VERIFY_SID: 'VA1', EMAIL_DRIVER: 'ses', SES_REGION: 'us-east-1', SES_FROM: 'no-reply@yays.app', GOOGLE_DRIVER: 'google', GOOGLE_CLIENT_IDS: 'a,b', STORAGE_DRIVER: 's3', S3_BUCKET: 'b', S3_REGION: 'us-east-1', CORS_ORIGINS: 'https://web.yays.app, https://yays.app', PUSH_DRIVER: 'webpush', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv', AI_DRIVER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-x', INDEXX_DRIVER: 'off' });
     expect(c.corsOrigins).toEqual(['https://web.yays.app', 'https://yays.app']);
     expect(c.googleClientIds).toEqual(['a', 'b']);
   });

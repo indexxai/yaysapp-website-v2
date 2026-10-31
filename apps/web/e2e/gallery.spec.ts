@@ -2,7 +2,7 @@
 // Run with GALLERY=1; skipped otherwise. Images go to GALLERY_OUT (default test-results/gallery).
 import { readFileSync, mkdirSync } from 'fs';
 import path from 'path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { API, apiCall, apiUser, pageAs, type ApiUser } from './helpers';
 
 const OUT = process.env.GALLERY_OUT ?? path.join(__dirname, '../test-results/gallery');

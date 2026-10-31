@@ -38,6 +38,7 @@ function Help() {
   return (
     <>
       {saved.banner}
+      <AskSupport />
       <div className="ys-field ys-field--pill help-search">
         <div className="ys-field__box"><Icon name="search" size={18} /><input className="ys-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search help articles" aria-label="Search help" /></div>
       </div>
@@ -106,5 +107,44 @@ function ProblemDialog({ onClose, onSent }: { onClose: () => void; onSent: () =>
         <OvalButton icon="send" label="Send report" size="sm" variant="primary" disabled={busy} onClick={() => void send()} />
       </div>
     </Modal>
+  );
+}
+
+/** p05: Jack's AI answers first; "Talk to a person" opens a ticket in the Support chat with the whole question. */
+function AskSupport() {
+  const router = useRouter();
+  const [q, setQ] = useState('');
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'ask' | 'ticket' | null>(null);
+  const [solved, setSolved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const ask = async () => {
+    setBusy('ask'); setError(null); setSolved(false);
+    try { setAnswer((await api().supportAsk(q)).answer); } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not ask. Try again.'); } finally { setBusy(null); }
+  };
+  const person = async () => {
+    setBusy('ticket'); setError(null);
+    try { const t = await api().supportTicket(q, answer ?? ''); router.push(`/chats?c=${t.conversationId}`); } catch (e) { setError(e instanceof ApiError ? e.message : 'Could not open a ticket.'); setBusy(null); }
+  };
+  return (
+    <section className="set-card set-card--pad" aria-labelledby="ask-h">
+      <div className="row" style={{ gap: 12 }}><img src="/brand/jack.png" alt="" style={{ width: 28 }} /><h3 id="ask-h" style={{ margin: 0 }}>What’s going wrong?</h3></div>
+      <div className="ys-field"><div className="ys-field__box"><textarea className="ys-input" rows={2} value={q} maxLength={1000} onChange={(e) => { setQ(e.target.value); setAnswer(null); }} placeholder="For example: my check-in didn’t add points" aria-label="Describe the problem" style={{ resize: 'vertical' }} /></div></div>
+      {error && <Banner>{error}</Banner>}
+      {answer === null ? (
+        <div className="row center"><OvalButton icon="sparkles" label="Get an answer" size="md" loading={busy === 'ask'} disabled={q.trim().length < 3} onClick={() => void ask()} /></div>
+      ) : (
+        <>
+          <div className="p2-support-answer"><span className="muted p2-xs">Jack’s AI</span><p>{answer}</p></div>
+          {solved ? <Banner tone="success">Glad that helped.</Banner> : (
+            <div className="row center" style={{ gap: 22 }}>
+              <OvalButton icon="check" label="That solved it" size="sm" variant="soft" onClick={() => setSolved(true)} />
+              <OvalButton icon="person-circle" label="Talk to a person" size="sm" loading={busy === 'ticket'} onClick={() => void person()} />
+            </div>
+          )}
+          <p className="muted p2-xs" style={{ margin: 0, textAlign: 'center' }}>Our team sees the whole question and answer, so you won’t need to repeat yourself.</p>
+        </>
+      )}
+    </section>
   );
 }

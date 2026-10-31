@@ -66,7 +66,10 @@ export interface MessageDoc {
   hiddenFor?: ObjectId[];
   /** Sent to someone who blocked the sender: never delivered to them (also in hiddenFor). */
   heldFrom?: ObjectId;
+  /** Money in the chat (a request or a payment); kept in step with yc_payments. */
+  payment?: PaymentSnap;
 }
+export interface PaymentSnap { id: ObjectId; kind: 'request' | 'payment'; fromId: ObjectId; toId: ObjectId; amountCents: number; note: string; status: 'waiting' | 'paid' | 'declined' | 'expired' | 'sent'; ref: string; expiresAt: Date | null }
 /**
  * One row per person per conversation: how far they have received and read, and which part of the history they
  * can see (fromSeq: joined after this message; leftSeq: left at this message).
@@ -156,6 +159,11 @@ export function toMessage(m: MessageDoc, replies?: Map<string, MessageDoc>, view
   if (m.heldFrom && viewer?.id.equals(m.senderId)) out.held = true;
   if (m.mentions?.length) out.mentions = m.mentions.map((u) => u.toHexString());
   if (m.poll) out.poll = pollView(m, viewer?.id);
+  if (m.payment) {
+    const p = m.payment;
+    const status = p.status === 'waiting' && p.expiresAt && p.expiresAt < new Date() ? 'expired' : p.status;
+    out.payment = { id: p.id.toHexString(), kind: p.kind, fromId: p.fromId.toHexString(), toId: p.toId.toHexString(), amountCents: p.amountCents, note: p.note, status, ref: p.ref, expiresAt: p.expiresAt?.toISOString() ?? null };
+  }
   return out;
 }
 
@@ -182,6 +190,8 @@ export class ChatService {
   msgEvents: MessageEvents = { messageUpdated() {}, mine() {} };
   /** Called when someone's read point moves (to clear notifications on their other devices). */
   onRead: (userId: ObjectId, conversationId: string) => void = () => undefined;
+  /** Every new message someone sends (points for activity, referrals). */
+  onSent: (userId: ObjectId, conv: ConversationDoc) => void = () => undefined;
   readonly stars: Collection<StarDoc>;
   readonly prefs: Collection<ChatPrefDoc>;
   readonly blocks: Collection<BlockDoc>;
@@ -503,7 +513,7 @@ export class ChatService {
    * Stores a message exactly once. The number, the message and the sender's own receipt are written in one
    * transaction, so a retry with the same clientId returns the first copy and the numbers have no gaps.
    */
-  async send(me: ObjectId, convId: string, clientId: string, text: string, opts: { replyToId?: string; forwarded?: boolean; attachment?: AttachmentInput; trustedAttachment?: StoredAttachment; mentions?: string[]; poll?: { options: string[]; multi: boolean; anonymous: boolean } } = {}): Promise<SendResult> {
+  async send(me: ObjectId, convId: string, clientId: string, text: string, opts: { replyToId?: string; forwarded?: boolean; attachment?: AttachmentInput; trustedAttachment?: StoredAttachment; mentions?: string[]; poll?: { options: string[]; multi: boolean; anonymous: boolean }; payment?: PaymentSnap } = {}): Promise<SendResult> {
     const existing = await this.msgs.findOne({ senderId: me, clientId });
     if (existing) return this.duplicate(existing, convId, me);
     const pre = await this.memberConv(convId, me);
@@ -545,7 +555,7 @@ export class ChatService {
         const id = new ObjectId();
         const c = await this.convs.findOneAndUpdate({ _id: pre._id, members: me }, { $inc: { seq: 1 }, $set: { lastAt: now, lastMessageId: id } }, { session, returnDocument: 'after' });
         if (!c) throw AppError.notFound('Chat not found.');
-        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: poll ? 'poll' : attachment ? 'media' : 'text', text, createdAt: now, ...(attachment ? { attachment } : {}), ...(mentions.length ? { mentions } : {}), ...(poll ? { poll, votes: [] } : {}), ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}), ...(hiddenFrom ? { hiddenFor: [hiddenFrom], heldFrom: hiddenFrom } : {}) };
+        const m: MessageDoc = { _id: id, convId: c._id, seq: c.seq, senderId: me, clientId, type: poll ? 'poll' : attachment ? 'media' : 'text', text, createdAt: now, ...(attachment ? { attachment } : {}), ...(mentions.length ? { mentions } : {}), ...(poll ? { poll, votes: [] } : {}), ...(opts.payment ? { payment: opts.payment } : {}), ...(replyToId ? { replyToId } : {}), ...(opts.forwarded ? { forwarded: true } : {}), ...(hiddenFrom ? { hiddenFor: [hiddenFrom], heldFrom: hiddenFrom } : {}) };
         await this.msgs.insertOne(m, { session });
         await this.receipts.updateOne({ _id: rKey(c._id, me) }, { $max: { deliveredSeq: c.seq, readSeq: c.seq }, $set: { updatedAt: now }, $setOnInsert: { convId: c._id, userId: me } }, { upsert: true, session });
         created = m; conv = c;
@@ -562,6 +572,7 @@ export class ChatService {
     const to = hiddenFrom ? c.members.filter((x) => !x.equals(hiddenFrom!)) : c.members;
     this.events.messageCreated(to, message);
     this.events.receiptChanged(to, message.conversationId, me.toHexString(), { deliveredSeq: m.seq, readSeq: m.seq });
+    try { this.onSent(me, c); } catch { /* points never block a message */ }
     return { message, duplicate: false };
   }
 

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { apiCall, apiUser, pageAs, type ApiUser } from './helpers';
 
 /** A message by its own text (not a reply that merely quotes it). */

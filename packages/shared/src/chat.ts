@@ -100,6 +100,8 @@ export interface ChatMessage {
   /** People @mentioned in the text (each appears as "@Their Name"). */
   mentions?: string[];
   poll?: PollView;
+  /** Money in a chat: a payment request or a payment sent (the text is a plain fallback). */
+  payment?: import('./phase2').PaymentView;
 }
 
 export interface PollView {

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './test';
 import { apiCall, apiUser, pageAs, type ApiUser } from './helpers';
 
 const row = (p: Page, name: string) => p.getByTestId('chat-row').filter({ hasText: name });

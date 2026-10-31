@@ -48,6 +48,12 @@ const schema = z.object({
   LIVEKIT_API_SECRET: z.string().optional(),
   /** How long a call rings before it counts as missed. */
   CALL_RING_SECONDS: z.coerce.number().int().min(2).max(120).default(45),
+  /** Jack's AI. dev: answers without a model (development and tests). anthropic: Claude, with ANTHROPIC_API_KEY. */
+  AI_DRIVER: z.enum(['dev', 'anthropic']).default('dev'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('claude-sonnet-5-5'),
+  /** Indexx accounts (BTCY, Indexx Pay, EMMM). dev: a stand-in kept in this database. off: linking isn't offered. */
+  INDEXX_DRIVER: z.enum(['dev', 'off']).default('dev'),
   TEST_OUTBOX: bool.default('false'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
@@ -70,6 +76,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (c.TEST_OUTBOX) problems.push('TEST_OUTBOX must be off in production');
     if (c.PUSH_DRIVER === 'dev') problems.push('PUSH_DRIVER=dev is not allowed in production');
     if (c.PUSH_INSECURE_TLS) problems.push('PUSH_INSECURE_TLS must be off in production');
+    if (c.AI_DRIVER === 'dev') problems.push('AI_DRIVER=dev is not allowed in production (use anthropic)');
+    if (c.INDEXX_DRIVER === 'dev') problems.push('INDEXX_DRIVER=dev is not allowed in production (use off until the Indexx API is connected)');
   }
   if (c.SMS_DRIVER === 'twilio' && !(c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN && c.TWILIO_VERIFY_SID)) problems.push('SMS_DRIVER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SID');
   if (c.EMAIL_DRIVER === 'ses' && !(c.SES_REGION && c.SES_FROM)) problems.push('EMAIL_DRIVER=ses needs SES_REGION and SES_FROM');
@@ -77,6 +85,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (c.PUSH_DRIVER === 'webpush' && c.NODE_ENV === 'production' && !(c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY)) problems.push('PUSH_DRIVER=webpush needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys)');
   if (c.LIVEKIT_URL && !(c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET)) problems.push('LIVEKIT_URL needs LIVEKIT_API_KEY and LIVEKIT_API_SECRET');
   if (c.NODE_ENV === 'production' && c.LIVEKIT_API_SECRET && c.LIVEKIT_API_SECRET.length < 32) problems.push('LIVEKIT_API_SECRET must be at least 32 characters in production');
+  if (c.AI_DRIVER === 'anthropic' && !c.ANTHROPIC_API_KEY) problems.push('AI_DRIVER=anthropic needs ANTHROPIC_API_KEY');
   if (c.GOOGLE_DRIVER === 'google' && !c.GOOGLE_CLIENT_IDS) problems.push('GOOGLE_DRIVER=google needs GOOGLE_CLIENT_IDS');
   if (problems.length) throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);
   return {

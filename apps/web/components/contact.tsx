@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
-import { ApiError, REPORT_REASONS, type ChatMessage, type ChatOverview, type ConversationSummary, type MuteFor, type ReportReason, type SharedTab, type ThreadItem } from '@yays/shared';
+import { ApiError, REPORT_REASONS, type ChatMessage, type ChatOverview, type ConversationSummary, type MuteFor, type ReportReason, type SharedTab, type SocialLink, type ThreadItem } from '@yays/shared';
 import { Icon } from '@/lib/icons';
 import { api } from '@/lib/api';
 import { dayLabel, useChatState, useEngine } from '@/lib/chat';
@@ -9,6 +9,7 @@ import { MediaViewer } from './media';
 import { Modal } from './message-actions';
 import { useCalls } from './call';
 import { Avatar, Banner, LineArt, OvalButton } from './ui';
+import { SOCIAL } from '@/lib/socials';
 
 const errText = (e: unknown, f: string) => (e instanceof ApiError ? e.message : f);
 const REASON_LABEL: Record<ReportReason, string> = { spam: 'Spam', scam: 'Scam or fraud', harassment: 'Harassment', other: 'Something else' };
@@ -71,6 +72,7 @@ export function ContactInfoPanel({ id, onClose, onJump, onSearch, onOpenChat }: 
           </div>
         </div>
         {p.about && <section className="info-section"><h5 className="info-label">About</h5><p style={{ margin: 0, fontSize: 15, lineHeight: '21px' }}>{p.about}</p></section>}
+        <UserSocials userId={p.id} />
         {c.blocked && <Banner tone="warning">You blocked {p.displayName}. They can’t call you or send you messages.</Banner>}
 
         <section className="info-section" aria-label="Media, links and docs">
@@ -269,5 +271,18 @@ function SharedView({ id, name, onBack, onJump }: { id: string; name: string; on
       </div>
       {viewer && items && <MediaViewer items={asItems([...items].reverse(), engine.me)} start={viewer} onClose={() => setViewer(null)} />}
     </>
+  );
+}
+
+/** Their social accounts, when they share them with me. */
+function UserSocials({ userId }: { userId: string }) {
+  const [links, setLinks] = useState<SocialLink[]>([]);
+  useEffect(() => { let live = true; api().userSocials(userId).then((v) => { if (live) setLinks(v.links); }).catch(() => undefined); return () => { live = false; }; }, [userId]);
+  if (!links.length) return null;
+  return (
+    <section className="info-section" aria-label="Social accounts">
+      <h5 className="info-label">Socials</h5>
+      <div className="chips">{links.map((l) => <a key={l.network} className="chip p2-chip" href={l.url} target="_blank" rel="noopener noreferrer"><span className="ys-oval" style={{ width: 24, ['--ys-oval-fill' as string]: SOCIAL[l.network].fill, ['--ys-oval-ink' as string]: '#fff' }}><Icon name={SOCIAL[l.network].icon} size={12} /></span>{l.handle}</a>)}</div>
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './test';
 
 test('sign-in fits a phone screen with no sideways scroll', async ({ page }, info) => {
   test.skip(info.project.name !== 'phone', 'phone screens only');

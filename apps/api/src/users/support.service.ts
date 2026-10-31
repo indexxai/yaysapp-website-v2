@@ -34,6 +34,12 @@ export class SupportService {
     return c;
   }
 
+  /** A line from the support account in someone's support chat. */
+  async say(convId: string, text: string) {
+    const s = await this.supportUser();
+    await this.chat.send(s._id, convId, randomUUID(), text);
+  }
+
   async problem(me: ObjectId, v: { text: string; screenshotKey?: string; userAgent?: string; appVersion?: string; page?: string }) {
     if (v.screenshotKey && (!KEY_RE.test(v.screenshotKey) || !v.screenshotKey.startsWith(`media/${me.toHexString()}/`))) throw AppError.forbidden('That screenshot was not uploaded by you.');
     await this.db.collection(C.problemReports).insertOne({ userId: me, text: v.text.trim(), ...(v.screenshotKey ? { screenshotKey: v.screenshotKey } : {}), userAgent: v.userAgent?.slice(0, 300), appVersion: v.appVersion?.slice(0, 40), page: v.page?.slice(0, 200), at: new Date(), status: 'open' });
