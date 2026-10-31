@@ -5,6 +5,7 @@ import { ApiError, CHECKIN_POINTS } from '@yays/shared';
 import { api } from '@/lib/api';
 import { Icon, type IconName } from '@/lib/icons';
 import { PRODUCTS } from '@/lib/phase2';
+import { setPrefs, usePrefs } from '@/lib/prefs';
 import { Field, LineArt, OvalButton } from './ui';
 
 const FEATURES: Array<[IconName, string, string]> = [
@@ -32,6 +33,16 @@ const FAQ: Array<[string, string]> = [
   ['How do I start a community?', 'Go to Communities, choose New, add a name and pick the groups to bring in. Every community gets an announcements group.'],
 ];
 
+/** Light or dark, the same setting the app uses (it carries over after signing in). */
+function ThemeToggle() {
+  const prefs = usePrefs();
+  const dark = prefs.theme === 'dark' || (prefs.theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  return <OvalButton icon={dark ? 'sun' : 'moon'} label={dark ? 'Light' : 'Dark'} size="sm" variant="ghost" aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={() => setPrefs({ theme: dark ? 'light' : 'dark' })} />;
+}
+
+/** The YaysApp wordmark, with white lettering on the dark theme. */
+const Wordmark = () => <><img src="/brand/wordmark.png" alt="YaysApp" className="lp-logo lp-logo--light" /><img src="/brand/wordmark-dark.png" alt="YaysApp" className="lp-logo lp-logo--dark" /></>;
+
 function Stores() {
   return (
     <div className="lp-stores">
@@ -56,8 +67,9 @@ export function Landing() {
   return (
     <div className="lp">
       <header className="lp-top lp-wrap">
-        <img src="/brand/wordmark.png" alt="YaysApp" className="lp-logo" />
+        <Wordmark />
         <nav aria-label="Site" className="lp-nav"><a href="#features">Features</a><a href="#earn">Earn</a><a href="#communities">Communities</a><a href="#faq">Help</a></nav>
+        <ThemeToggle />
         <OvalButton icon="globe" label="Open web app" size="sm" href="/sign-in" />
       </header>
 
@@ -94,7 +106,7 @@ export function Landing() {
       </Section>
 
       <Section label="x" eyebrow="Indexx ecosystem" title="One account for every Indexx product" lead="Open BTCY, EMMM and the rest from Explore, and keep your points and referrals everywhere." art={<LineArt name="trader" height={280} opacity={0.12} className="lp-art lp-art--r" />}>
-        <div className="lp-cards lp-cards--6">{PRODUCTS.map((p) => <div key={p.id} className={`ys-card lp-product${p.href ? '' : ' p2-product--soon'}`}><span className="ys-oval" style={{ width: 56, ['--ys-oval-fill' as string]: 'var(--surface)' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted">{p.sub}</span></div>)}</div>
+        <div className="lp-cards lp-cards--6">{PRODUCTS.map((p) => <div key={p.id} className={`ys-card lp-product${p.href ? '' : ' p2-product--soon'}`}><span className="ys-oval" style={{ width: 56, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted">{p.sub}</span></div>)}</div>
       </Section>
 
       <section id="communities" className="lp-section" aria-labelledby="c-t">
@@ -137,7 +149,7 @@ export function Landing() {
 
       <footer className="lp-foot">
         <div className="lp-wrap lp-foot__cols">
-          <div className="p2-col" style={{ gap: 10, maxWidth: 280 }}><img src="/brand/wordmark.png" alt="YaysApp" className="lp-logo" /><p className="muted">YaysApp is the chat hub of the Indexx ecosystem.</p></div>
+          <div className="p2-col" style={{ gap: 10, maxWidth: 280 }}><Wordmark /><p className="muted">YaysApp is the chat hub of the Indexx ecosystem.</p></div>
           <div className="p2-col"><strong>Product</strong><a href="#features">Features</a><a href="#earn">Earn</a><a href="#communities">Communities</a><Link href="/sign-in">Open web app</Link></div>
           <div className="p2-col"><strong>Help</strong><a href="#faq">Questions</a><a href="https://yaysapp.com/privacy">Privacy policy</a><a href="https://yaysapp.com/terms">Terms</a></div>
         </div>

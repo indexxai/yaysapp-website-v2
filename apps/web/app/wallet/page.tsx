@@ -39,7 +39,7 @@ export default function WalletPage() {
         {wallet.error && <Banner>{wallet.error}</Banner>}
         {w && !w.linked && (
           <div className="p2-card p2-card--pad p2-link-cta">
-            <span className="ys-oval" style={{ width: 52, ['--ys-oval-fill' as string]: 'var(--surface)' }}><img src="/brand/products/indexx.png" alt="" /></span>
+            <span className="ys-oval" style={{ width: 52, ['--ys-oval-fill' as string]: '#ffffff' }}><img src="/brand/products/indexx.png" alt="" /></span>
             <span className="p2-col" style={{ flex: 1 }}><strong>Link your Indexx account</strong><span className="muted">See BTCY Nuggets, USDXX and Exchange balances here, convert points and pay in chats.</span></span>
             <OvalButton icon="link" label="Link account" size="sm" href="/settings/indexx" />
           </div>
@@ -80,7 +80,7 @@ export default function WalletPage() {
 function Asset({ name, amount, sub, logo, icon }: { name: string; amount: string; sub: string; logo?: string; icon?: boolean }) {
   return (
     <div className="p2-asset">
-      {icon ? <span className="ys-oval ys-oval--ember" style={{ width: 40 }}><Icon name="star" size={18} /></span> : <span className="ys-oval" style={{ width: 40, ['--ys-oval-fill' as string]: 'var(--surface)' }}><img src={logo} alt="" /></span>}
+      {icon ? <span className="ys-oval ys-oval--ember" style={{ width: 40 }}><Icon name="star" size={18} /></span> : <span className="ys-oval" style={{ width: 40, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={logo} alt="" /></span>}
       <span className="muted p2-small" style={{ marginTop: 10 }}>{name}</span>
       <strong className="p2-asset__amt">{amount}</strong>
       <span className="muted p2-xs">{sub}</span>
@@ -121,7 +121,7 @@ function Convert({ w, onDone }: { w: WalletView; onDone: (w: WalletView) => void
             <span className="ys-field__hint" id="amt-hint" role={problem ? 'alert' : undefined}>{problem ?? `You have ${fmtPoints(w.points)} points.`}</span>
           </div>
           <div className="row center muted"><Icon name="arrow-down" size={18} /></div>
-          <div className="p2-convert__to"><span className="ys-oval" style={{ width: 36, ['--ys-oval-fill' as string]: 'var(--ground)' }}><img src="/brand/products/btcy.png" alt="" /></span><span style={{ flex: 1, fontWeight: 700 }}>BTCY Nuggets</span><strong>{nuggets !== null ? fmtNuggets(nuggets) : '—'}</strong></div>
+          <div className="p2-convert__to"><span className="ys-oval" style={{ width: 36, ['--ys-oval-fill' as string]: '#ffffff' }}><img src="/brand/products/btcy.png" alt="" /></span><span style={{ flex: 1, fontWeight: 700 }}>BTCY Nuggets</span><strong>{nuggets !== null ? fmtNuggets(nuggets) : '—'}</strong></div>
           <dl className="p2-dl">
             <dt>Rate</dt><dd>{w.convert.pointsPerNugget} points = 1 Nugget</dd>
             <dt>Limits</dt><dd>Min {fmtPoints(w.convert.min)} · {fmtPoints(w.convert.dailyMax)} per day</dd>

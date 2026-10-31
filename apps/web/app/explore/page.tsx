@@ -54,7 +54,7 @@ export default function ExplorePage() {
           <h2 id="prod">Indexx products</h2>
           <div className="p2-products">
             {shown.map((p) => {
-              const inner = (<><span className="ys-oval" style={{ width: 60, ['--ys-oval-fill' as string]: 'var(--ground)' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted">{p.sub}</span></>);
+              const inner = (<><span className="ys-oval" style={{ width: 60, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted">{p.sub}</span></>);
               return p.href ? <Link key={p.id} href={p.href} className="p2-product">{inner}</Link> : <div key={p.id} className="p2-product p2-product--soon" aria-disabled="true">{inner}</div>;
             })}
             {!shown.length && <p className="muted">Nothing matches “{q}”.</p>}

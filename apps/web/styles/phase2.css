@@ -348,3 +348,9 @@ a.p2-product:hover { transform: translateY(-2px); }
 .sa-compose .link-btn { width: 100%; text-align: right; margin-top: -10px; }
 /* The rail stays in view on long pages. */
 .app-shell > .rail { position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; }
+
+/* Wordmark: white lettering on the dark theme. */
+.lp-logo--dark { display: none; }
+[data-theme='dark'] .lp-logo--light { display: none; }
+[data-theme='dark'] .lp-logo--dark { display: block; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .lp-logo--light { display: none; } :root:not([data-theme='light']) .lp-logo--dark { display: block; } }

@@ -24,7 +24,7 @@ function Indexx({ email }: { email: string | null }) {
       {saved.banner}
       <section className="set-card set-card--pad p2-indexx">
         <div className="row" style={{ gap: 14 }}>
-          <span className="ys-oval" style={{ width: 60, ['--ys-oval-fill' as string]: 'var(--surface)' }}><img src="/brand/products/indexx.png" alt="" /></span>
+          <span className="ys-oval" style={{ width: 60, ['--ys-oval-fill' as string]: '#ffffff' }}><img src="/brand/products/indexx.png" alt="" /></span>
           <span className="p2-col" style={{ flex: 1 }}><strong style={{ fontSize: 18 }}>One account for every Indexx product</strong><span className="muted">Link your Indexx Zodiac account to see BTCY, EMMM and wallet balances here and use one invite code everywhere.</span></span>
         </div>
         <ul className="p2-perms">

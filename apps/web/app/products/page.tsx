@@ -37,7 +37,7 @@ function Products() {
         </div>
         <section className="p2-card p2-card--pad">
           <div className="row" style={{ gap: 14 }}>
-            <span className="ys-oval" style={{ width: 56, ['--ys-oval-fill' as string]: 'var(--surface)' }}><img src={p.logo} alt="" /></span>
+            <span className="ys-oval" style={{ width: 56, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={p.logo} alt="" /></span>
             <span className="p2-col" style={{ flex: 1 }}><strong style={{ fontSize: 18 }}>{p.name}</strong><span className="muted">{p.id === 'emmm' && e?.handle ? `${p.sub} · connected as ${e.handle}` : p.sub}</span></span>
             <a className="ys-ovalbtn ys-ovalbtn--sm ys-ovalbtn--primary" href={site.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}><span className="ys-oval"><Icon name="external" size={16} /></span><span className="ys-ovalbtn__label">Open {p.name}</span></a>
           </div>
