@@ -8,7 +8,7 @@ import { Icon } from '@/lib/icons';
 import { listTime } from '@/lib/chat';
 import { ConfirmButton, Switch } from './group';
 import { Modal } from './message-actions';
-import { markFill, LineArt, Avatar, Banner, OvalButton, PhotoPick, artFor } from './ui';
+import { LineArt, Avatar, Banner, OvalButton, PhotoPick, artFor } from './ui';
 
 const BANNER_ART = ['hype', 'skater', 'trader', 'explorer', 'coins', 'snap'] as const;
 
@@ -19,7 +19,7 @@ const plural = (n: number, w: string) => (w === 'person' ? `${n.toLocaleString()
 export function CommunityMark({ c, size, onBanner }: { c: { id: string; name: string; photoUrl: string | null }; size: number; onBanner?: boolean }) {
   if (onBanner && !c.photoUrl) return <span className="ys-oval" aria-hidden style={{ width: size, '--ys-oval-fill': '#ffffff', '--ys-oval-ink': 'var(--ember-ink)', font: `800 ${Math.round(size * 0.36)}px var(--font-display)` } as React.CSSProperties}>{c.name.charAt(0).toUpperCase()}</span>;
   if (c.photoUrl) return <span className="ys-oval" style={{ width: size, overflow: 'hidden' }}><img src={c.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></span>;
-  return <span className="ys-oval" aria-hidden style={{ width: size, '--ys-oval-fill': markFill(c.id), '--ys-oval-ink': '#fff', font: `800 ${Math.round(size * 0.36)}px var(--font-display)` } as React.CSSProperties}>{c.name.charAt(0).toUpperCase()}</span>;
+  return <span className="ys-oval" aria-hidden style={{ width: size, '--ys-oval-fill': 'var(--ember)', '--ys-oval-ink': '#fff', font: `800 ${Math.round(size * 0.36)}px var(--font-display)` } as React.CSSProperties}>{c.name.charAt(0).toUpperCase()}</span>;
 }
 
 export function CommunityList({ list, active, onOpen, onNew }: { list: CommunitySummary[] | null; active: string | null; onOpen: (id: string) => void; onNew: () => void }) {
