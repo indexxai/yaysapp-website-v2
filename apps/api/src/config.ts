@@ -54,6 +54,12 @@ const schema = z.object({
   AI_MODEL: z.string().default('claude-sonnet-5-5'),
   /** Indexx accounts (BTCY, Indexx Pay, EMMM). dev: a stand-in kept in this database. off: linking isn't offered. */
   INDEXX_DRIVER: z.enum(['dev', 'off']).default('dev'),
+  /** Facebook link and sign-in. dev: a stand-in page served by this API. facebook: real Facebook Login. off: not offered. */
+  FACEBOOK_DRIVER: z.enum(['dev', 'facebook', 'off']).default('dev'),
+  FACEBOOK_APP_ID: z.string().optional(),
+  FACEBOOK_APP_SECRET: z.string().optional(),
+  /** The web app's address, where Facebook sign-in and linking come back to. */
+  WEB_URL: z.string().url().default('http://localhost:3000'),
   TEST_OUTBOX: bool.default('false'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
@@ -76,6 +82,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (c.TEST_OUTBOX) problems.push('TEST_OUTBOX must be off in production');
     if (c.PUSH_DRIVER === 'dev') problems.push('PUSH_DRIVER=dev is not allowed in production');
     if (c.PUSH_INSECURE_TLS) problems.push('PUSH_INSECURE_TLS must be off in production');
+    if (c.FACEBOOK_DRIVER === 'dev') problems.push('FACEBOOK_DRIVER=dev is not allowed in production (use facebook, or off)');
     if (c.AI_DRIVER === 'dev') problems.push('AI_DRIVER=dev is not allowed in production (use anthropic)');
     if (c.INDEXX_DRIVER === 'dev') problems.push('INDEXX_DRIVER=dev is not allowed in production (use off until the Indexx API is connected)');
   }
@@ -85,6 +92,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (c.PUSH_DRIVER === 'webpush' && c.NODE_ENV === 'production' && !(c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY)) problems.push('PUSH_DRIVER=webpush needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys)');
   if (c.LIVEKIT_URL && !(c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET)) problems.push('LIVEKIT_URL needs LIVEKIT_API_KEY and LIVEKIT_API_SECRET');
   if (c.NODE_ENV === 'production' && c.LIVEKIT_API_SECRET && c.LIVEKIT_API_SECRET.length < 32) problems.push('LIVEKIT_API_SECRET must be at least 32 characters in production');
+  if (c.FACEBOOK_DRIVER === 'facebook' && !(c.FACEBOOK_APP_ID && c.FACEBOOK_APP_SECRET)) problems.push('FACEBOOK_DRIVER=facebook needs FACEBOOK_APP_ID and FACEBOOK_APP_SECRET');
   if (c.AI_DRIVER === 'anthropic' && !c.ANTHROPIC_API_KEY) problems.push('AI_DRIVER=anthropic needs ANTHROPIC_API_KEY');
   if (c.GOOGLE_DRIVER === 'google' && !c.GOOGLE_CLIENT_IDS) problems.push('GOOGLE_DRIVER=google needs GOOGLE_CLIENT_IDS');
   if (problems.length) throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);

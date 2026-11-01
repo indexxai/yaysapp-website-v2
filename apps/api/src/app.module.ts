@@ -48,7 +48,9 @@ import { INDEXX_SERVICE, IndexxService } from './indexx/indexx.service';
 import { PAYMENTS, PaymentsService } from './pay/payments.service';
 import { AI_PROVIDER, createAiProvider } from './ai/ai.provider';
 import { AI, AiService } from './ai/ai.service';
-import { AiController, IndexxController, PayController, RewardsController, SiteController, SocialsController, SupportDeskController } from './phase2.controllers';
+import { FacebookController } from './auth/facebook.controller';
+import { createFacebook, FACEBOOK, FacebookService } from './auth/facebook';
+import { AiController, IndexxController, SOCIALS_VIEW, mySocials, PayController, RewardsController, SiteController, SocialsController, SupportDeskController } from './phase2.controllers';
 
 export interface Infra { config: Config; log: Logger; mongo: MongoClient; db: Db; redis: Redis; storage: Storage }
 
@@ -82,6 +84,7 @@ export class AppModule {
     rewards.indexx = indexx;
     const payments = new PaymentsService(chat, indexx, limiter, db);
     indexx.payments = payments;
+    const facebook = new FacebookService(createFacebook(c, log), users.col, redis, c);
     const aiProvider = createAiProvider(c, log);
     const ai = new AiService(aiProvider, db, redis, chat, rewards);
     ai.support = support;
@@ -93,10 +96,10 @@ export class AppModule {
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
       { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities }, { provide: CALLS, useValue: calls },
-      { provide: REWARDS, useValue: rewards }, { provide: INDEXX, useValue: indexxProvider }, { provide: INDEXX_SERVICE, useValue: indexx }, { provide: PAYMENTS, useValue: payments }, { provide: AI_PROVIDER, useValue: aiProvider }, { provide: AI, useValue: ai },
+      { provide: REWARDS, useValue: rewards }, { provide: INDEXX, useValue: indexxProvider }, { provide: INDEXX_SERVICE, useValue: indexx }, { provide: PAYMENTS, useValue: payments }, { provide: AI_PROVIDER, useValue: aiProvider }, { provide: AI, useValue: ai }, { provide: FACEBOOK, useValue: facebook }, { provide: SOCIALS_VIEW, useValue: mySocials(users.col, facebook.available) },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CallsController, LiveKitWebhookController, RewardsController, IndexxController, PayController, AiController, SiteController, SupportDeskController, SocialsController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CallsController, LiveKitWebhookController, RewardsController, IndexxController, PayController, AiController, SiteController, SupportDeskController, FacebookController, SocialsController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }

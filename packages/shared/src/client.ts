@@ -360,6 +360,13 @@ export class YaysClient {
   setSocial(network: SocialNetwork, handle: string) { return this.request<SocialsView>('PUT', `/v1/me/socials/${network}`, { network, handle }); }
   removeSocial(network: SocialNetwork) { return this.request<SocialsView>('DELETE', `/v1/me/socials/${network}`); }
   socialVisibility(visibility: 'everyone' | 'contacts' | 'nobody') { return this.request<SocialsView>('PUT', '/v1/me/socials', { visibility }); }
+  /** Where to send the browser to link Facebook (Facebook's own page, or the dev stand-in). */
+  linkFacebook(login: boolean) { return this.request<{ url: string }>('POST', '/v1/me/socials/facebook/start', { login }); }
+  facebookLogin(on: boolean) { return this.request<SocialsView>('PUT', '/v1/me/socials/facebook/login', { on }); }
+  unlinkFacebook() { return this.request<SocialsView>('DELETE', '/v1/me/socials/facebook'); }
+  /** Sign in with Facebook: where to send the browser. It comes back to /sign-in with a ticket. */
+  facebookSignInStart() { return this.request<{ url: string }>('POST', '/v1/auth/facebook/start', { device: this.o.device }, { auth: false }); }
+  async facebookSignIn(ticket: string) { return this.signedIn(await this.request<SignInResult>('POST', '/v1/auth/facebook/finish', { ticket }, { auth: false })); }
   userSocials(userId: string) { return this.request<SocialsView>('GET', `/v1/users/${encodeURIComponent(userId)}/socials`); }
 
   /** The current access token, refreshed first when it is about to expire. Used to open the real-time connection. */

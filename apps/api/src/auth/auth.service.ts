@@ -13,7 +13,7 @@ import type { TokenService } from './tokens';
 
 const maskPhone = (p: string) => p.slice(0, 4) + ' ••• ' + p.slice(-3);
 const scrypt = promisify(scryptCb) as (pw: string, salt: Buffer, len: number) => Promise<Buffer>;
-type Via = 'phone' | 'email' | 'google';
+type Via = 'phone' | 'email' | 'google' | 'facebook';
 const PIN_TRIES = 5;
 const PIN_STEP_SECONDS = 600;
 const LINK_SECONDS = 60;
@@ -223,6 +223,9 @@ export class AuthService {
     try { u = await this.users.create({ email: g.email, googleSub: g.sub, displayName: g.name }); return this.signIn(u, device, ip, true, 'google'); }
     catch (e) { if (!isDuplicate(e)) throw e; return this.signIn((await this.users.byGoogleSub(g.sub)) ?? (await this.users.byEmail(g.email))!, device, ip, false, 'google'); }
   }
+
+  /** Facebook already confirmed who this is (FacebookService); sign in like any other way, PIN included. */
+  facebookSignIn(u: UserDoc, device: DeviceInput, ip: string) { return this.signIn(u, device, ip, false, 'facebook'); }
 
   // ---------- add or change phone while signed in ----------
   async startAddPhone(userId: ObjectId, phone: string, channel: 'sms' | 'whatsapp', ip: string) {

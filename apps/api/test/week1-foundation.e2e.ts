@@ -107,10 +107,12 @@ describe('Week 1 · configuration', () => {
     const prod = { ...base, NODE_ENV: 'production' };
     expect(() => loadConfig(prod)).toThrow(/AI_DRIVER=dev is not allowed in production/);
     expect(() => loadConfig(prod)).toThrow(/INDEXX_DRIVER=dev is not allowed in production/);
+    expect(() => loadConfig(prod)).toThrow(/FACEBOOK_DRIVER=dev is not allowed in production/);
+    expect(() => loadConfig({ ...base, FACEBOOK_DRIVER: 'facebook' })).toThrow(/needs FACEBOOK_APP_ID and FACEBOOK_APP_SECRET/);
     expect(() => loadConfig({ ...base, AI_DRIVER: 'anthropic' })).toThrow(/needs ANTHROPIC_API_KEY/);
   });
   it('accepts a full production setup', () => {
-    const c = loadConfig({ ...base, NODE_ENV: 'production', SMS_DRIVER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_VERIFY_SID: 'VA1', EMAIL_DRIVER: 'ses', SES_REGION: 'us-east-1', SES_FROM: 'no-reply@yays.app', GOOGLE_DRIVER: 'google', GOOGLE_CLIENT_IDS: 'a,b', STORAGE_DRIVER: 's3', S3_BUCKET: 'b', S3_REGION: 'us-east-1', CORS_ORIGINS: 'https://web.yays.app, https://yays.app', PUSH_DRIVER: 'webpush', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv', AI_DRIVER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-x', INDEXX_DRIVER: 'off' });
+    const c = loadConfig({ ...base, NODE_ENV: 'production', SMS_DRIVER: 'twilio', TWILIO_ACCOUNT_SID: 'AC1', TWILIO_AUTH_TOKEN: 't', TWILIO_VERIFY_SID: 'VA1', EMAIL_DRIVER: 'ses', SES_REGION: 'us-east-1', SES_FROM: 'no-reply@yays.app', GOOGLE_DRIVER: 'google', GOOGLE_CLIENT_IDS: 'a,b', STORAGE_DRIVER: 's3', S3_BUCKET: 'b', S3_REGION: 'us-east-1', CORS_ORIGINS: 'https://web.yays.app, https://yays.app', PUSH_DRIVER: 'webpush', VAPID_PUBLIC_KEY: 'pub', VAPID_PRIVATE_KEY: 'priv', AI_DRIVER: 'anthropic', ANTHROPIC_API_KEY: 'sk-ant-x', INDEXX_DRIVER: 'off', FACEBOOK_DRIVER: 'facebook', FACEBOOK_APP_ID: '123', FACEBOOK_APP_SECRET: 's' });
     expect(c.corsOrigins).toEqual(['https://web.yays.app', 'https://yays.app']);
     expect(c.googleClientIds).toEqual(['a', 'b']);
   });

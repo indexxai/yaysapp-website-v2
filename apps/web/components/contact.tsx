@@ -9,7 +9,7 @@ import { MediaViewer } from './media';
 import { Modal } from './message-actions';
 import { useCalls } from './call';
 import { Avatar, Banner, LineArt, OvalButton } from './ui';
-import { SOCIAL } from '@/lib/socials';
+import { SocialChips } from './socials';
 
 const errText = (e: unknown, f: string) => (e instanceof ApiError ? e.message : f);
 const REASON_LABEL: Record<ReportReason, string> = { spam: 'Spam', scam: 'Scam or fraud', harassment: 'Harassment', other: 'Something else' };
@@ -282,7 +282,7 @@ function UserSocials({ userId }: { userId: string }) {
   return (
     <section className="info-section" aria-label="Social accounts">
       <h5 className="info-label">Socials</h5>
-      <div className="chips">{links.map((l) => <a key={l.network} className="chip p2-chip" href={l.url} target="_blank" rel="noopener noreferrer"><span className="ys-oval" style={{ width: 24, ['--ys-oval-fill' as string]: SOCIAL[l.network].fill, ['--ys-oval-ink' as string]: '#fff' }}><Icon name={SOCIAL[l.network].icon} size={12} /></span>{l.handle}</a>)}</div>
+      <SocialChips links={links} />
     </section>
   );
 }

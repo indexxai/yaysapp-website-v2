@@ -92,7 +92,7 @@ export class AccountService {
       this.push.subs.deleteMany({ userId: id }),
     ]);
     await this.users.setYc(id, { deletedAt: new Date(), disabledAt: new Date(), photoKey: null },
-      ['phoneE164', 'phoneVerifiedAt', 'emailLower', 'emailVerifiedAt', 'googleSub', 'displayName', 'username', 'about', 'twoStep', 'privacy', 'notify']);
+      ['phoneE164', 'phoneVerifiedAt', 'emailLower', 'emailVerifiedAt', 'googleSub', 'displayName', 'username', 'about', 'twoStep', 'privacy', 'notify', 'facebook', 'socials', 'payPin', 'indexx']);
     await this.db.collection(C.accountDeletions).insertOne({ userId: id, reason: reason?.trim() || null, at: new Date() });
     await this.sessions.revokeAll(id, 'account_deleted');
   }

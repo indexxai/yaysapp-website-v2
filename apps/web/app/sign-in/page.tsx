@@ -13,7 +13,8 @@ type Step =
   | { s: 'phone' } | { s: 'phone-code'; phone: string; sent: CodeSent }
   | { s: 'signup-email'; phone: string; signupToken: string } | { s: 'signup-code'; phone: string; signupToken: string; email: string; sent: CodeSent }
   | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent } | { s: 'qr' }
-  | { s: 'pin'; pinToken: string } | { s: 'pin-reset'; pinToken: string; sent: CodeSent };
+  | { s: 'pin'; pinToken: string } | { s: 'pin-reset'; pinToken: string; sent: CodeSent }
+  | { s: 'fb-missing'; name: string };
 
 const message = (e: unknown) => (e instanceof ApiError ? e.message : 'Something went wrong. Try again.');
 
@@ -29,9 +30,18 @@ export default function SignIn() {
   useEffect(() => {
     // A phone can't scan its own screen: phones start with the phone number.
     if (window.matchMedia('(max-width: 860px)').matches) setStep((x) => (x.s === 'qr' ? { s: 'phone' } : x));
-    if (hasSession()) router.replace('/chats');
-    else if (new URLSearchParams(window.location.search).get('deleted') === '1') setNotice('Your account was deleted. You can make a new one any time with the same steps.');
+    if (hasSession()) { router.replace('/chats'); return; }
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('deleted') === '1') setNotice('Your account was deleted. You can make a new one any time with the same steps.');
+    // Back from Facebook: a one-time ticket to trade for a session, or why it didn't work.
+    const ticket = q.get('fb_ticket'), fb = q.get('fb');
+    if (ticket || fb) history.replaceState(null, '', '/sign-in');
+    if (ticket) { setStep({ s: 'phone' }); void run(async () => done(await api().facebookSignIn(ticket))); }
+    else if (fb === 'not_linked') setStep({ s: 'fb-missing', name: q.get('fb_name') ?? '' });
+    else if (fb) { setStep({ s: 'phone' }); setError(fb === 'cancelled' ? 'Facebook sign-in was cancelled.' : fb === 'expired' ? 'That Facebook sign-in took too long. Try again.' : 'Facebook didn’t confirm. Try again.'); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
+  const facebook = () => run(async () => { location.href = (await api().facebookSignInStart()).url; });
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true); setError(null);
@@ -65,10 +75,23 @@ export default function SignIn() {
           {step.s === 'phone' ? <PhoneForm busy={busy} onSubmit={(phone) => run(async () => { const r = await api().startPhone(phone); sent(r); setStep({ s: 'phone-code', phone, sent: r }); })} />
             : <EmailForm busy={busy} label="Email" submitLabel="Send code" onSubmit={(email) => run(async () => { const r = await api().startEmail(email); sent(r); setStep({ s: 'email-code', email, sent: r }); })} />}
           <div className="divider">or</div>
+          {process.env.NEXT_PUBLIC_FACEBOOK !== '0' && <FacebookButton busy={busy} onClick={() => void facebook()} />}
           <GoogleButton onToken={(t) => run(async () => done(await api().google(t)))} busy={busy} />
           <button type="button" className="link-btn qr-switch" onClick={() => { setError(null); setStep({ s: 'qr' }); }}><Icon name="qr" size={18} />Scan a QR code instead</button>
         </>
       ) : null}
+      {step.s === 'fb-missing' && (
+        <div className="fb-missing">
+          <span className="ys-oval" style={{ width: 84, ['--ys-oval-fill' as string]: 'var(--warning-wash)', ['--ys-oval-ink' as string]: 'var(--warning-ink)' }}><Icon name="facebook" size={36} /></span>
+          <h1>This Facebook isn’t linked yet</h1>
+          <p className="lead">No YaysApp account uses {step.name ? <strong>{step.name}</strong> : 'this Facebook account'} for signing in. Sign in with your phone number or email, then link Facebook in Settings › Social accounts.</p>
+          <div className="row center" style={{ gap: 24 }}>
+            <OvalButton icon="phone" label="Sign in with phone" size="lg" onClick={() => setStep({ s: 'phone' })} />
+            <OvalButton icon="mail" label="Use email" size="lg" variant="soft" onClick={() => setStep({ s: 'email' })} />
+          </div>
+          <p className="muted p2-xs">We don’t make new accounts from Facebook: every YaysApp account starts with a verified phone number.</p>
+        </div>
+      )}
 
       {step.s === 'phone-code' && (
         <CodeStep title="Enter the code" sentTo={step.sent.sentTo} busy={busy} error={error} left={left}
@@ -232,6 +255,11 @@ function GoogleButton({ onToken, busy }: { onToken: (idToken: string) => void; b
       }} />
     </div>
   );
+}
+
+/** Facebook's blue sign-in button. It sends the browser to Facebook and back. */
+function FacebookButton({ onClick, busy, label = 'Continue with Facebook' }: { onClick: () => void; busy?: boolean; label?: string }) {
+  return <button type="button" className="fb-btn" onClick={onClick} disabled={busy} aria-busy={busy || undefined}><Icon name="facebook" size={20} />{label}</button>;
 }
 
 /** Sign in by scanning a code with a device that's already signed in (or typing the short code there). */

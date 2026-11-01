@@ -102,6 +102,7 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { 'yc.googleSub': 1 }, name: 'yc_google_unique', unique: true, partialFilterExpression: { 'yc.googleSub': { $type: 'string' } } },
     { key: { 'yc.username': 1 }, name: 'yc_username_unique', unique: true, partialFilterExpression: { 'yc.username': { $type: 'string' } } },
     { key: { email: 1 }, name: 'email_1' },
+    { key: { 'yc.facebook.id': 1 }, name: 'yc_facebook_unique', unique: true, partialFilterExpression: { 'yc.facebook.id': { $type: 'string' } } },
     { key: { 'yc.refCode': 1 }, name: 'yc_refcode_unique', unique: true, partialFilterExpression: { 'yc.refCode': { $type: 'string' } } },
     { key: { 'yc.indexx.account': 1 }, name: 'yc_indexx_account', partialFilterExpression: { 'yc.indexx.account': { $type: 'string' } } },
   ];

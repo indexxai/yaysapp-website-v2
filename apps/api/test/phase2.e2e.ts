@@ -279,7 +279,7 @@ describe('Indexx account, wallet, BTCY and pay in chat', () => {
   it('socials: shown to others unless hidden', async () => {
     await t.http.put('/v1/me/socials/instagram').set(sara.auth).send({ handle: 'sara.creates' }).expect(200);
     expect((await t.http.put('/v1/me/socials/x').set(sara.auth).send({ handle: 'bad handle!' })).status).toBe(400);
-    expect((await t.http.get(`/v1/users/${sara.id}/socials`).set(amara.auth).expect(200)).body.links).toEqual([{ network: 'instagram', handle: '@sara.creates', url: 'https://instagram.com/sara.creates' }]);
+    expect((await t.http.get(`/v1/users/${sara.id}/socials`).set(amara.auth).expect(200)).body.links).toEqual([{ network: 'instagram', handle: '@sara.creates', url: 'https://instagram.com/sara.creates', verified: false }]);
     await t.http.put('/v1/me/socials').set(sara.auth).send({ visibility: 'nobody' }).expect(200);
     expect((await t.http.get(`/v1/users/${sara.id}/socials`).set(amara.auth).expect(200)).body.links).toEqual([]);
   });
@@ -304,5 +304,67 @@ describe('Anthropic provider', () => {
     expect(sent!.body).toMatchObject({ model: 'claude-sonnet-5-5', system: 'sys', messages: [{ role: 'user', content: 'Best time to run?' }], tools: [{ name: 'web_search' }] });
     expect(r.text).toBe('Early morning is coolest.[1] Avoid evenings.[2][1]');
     expect(r.sources.map((s) => `${s.n} ${s.domain}`)).toEqual(['1 weather.example.com', '2 air.example.org']);
+  });
+});
+
+describe('Facebook: link, sign in, show on profile', () => {
+  let t: TestApp; let sara: TUser; let amara: TUser;
+  const WEB = 'http://web.test';
+  beforeAll(async () => { t = await startApp({ WEB_URL: WEB }); sara = await makeUser(t, 'Sara'); amara = await makeUser(t, 'Amara'); });
+  afterAll(async () => { await t.close(); });
+  /** Plays Facebook: follows the start URL to the stand-in page, then "Continue" as `name`. Returns where the browser lands. */
+  async function viaFacebook(url: string, name: string | null) {
+    const u = new URL(url);
+    expect(u.pathname).toBe('/v1/oauth/facebook/dev');
+    const page = await t.http.get(u.pathname + u.search).expect(200);
+    expect(page.text).toContain('Development stand-in');
+    const state = u.searchParams.get('state')!;
+    const r = await t.http.get('/v1/oauth/facebook/callback').query(name === null ? { state, error: 'access_denied' } : { state, dev_name: name }).expect(302);
+    return r.headers.location as string;
+  }
+  const device = { deviceId: 'web-fb-device-1234', platform: 'web', name: 'Chrome' };
+
+  it('links Facebook through Facebook’s page, once per Facebook account', async () => {
+    const start = (await t.http.post('/v1/me/socials/facebook/start').set(sara.auth).send({ login: true }).expect(200)).body;
+    expect(await viaFacebook(start.url, 'Sara Ahmed')).toBe(`${WEB}/settings/socials?fb=linked`);
+    const me = (await t.http.get('/v1/me/socials').set(sara.auth).expect(200)).body;
+    expect(me.facebook).toMatchObject({ name: 'Sara Ahmed', login: true });
+    expect(me.links[0]).toEqual({ network: 'facebook', handle: 'Sara Ahmed', url: null, verified: true });
+    // Amara sees it on Sara's profile, marked verified.
+    expect((await t.http.get(`/v1/users/${sara.id}/socials`).set(amara.auth).expect(200)).body.links[0]).toMatchObject({ network: 'facebook', verified: true });
+    // The same Facebook can't be linked to a second account; cancelling changes nothing.
+    const again = (await t.http.post('/v1/me/socials/facebook/start').set(amara.auth).send({ login: true }).expect(200)).body;
+    expect(await viaFacebook(again.url, 'Sara Ahmed')).toBe(`${WEB}/settings/socials?fb=taken`);
+    const cancel = (await t.http.post('/v1/me/socials/facebook/start').set(amara.auth).send({ login: false }).expect(200)).body;
+    expect(await viaFacebook(cancel.url, null)).toBe(`${WEB}/settings/socials?fb=cancelled`);
+    expect((await t.http.get('/v1/me/socials').set(amara.auth).expect(200)).body.facebook).toBeNull();
+    // A used or made-up state goes nowhere.
+    expect((await t.http.get('/v1/oauth/facebook/callback').query({ state: 'nope', dev_name: 'X' }).expect(302)).headers.location).toBe(`${WEB}/sign-in?fb=expired`);
+  });
+
+  it('signs in with a linked Facebook, with the PIN when two-step is on', async () => {
+    const s = (await t.http.post('/v1/auth/facebook/start').send({ device }).expect(200)).body;
+    const back = await viaFacebook(s.url, 'Sara Ahmed');
+    const ticket = new URL(back).searchParams.get('fb_ticket')!;
+    expect(back.startsWith(`${WEB}/sign-in?fb_ticket=`)).toBe(true);
+    const r = (await t.http.post('/v1/auth/facebook/finish').send({ ticket }).expect(200)).body;
+    expect(r.me.id).toBe(sara.id);
+    expect(r.tokens.accessToken).toBeTruthy();
+    expect((await t.http.post('/v1/auth/facebook/finish').send({ ticket })).status).toBe(401); // one use
+    await t.http.put('/v1/me/two-step').set(sara.auth).send({ pin: '482916' }).expect(200);
+    const s2 = (await t.http.post('/v1/auth/facebook/start').send({ device }).expect(200)).body;
+    const t2 = new URL(await viaFacebook(s2.url, 'Sara Ahmed')).searchParams.get('fb_ticket')!;
+    expect((await t.http.post('/v1/auth/facebook/finish').send({ ticket: t2 }).expect(200)).body).toMatchObject({ status: 'pin_required', via: 'facebook' });
+  });
+
+  it('a Facebook that isn’t linked, or has sign-in turned off, doesn’t sign in', async () => {
+    const s = (await t.http.post('/v1/auth/facebook/start').send({ device }).expect(200)).body;
+    expect(await viaFacebook(s.url, 'Someone New')).toBe(`${WEB}/sign-in?fb=not_linked&fb_name=Someone%20New`);
+    expect((await t.http.put('/v1/me/socials/facebook/login').set(sara.auth).send({ on: false }).expect(200)).body.facebook.login).toBe(false);
+    const s2 = (await t.http.post('/v1/auth/facebook/start').send({ device }).expect(200)).body;
+    expect((await viaFacebook(s2.url, 'Sara Ahmed')).includes('fb=not_linked')).toBe(true);
+    expect((await t.http.put('/v1/me/socials/facebook/login').set(amara.auth).send({ on: true })).status).toBe(400);
+    expect((await t.http.delete('/v1/me/socials/facebook').set(sara.auth).expect(200)).body.facebook).toBeNull();
+    expect((await t.http.get(`/v1/users/${sara.id}/socials`).set(amara.auth).expect(200)).body.links).toEqual([]);
   });
 });

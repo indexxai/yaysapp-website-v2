@@ -53,7 +53,7 @@ export interface NotificationSettings {
 export const DEFAULT_NOTIFICATIONS: NotificationSettings = { preview: true, groups: true, quietHours: { on: false, from: '23:00', to: '07:00' }, timeZone: 'UTC' };
 
 /** Signing in to an account with two-step verification: the PIN comes next. */
-export interface PinRequired { status: 'pin_required'; pinToken: string; via: 'phone' | 'email' | 'google' }
+export interface PinRequired { status: 'pin_required'; pinToken: string; via: 'phone' | 'email' | 'google' | 'facebook' }
 export type SignInResult = AuthResult | PinRequired;
 export const needsPin = (r: SignInResult | { status: string }): r is PinRequired => (r as PinRequired).status === 'pin_required';
 

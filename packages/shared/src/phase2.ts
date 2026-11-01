@@ -186,8 +186,19 @@ export interface SupportTicket { number: string; conversationId: string }
 
 export const SOCIAL_NETWORKS = ['x', 'instagram', 'tiktok', 'youtube', 'linkedin', 'telegram'] as const;
 export type SocialNetwork = (typeof SOCIAL_NETWORKS)[number];
-export interface SocialLink { network: SocialNetwork; handle: string; url: string }
-export interface SocialsView { links: SocialLink[]; visibility: 'everyone' | 'contacts' | 'nobody' }
+export interface SocialLink { network: SocialNetwork | 'facebook'; handle: string; url: string | null; /** Confirmed through the network's own sign-in. */ verified: boolean }
+export interface FacebookLink { name: string; photoUrl: string | null; login: boolean; linkedAt: string }
+export interface SocialsView {
+  links: SocialLink[];
+  visibility: 'everyone' | 'contacts' | 'nobody';
+  /** Only in answers about me: my linked Facebook, if any. */
+  facebook?: FacebookLink | null;
+  /** Only in answers about me: whether Facebook linking is set up on this server. */
+  facebookAvailable?: boolean;
+}
+export const facebookStartSchema = z.object({ login: z.boolean().default(true) });
+export const facebookLoginSchema = z.object({ on: z.boolean() });
+export const facebookFinishSchema = z.object({ ticket: z.string().min(16).max(128) });
 export const socialSchema = z.object({ network: z.enum(SOCIAL_NETWORKS), handle: z.string().trim().min(1, 'Add your username.').max(60).regex(/^@?[A-Za-z0-9._-]+$/, 'Use just the username, like @sara.') });
 export const socialVisibilitySchema = z.object({ visibility: z.enum(['everyone', 'contacts', 'nobody']) });
 export const socialUrl = (n: SocialNetwork, handle: string) => {

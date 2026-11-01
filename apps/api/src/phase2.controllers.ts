@@ -18,6 +18,7 @@ import { Tz } from './rewards/days';
 import { INDEXX_SERVICE, type IndexxService } from './indexx/indexx.service';
 import { PAYMENTS, type PaymentsService } from './pay/payments.service';
 import { AI, type AiService } from './ai/ai.service';
+import type { FacebookFields } from './auth/facebook';
 
 const filterOf = <T extends string>(v: unknown, allowed: readonly T[], d: T): T => (allowed.includes(v as T) ? (v as T) : d);
 
@@ -123,10 +124,20 @@ export class SupportDeskController {
   async ticket(@Auth() a: AuthCtx, @Body() b: unknown) { await this.limiter.hit(`ticket:${a.userId}`, 5, 3600, 'You’ve opened several tickets. We’ll reply in the Support chat.'); const v = parse(supportTicketSchema, b); return this.ai.ticket(a.userId, v.question, v.answer); }
 }
 
-type SocialFields = { socials?: Partial<Record<SocialNetwork, string>>; socialsVisibility?: SocialsView['visibility'] };
+type SocialFields = { socials?: Partial<Record<SocialNetwork, string>>; socialsVisibility?: SocialsView['visibility'] } & FacebookFields;
+/** Facebook (confirmed through Facebook) first, then the usernames people typed in. */
 const socialsOf = (u: UserDoc | null): SocialsView => {
   const y = (u?.yc ?? {}) as SocialFields;
-  return { links: SOCIAL_NETWORKS.filter((n) => y.socials?.[n]).map((n) => ({ network: n, handle: y.socials![n]!, url: socialUrl(n, y.socials![n]!) })), visibility: y.socialsVisibility ?? 'everyone' };
+  const fb = y.facebook ? [{ network: 'facebook' as const, handle: y.facebook.name, url: null, verified: true }] : [];
+  return { links: [...fb, ...SOCIAL_NETWORKS.filter((n) => y.socials?.[n]).map((n) => ({ network: n, handle: y.socials![n]!, url: socialUrl(n, y.socials![n]!), verified: false }))], visibility: y.socialsVisibility ?? 'everyone' };
+};
+export type SocialsViewFn = (me: ObjectId) => Promise<SocialsView>;
+export const SOCIALS_VIEW = Symbol('SOCIALS_VIEW');
+/** My own socials, with my Facebook link details. */
+export const mySocials = (col: Collection<UserDoc>, fbAvailable: boolean): SocialsViewFn => async (me) => {
+  const u = await col.findOne({ _id: me });
+  const f = (u?.yc as FacebookFields | undefined)?.facebook;
+  return { ...socialsOf(u), facebook: f ? { name: f.name, photoUrl: f.photoUrl, login: f.login, linkedAt: f.linkedAt.toISOString() } : null, facebookAvailable: fbAvailable };
 };
 
 /** Social accounts shown on someone's profile. */
@@ -134,9 +145,9 @@ const socialsOf = (u: UserDoc | null): SocialsView => {
 @UseGuards(AuthGuard)
 export class SocialsController {
   private col: Collection<UserDoc>;
-  constructor(@Inject(USERS) users: UsersRepo, @Inject(CHAT) private chat: ChatService) { this.col = users.col; }
-  private async me(id: ObjectId) { return socialsOf(await this.col.findOne({ _id: id })); }
-  @Get('me/socials') mine(@Auth() a: AuthCtx) { return this.me(a.userId); }
+  constructor(@Inject(USERS) users: UsersRepo, @Inject(CHAT) private chat: ChatService, @Inject(SOCIALS_VIEW) private mine: SocialsViewFn) { this.col = users.col; }
+  private me(id: ObjectId) { return this.mine(id); }
+  @Get('me/socials') get(@Auth() a: AuthCtx) { return this.me(a.userId); }
   @Put('me/socials/:network')
   async set(@Auth() a: AuthCtx, @Param('network') n: string, @Body() b: unknown) {
     const v = parse(socialSchema, { ...(b as object), network: n });

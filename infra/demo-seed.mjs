@@ -433,6 +433,8 @@ await db.collection('yc_referrals').updateOne({ _id: oid(omar) }, { $set: { invi
 await db.collection('yc_points').updateOne({ _id: oid(sara) }, { $set: { balance: 2450, pending: 100 } }, { upsert: true });
 await call('/v1/me/socials/instagram', { handle: 'sara.creates' }, sara.token, 'PUT');
 await call('/v1/me/socials/x', { handle: 'sara_ahmed' }, sara.token, 'PUT');
+// Facebook linked through the development stand-in: "Continue with Facebook" as "Sara Ahmed" signs her in.
+await db.collection('users').updateOne({ _id: oid(sara) }, { $set: { 'yc.facebook': { id: `dev-${Buffer.from('sara ahmed').toString('hex').slice(0, 24)}`, name: 'Sara Ahmed', photoUrl: null, login: true, linkedAt: daysAgo(10) } } });
 
 // Money in chats: Sara paid Amara back yesterday; tonight Amara asks for her share of dinner; Sara waits on Omar.
 const payMsg = async (p, ago) => { const m = await db.collection('yc_messages').findOne({ 'payment.id': new ObjectId(p.id) }); if (m) { stamps.set(String(m._id), when(ago)); lastSaid.set(String(m.convId), String(m._id)); } };

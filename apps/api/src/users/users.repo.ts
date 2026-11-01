@@ -25,6 +25,11 @@ export interface YcFields {
   deletedAt?: Date;
   privacy?: Partial<PrivacySettings>;
   notify?: Partial<NotificationSettings>;
+  /** Phase 2: Facebook link, typed-in socials, payment PIN, linked Indexx account. */
+  facebook?: unknown;
+  socials?: unknown;
+  payPin?: unknown;
+  indexx?: unknown;
 }
 /** Only the legacy fields v2 reads. Everything else on the document is left alone. */
 export interface UserDoc {

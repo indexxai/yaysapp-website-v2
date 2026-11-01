@@ -241,7 +241,7 @@ test('support desk and socials', async ({ browser }) => {
   await a.page.getByRole('button', { name: 'Add' }).nth(1).click();
   await a.page.getByLabel('Username').fill('sara.creates');
   await a.page.getByRole('button', { name: 'Save' }).click();
-  await expect(a.page.getByRole('link', { name: '@sara.creates' })).toBeVisible();
+  await expect(a.page.getByRole('link', { name: '@sara.creates' }).first()).toBeVisible();
   await shot(a.page, 'p16-socials');
   await a.ctx.close();
   const conv = (await apiCall('/v1/conversations/direct', { userId: sara.id }, amara.tokens.accessToken)).id as string;
@@ -250,4 +250,55 @@ test('support desk and socials', async ({ browser }) => {
   await m.page.getByRole('button', { name: 'Info', exact: true }).click();
   await expect(m.page.getByRole('link', { name: '@sara.creates' })).toBeVisible();
   await m.ctx.close();
+});
+
+test('Facebook: link it, sign in with it, and it shows verified on the profile', async ({ browser }) => {
+  const sara = await apiUser('Sara Ahmed'), amara = await apiUser('Amara Okafor');
+  const fbName = `Sara FB ${Date.now() % 100000}`;
+  const a = await pageAs(browser, sara, VP);
+  await a.page.goto('/settings/socials');
+  await a.page.getByTestId('facebook-row').getByRole('button', { name: 'Link' }).click();
+  const dlg = a.page.getByRole('dialog', { name: 'Link your Facebook' });
+  await expect(dlg.getByText('Posts or reads your friends list')).toBeVisible();
+  await shot(a.page, 'w15-facebook-link');
+  await dlg.getByRole('button', { name: 'Continue with Facebook' }).click();
+  // The development stand-in for Facebook's own page.
+  await expect(a.page.getByText('Development stand-in')).toBeVisible();
+  await a.page.getByLabel('Your Facebook name').fill(fbName);
+  await a.page.getByRole('button', { name: 'Continue' }).click();
+  await expect(a.page).toHaveURL(/\/settings\/socials$/);
+  await expect(a.page.getByText('Facebook linked.')).toBeVisible();
+  await expect(a.page.getByTestId('facebook-row')).toContainText(`${fbName} · verified`);
+  await expect(a.page.getByRole('switch', { name: /Sign in with Facebook/ })).toHaveAttribute('aria-checked', 'true');
+  await shot(a.page, 'p30-facebook-linked');
+  await a.ctx.close();
+  // Amara sees it, ticked, on Sara's contact info.
+  const conv = (await apiCall('/v1/conversations/direct', { userId: sara.id }, amara.tokens.accessToken)).id as string;
+  const m = await pageAs(browser, amara, VP);
+  await m.page.goto(`/chats?c=${conv}`);
+  await m.page.getByRole('button', { name: 'Info', exact: true }).click();
+  await expect(m.page.getByLabel(`Facebook: ${fbName}, verified`)).toBeVisible();
+  await shot(m.page, 'w17-contact-socials');
+  await m.ctx.close();
+  // A fresh browser signs in with Facebook.
+  const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport: VP });
+  const p = await ctx.newPage();
+  await p.goto('/sign-in');
+  await p.getByRole('button', { name: 'Sign in with a code instead' }).click();
+  await shot(p, 'w16-signin-facebook');
+  await p.getByRole('button', { name: 'Continue with Facebook' }).click();
+  await p.getByLabel('Your Facebook name').fill(fbName);
+  await p.getByRole('button', { name: 'Continue' }).click();
+  await expect(p).toHaveURL(/\/chats$/);
+  // A Facebook nobody linked doesn't make an account.
+  const q = await (await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport: VP })).newPage();
+  await q.goto('/sign-in');
+  await q.getByRole('button', { name: 'Sign in with a code instead' }).click();
+  await q.getByRole('button', { name: 'Continue with Facebook' }).click();
+  await q.getByLabel('Your Facebook name').fill('Nobody Linked Me');
+  await q.getByRole('button', { name: 'Continue' }).click();
+  await expect(q.getByRole('heading', { name: 'This Facebook isn’t linked yet' })).toBeVisible();
+  await expect(q.getByText('Nobody Linked Me')).toBeVisible();
+  await shot(q, 'p32-facebook-not-linked');
+  await ctx.close();
 });
