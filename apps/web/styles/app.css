@@ -707,7 +707,7 @@ textarea.ys-input { min-height: 110px; resize: vertical; padding-top: 10px; font
 .pane-welcome .ys-feature__deco { position: absolute; }
 .pane-welcome__body { position: relative; max-width: 460px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
 .pane-welcome__body p { margin: 0; font-size: 15px; line-height: 23px; color: var(--ink-soft); }
-.pane-welcome__art { position: relative; z-index: 0; margin-bottom: -64px; }
+.pane-welcome__art { position: relative; z-index: 0; margin-bottom: -16px; }
 .pane-welcome__title { position: relative; z-index: 1; margin: 0; font: 800 30px/36px var(--font-display); letter-spacing: -0.02em; }
 @media (max-height: 760px) { .pane-welcome__art { width: 150px !important; margin-bottom: -40px; } }
 .shortcuts { display: grid; grid-template-columns: auto auto; gap: 8px 14px; margin-top: 14px; font-size: 13px; color: var(--ink-soft); text-align: left; }

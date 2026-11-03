@@ -220,3 +220,17 @@
 .chome__back { position: absolute; top: 16px; left: 14px; display: none; }
 .chome__back .ys-ovalbtn__label { color: #fff; }
 @media (max-width: 860px) { .chome__back { display: block; } }
+
+/* ---- Background art always sits behind content ----
+   Every decorative drawing goes under the text, cards and buttons of the box it is in,
+   and still shows on that box's own background. */
+.pane-welcome__art, .pane-welcome__corner, .convo__art, .community__art, .manage__art, .settings__art, .settings__me-art,
+.info-hero__art, .call-detail__art, .auth-art__art, .p2-art, .p2-jack-card__art, .p2-bonus__coins, .p2-bonus__trader,
+.lp-art, .cempty__art, .cevent__art { z-index: -1 !important; }
+:is(.pane-welcome, .pane-welcome__body, .convo, .convo__scroll, .community__hero, .community--manage, .settings, .settings__me, .info-hero, .call-detail, .auth-art,
+  .p2-page, .p2-jack-card, .p2-bonus__card, .lp-hero, .lp-section, .lp-band, .lp-download, .cempty, .cevent__banner, .page) { isolation: isolate; }
+*:has(> :is(.pane-welcome__art, .pane-welcome__corner, .convo__art, .community__art, .manage__art, .settings__art, .settings__me-art, .info-hero__art, .call-detail__art, .auth-art__art, .p2-art, .p2-jack-card__art, .p2-bonus__coins, .p2-bonus__trader, .lp-art, .cempty__art, .cevent__art)) { isolation: isolate; }
+
+/* Sign-in: other ways, as orange ovals in a row (p31 / W16). */
+.signin-alt { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 28px; }
+.signin-alt__google { flex-basis: 100%; display: flex; justify-content: center; }

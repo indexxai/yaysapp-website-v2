@@ -286,7 +286,7 @@ test('Facebook: link it, sign in with it, and it shows verified on the profile',
   await p.goto('/sign-in');
   await p.getByRole('button', { name: 'Sign in with a code instead' }).click();
   await shot(p, 'w16-signin-facebook');
-  await p.getByRole('button', { name: 'Continue with Facebook' }).click();
+  await p.getByRole('button', { name: 'Facebook', exact: true }).click();
   await p.getByLabel('Your Facebook name').fill(fbName);
   await p.getByRole('button', { name: 'Continue' }).click();
   await expect(p).toHaveURL(/\/chats$/);
@@ -294,7 +294,7 @@ test('Facebook: link it, sign in with it, and it shows verified on the profile',
   const q = await (await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport: VP })).newPage();
   await q.goto('/sign-in');
   await q.getByRole('button', { name: 'Sign in with a code instead' }).click();
-  await q.getByRole('button', { name: 'Continue with Facebook' }).click();
+  await q.getByRole('button', { name: 'Facebook', exact: true }).click();
   await q.getByLabel('Your Facebook name').fill('Nobody Linked Me');
   await q.getByRole('button', { name: 'Continue' }).click();
   await expect(q.getByRole('heading', { name: 'This Facebook isn’t linked yet' })).toBeVisible();

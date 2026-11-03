@@ -101,7 +101,10 @@ function LinkFacebook({ onClose }: { onClose: () => void }) {
       </div>
       <Switch label="Also sign in with Facebook" hint="You can turn this off later." on={login} onChange={setLogin} />
       {error && <Banner>{error}</Banner>}
-      <button type="button" className="fb-btn" onClick={() => void go()} disabled={busy} aria-busy={busy || undefined}><Icon name="facebook" size={20} />Continue with Facebook</button>
+      <div className="modal__actions" style={{ justifyContent: 'center' }}>
+        <OvalButton icon="close" label="Not now" size="lg" variant="ghost" onClick={onClose} />
+        <OvalButton icon="facebook" label="Continue with Facebook" size="lg" loading={busy} onClick={() => void go()} />
+      </div>
     </Modal>
   );
 }

@@ -75,9 +75,11 @@ export default function SignIn() {
           {step.s === 'phone' ? <PhoneForm busy={busy} onSubmit={(phone) => run(async () => { const r = await api().startPhone(phone); sent(r); setStep({ s: 'phone-code', phone, sent: r }); })} />
             : <EmailForm busy={busy} label="Email" submitLabel="Send code" onSubmit={(email) => run(async () => { const r = await api().startEmail(email); sent(r); setStep({ s: 'email-code', email, sent: r }); })} />}
           <div className="divider">or</div>
-          {process.env.NEXT_PUBLIC_FACEBOOK !== '0' && <FacebookButton busy={busy} onClick={() => void facebook()} />}
-          <GoogleButton onToken={(t) => run(async () => done(await api().google(t)))} busy={busy} />
-          <button type="button" className="link-btn qr-switch" onClick={() => { setError(null); setStep({ s: 'qr' }); }}><Icon name="qr" size={18} />Scan a QR code instead</button>
+          <div className="signin-alt" role="group" aria-label="Other ways to sign in">
+            {process.env.NEXT_PUBLIC_FACEBOOK !== '0' && <OvalButton icon="facebook" label="Facebook" size="lg" loading={busy} onClick={() => void facebook()} />}
+            <GoogleButton onToken={(t) => run(async () => done(await api().google(t)))} busy={busy} />
+            <OvalButton icon="qr" label="QR code" size="lg" onClick={() => { setError(null); setStep({ s: 'qr' }); }} />
+          </div>
         </>
       ) : null}
       {step.s === 'fb-missing' && (
@@ -87,7 +89,7 @@ export default function SignIn() {
           <p className="lead">No YaysApp account uses {step.name ? <strong>{step.name}</strong> : 'this Facebook account'} for signing in. Sign in with your phone number or email, then link Facebook in Settings › Social accounts.</p>
           <div className="row center" style={{ gap: 24 }}>
             <OvalButton icon="phone" label="Sign in with phone" size="lg" onClick={() => setStep({ s: 'phone' })} />
-            <OvalButton icon="mail" label="Use email" size="lg" variant="soft" onClick={() => setStep({ s: 'email' })} />
+            <OvalButton icon="mail" label="Sign in with email" size="lg" onClick={() => setStep({ s: 'email' })} />
           </div>
           <p className="muted p2-xs">We don’t make new accounts from Facebook: every YaysApp account starts with a verified phone number.</p>
         </div>
@@ -231,35 +233,45 @@ function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack
   );
 }
 
-declare global { interface Window { google?: { accounts: { id: { initialize: (o: object) => void; renderButton: (el: HTMLElement, o: object) => void } } } } }
+interface PromptNote { isNotDisplayed: () => boolean; isSkippedMoment: () => boolean }
+declare global { interface Window { google?: { accounts: { id: { initialize: (o: object) => void; renderButton: (el: HTMLElement, o: object) => void; prompt: (cb?: (n: PromptNote) => void) => void } } } } }
 
-/** Google's own button when a client id is configured; a dev stand-in otherwise (local and tests only). */
+/**
+ * Google, as our own orange oval. With a client id it opens Google's sign-in prompt; if the browser
+ * won't show that prompt (it was dismissed recently, or third-party sign-in is blocked), Google's own
+ * button appears under the row instead. Without a client id it's a dev stand-in (local and tests only).
+ */
 function GoogleButton({ onToken, busy }: { onToken: (idToken: string) => void; busy: boolean }) {
   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const ref = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const [fallback, setFallback] = useState(false);
   useEffect(() => {
     if (!clientId) return;
     const s = document.createElement('script');
     s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
-    s.onload = () => { window.google?.accounts.id.initialize({ client_id: clientId, callback: (r: { credential: string }) => onToken(r.credential) }); if (ref.current) window.google?.accounts.id.renderButton(ref.current, { theme: 'outline', size: 'large', shape: 'pill', width: 320 }); };
+    s.onload = () => { window.google?.accounts.id.initialize({ client_id: clientId, callback: (r: { credential: string }) => onToken(r.credential) }); setReady(true); };
     document.head.appendChild(s);
     return () => { s.remove(); };
   }, [clientId, onToken]);
-  if (clientId) return <div className="row center" ref={ref} />;
-  if (process.env.NEXT_PUBLIC_DEV_GOOGLE !== '1') return null;
+  useEffect(() => {
+    if (fallback && ref.current) window.google?.accounts.id.renderButton(ref.current, { theme: 'outline', size: 'large', shape: 'pill', width: 300 });
+  }, [fallback]);
+  if (!clientId && process.env.NEXT_PUBLIC_DEV_GOOGLE !== '1') return null;
+  const click = () => {
+    if (!clientId) {
+      const email = window.prompt('Dev Google sign-in: email') ?? '';
+      if (email) onToken('dev.' + btoa(JSON.stringify({ sub: 'dev-' + email, email, name: email.split('@')[0] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
+      return;
+    }
+    window.google?.accounts.id.prompt((n) => { if (n.isNotDisplayed() || n.isSkippedMoment()) setFallback(true); });
+  };
   return (
-    <div className="row center">
-      <OvalButton icon="google" label="Google (dev)" size="md" variant="secondary" loading={busy} onClick={() => {
-        const email = window.prompt('Dev Google sign-in: email') ?? '';
-        if (email) onToken('dev.' + btoa(JSON.stringify({ sub: 'dev-' + email, email, name: email.split('@')[0] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''));
-      }} />
-    </div>
+    <>
+      <OvalButton icon="google" label="Google" size="lg" loading={busy || (!!clientId && !ready)} onClick={click} />
+      {fallback && <div className="signin-alt__google" ref={ref} />}
+    </>
   );
-}
-
-/** Facebook's blue sign-in button. It sends the browser to Facebook and back. */
-function FacebookButton({ onClick, busy, label = 'Continue with Facebook' }: { onClick: () => void; busy?: boolean; label?: string }) {
-  return <button type="button" className="fb-btn" onClick={onClick} disabled={busy} aria-busy={busy || undefined}><Icon name="facebook" size={20} />{label}</button>;
 }
 
 /** Sign in by scanning a code with a device that's already signed in (or typing the short code there). */

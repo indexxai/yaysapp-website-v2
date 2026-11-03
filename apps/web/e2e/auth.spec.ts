@@ -88,7 +88,7 @@ test.describe('Week 2 · sign-in on the web', () => {
     await openCodeSignIn(page);
     const g = freshEmail('google');
     page.once('dialog', (d) => d.accept(g));
-    await page.getByRole('button', { name: 'Google (dev)' }).click();
+    await page.getByRole('button', { name: 'Google', exact: true }).click();
     await expect(page).toHaveURL(/\/(chats|setup\/profile)$/);
   });
 
