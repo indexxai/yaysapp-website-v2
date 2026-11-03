@@ -92,6 +92,7 @@ export class AppModule {
     const ai = new AiService(aiProvider, db, redis, chat, rewards);
     ai.support = support;
     // Points for activity and referrals; never in the way of the message itself.
+    circles.onPost = (u) => { void rewards.onCirclePost(u).catch((e) => log.warn({ err: e }, 'points for a circle post failed')); };
     chat.onSent = (u, conv) => { void rewards.onMessage(u, !!(conv as { communityId?: unknown }).communityId).catch((e) => log.warn({ err: e }, 'points for a message failed')); };
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },

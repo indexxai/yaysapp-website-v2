@@ -65,6 +65,8 @@ export class CirclesService {
   readonly bars: Collection<BarDoc>;
   readonly events: Collection<EventDoc>;
   readonly rsvps: Collection<RsvpDoc>;
+  /** Points for posting; set by the app module, never in the way of the post. */
+  onPost: (author: ObjectId) => void = () => undefined;
   constructor(private readonly chat: ChatService, private readonly comm: CommunitiesService, private readonly safety: SafetyService, db: Db) {
     this.posts = db.collection(C.circlePosts);
     this.comments = db.collection(C.circleComments);
@@ -401,7 +403,7 @@ export class CirclesService {
     const now = new Date();
     const d: PostDoc = { _id: new ObjectId(), circleId: c._id, authorId: me, text: v.text, photoKeys: v.photoKeys, status, pinnedAt: null, likeCount: 0, commentCount: 0, answerId: null, flagged, createdAt: now, editedAt: null };
     await this.posts.insertOne(d);
-    if (status === 'live') await this.comm.members.updateOne({ _id: key(c._id, me) }, { $set: { seenAt: now } });
+    if (status === 'live') { await this.comm.members.updateOne({ _id: key(c._id, me) }, { $set: { seenAt: now } }); this.onPost(me); }
     return (await this.present(me, c, [d], admin))[0]!;
   }
 
@@ -453,6 +455,7 @@ export class CirclesService {
     if (p.status !== 'pending') throw AppError.conflict('That post was already handled.');
     // Approved posts go to the top of the feed, as if posted now.
     await this.posts.updateOne({ _id: p._id }, { $set: { status: 'live', createdAt: new Date() } });
+    this.onPost(p.authorId);
     return (await this.present(me, c, [(await this.posts.findOne({ _id: p._id }))!], admin))[0]!;
   }
   async takeDown(me: ObjectId, pid: string, reason: string) {

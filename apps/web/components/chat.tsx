@@ -93,7 +93,7 @@ export function ChatList({ activeId, onOpen, onNewChat, onArchived }: { activeId
     <>
       <div className="list-filters">
         <div className="ys-tabs" role="tablist" aria-label="Filter chats">
-          {([['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups'], ...(inCommunities ? [['communities', 'Communities']] : [])] as Array<[ListFilter, string]>).map(([f, label]) => (
+          {([['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups'], ...(inCommunities ? [['communities', 'Circles']] : [])] as Array<[ListFilter, string]>).map(([f, label]) => (
             <button key={f} type="button" role="tab" className="ys-tab" aria-selected={filter === f} onClick={() => setFilter(f)}>
               {label}{f === 'unread' && unreadCount > 0 && <span className="search__count">{unreadCount}</span>}
             </button>

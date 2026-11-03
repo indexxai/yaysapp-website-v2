@@ -240,7 +240,14 @@ export function FeedTab({ c, me, onEvent, onReload }: { c: CircleView; me: MePro
     return () => { window.removeEventListener('online', up); window.removeEventListener('offline', up); };
   }, []);
   const member = c.access === 'admin' || c.access === 'member';
-  const setPost = (p: CirclePost) => setItems((xs) => xs?.map((x) => (x.id === p.id ? p : x)) ?? null);
+  // Pinning or unpinning moves the post: pinned posts sit on top, the rest newest first.
+  const setPost = (p: CirclePost) => setItems((xs) => {
+    if (!xs) return null;
+    const next = xs.map((x) => (x.id === p.id ? p : x));
+    const was = xs.find((x) => x.id === p.id);
+    if (!was || was.pinned === p.pinned) return next;
+    return [...next.filter((x) => x.pinned), ...next.filter((x) => !x.pinned).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))];
+  });
   const retry = async (d: Draft) => {
     setDrafts((ds) => ds.map((x) => (x.id === d.id ? { ...x, error: 'Posting…' } : x)));
     try {

@@ -24,7 +24,7 @@ interface PopupDoc { _id: string; userId: ObjectId; day: string; seen: string[] 
 type Counter = 'messages' | 'posts' | 'aiQuestions' | 'aiSummaries';
 const EARN: Array<{ id: EarnTask['id']; title: string; icon: string; counter: Counter; of: number; points: number }> = [
   { id: 'messages', title: 'Send 10 messages', icon: 'chats', counter: 'messages', of: 10, points: 10 },
-  { id: 'post', title: 'Post in a community', icon: 'people', counter: 'posts', of: 1, points: 15 },
+  { id: 'post', title: 'Post in a circle', icon: 'people', counter: 'posts', of: 1, points: 15 },
   { id: 'ask_jack', title: 'Ask Jack’s AI a question', icon: 'sparkles', counter: 'aiQuestions', of: 1, points: 5 },
 ];
 const JACK_TASKS: Array<{ id: string; title: string; icon: string; counter: Counter; of: number; points: number }> = [
@@ -204,6 +204,8 @@ export class RewardsService {
     await this.payTasks(me, tz, a);
     await this.qualifyReferral(me);
   }
+  /** A post that went live in a circle's feed counts toward "Post in a circle". */
+  async onCirclePost(me: ObjectId) { const tz = await this.tz(me); await this.payTasks(me, tz, await this.bump(me, tz, 'posts')); }
   async onAiQuestion(me: ObjectId) { const tz = await this.tz(me); await this.payTasks(me, tz, await this.bump(me, tz, 'aiQuestions')); }
   async onAiSummary(me: ObjectId) { const tz = await this.tz(me); await this.payTasks(me, tz, await this.bump(me, tz, 'aiSummaries')); }
 
