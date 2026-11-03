@@ -24,7 +24,7 @@ function RailBadge({ kind }: { kind: 'chats' | 'calls' }) {
 const NAV: Array<{ href: string; icon: IconName | 'jack'; label: string; badge?: 'chats' | 'calls'; also?: string[] }> = [
   { href: '/chats', icon: 'chats', label: 'Chats', badge: 'chats' },
   { href: '/calls', icon: 'phone', label: 'Calls', badge: 'calls' },
-  { href: '/communities', icon: 'people', label: 'Communities' },
+  { href: '/circles', icon: 'people', label: 'Circles', also: ['/communities'] },
   { href: '/explore', icon: 'compass', label: 'Explore', also: ['/earn', '/btcy', '/products'] },
   { href: '/ai', icon: 'jack', label: 'Jack’s AI' },
   { href: '/wallet', icon: 'wallet', label: 'Wallet' },

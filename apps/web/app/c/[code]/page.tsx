@@ -30,7 +30,7 @@ export default function CommunityInvite() {
             <h1>{p.name}</h1>
             <span className="muted">Community · {p.memberCount.toLocaleString()} member{p.memberCount === 1 ? '' : 's'} · {p.groupCount} group{p.groupCount === 1 ? '' : 's'}</span>
             {p.about && <p>{p.about}</p>}
-            {p.alreadyMember ? <OvalButton icon="people" label="Open community" size="lg" onClick={() => router.push(`/communities?id=${p.id}`)} />
+            {p.alreadyMember ? <OvalButton icon="people" label="Open circle" size="lg" onClick={() => router.push(`/circles?id=${p.id}`)} />
               : p.requested ? (
                 <>
                   <Banner tone="info">Your request was sent. An admin will let you in.</Banner>
@@ -40,7 +40,7 @@ export default function CommunityInvite() {
                 <>
                   {p.needsApproval && <span className="muted">An admin approves new members.</span>}
                   <OvalButton icon={p.needsApproval ? 'person-add' : 'check'} label={p.needsApproval ? 'Ask to join' : 'Join community'} size="lg" loading={busy}
-                    onClick={() => void act(async () => { const r = await api().joinCommunity(code); if (r.status === 'joined') router.push(`/communities?id=${r.community.id}`); else await load(); })} />
+                    onClick={() => void act(async () => { const r = await api().joinCommunity(code); if (r.status === 'joined') router.push(`/circles?id=${r.community.id}`); else await load(); })} />
                 </>
               )}
           </>

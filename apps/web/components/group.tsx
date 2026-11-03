@@ -226,7 +226,7 @@ export function GroupInfoPanel({ id, onClose, onLeft }: { id: string; onClose: (
             <Avatar name={g.name} photoUrl={g.photoUrl} size={96} group />
             <h3>{g.name}</h3>
             <span className="muted" style={{ fontSize: 13 }}>{g.announcements ? 'Announcements' : 'Group'} · {g.memberCount} member{g.memberCount === 1 ? '' : 's'}</span>
-            {g.community && <a className="link-btn" href={`/communities?id=${g.community.id}`}>Part of {g.community.name}</a>}
+            {g.community && <a className="link-btn" href={`/circles?id=${g.community.id}&tab=chats`}>Part of {g.community.name}</a>}
             {g.about && <p>{g.about}</p>}
             {(canEdit || (canAdd && mode !== 'add')) && (
               <div className="row" style={{ gap: 22, justifyContent: 'center' }}>

@@ -35,6 +35,8 @@ import { SAFETY, SafetyService } from './chat/safety.service';
 import { ChatPrefsController } from './chat/prefs.controller';
 import { ACCOUNT, AccountService } from './users/account.service';
 import { COMMUNITIES, CommunitiesService } from './chat/communities.service';
+import { CIRCLES, CirclesService } from './chat/circles.service';
+import { CircleCommentsController, CircleEventsController, CirclePostsController, CirclesController } from './chat/circles.controller';
 import { CommunitiesController, CommunityInvitesController } from './chat/communities.controller';
 import { SUPPORT, SupportService } from './users/support.service';
 import { SupportController } from './users/support.controller';
@@ -76,7 +78,8 @@ export class AppModule {
     const support = new SupportService(users, chat, db);
     const communities = new CommunitiesService(chat, groups, db);
     const account = new AccountService(users, otp, sessions, chat, groups, chatPrefs, push, storage, limiter, db);
-    account.leaveCommunities = (id) => communities.leaveAll(id);
+    const circles = new CirclesService(chat, communities, safety, db);
+    account.leaveCommunities = async (id) => { await communities.leaveAll(id); await circles.forget(id); };
     const calls = new CallsService(chat, push, db, c, log);
     const rewards = new RewardsService(i.mongo, db);
     const indexxProvider = c.INDEXX_DRIVER === 'dev' ? new DevIndexx(db) : offIndexx;
@@ -95,11 +98,11 @@ export class AppModule {
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
-      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities }, { provide: CALLS, useValue: calls },
+      { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities }, { provide: CIRCLES, useValue: circles }, { provide: CALLS, useValue: calls },
       { provide: REWARDS, useValue: rewards }, { provide: INDEXX, useValue: indexxProvider }, { provide: INDEXX_SERVICE, useValue: indexx }, { provide: PAYMENTS, useValue: payments }, { provide: AI_PROVIDER, useValue: aiProvider }, { provide: AI, useValue: ai }, { provide: FACEBOOK, useValue: facebook }, { provide: SOCIALS_VIEW, useValue: mySocials(users.col, facebook.available) },
       AuthGuard,
     ];
-    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CallsController, LiveKitWebhookController, RewardsController, IndexxController, PayController, AiController, SiteController, SupportDeskController, FacebookController, SocialsController];
+    const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CirclesController, CirclePostsController, CircleCommentsController, CircleEventsController, CallsController, LiveKitWebhookController, RewardsController, IndexxController, PayController, AiController, SiteController, SupportDeskController, FacebookController, SocialsController];
     if (c.TEST_OUTBOX && c.NODE_ENV !== 'production') controllers.push(TestController);
     return { module: AppModule, providers, controllers };
   }

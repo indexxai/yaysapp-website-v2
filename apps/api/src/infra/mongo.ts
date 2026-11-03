@@ -44,6 +44,14 @@ export const C = {
   aiConsent: 'yc_ai_consent',
   leads: 'yc_leads',
   supportTickets: 'yc_support_tickets',
+  circlePosts: 'yc_circle_posts',
+  circleComments: 'yc_circle_comments',
+  circleLikes: 'yc_circle_likes',
+  circleReports: 'yc_circle_reports',
+  circleMutes: 'yc_circle_mutes',
+  circleBars: 'yc_circle_bars',
+  circleEvents: 'yc_circle_events',
+  circleRsvps: 'yc_circle_rsvps',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -65,6 +73,13 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
   await db.collection(C.chatPrefs).createIndexes([{ key: { userId: 1 }, name: 'user' }, { key: { userId: 1, archived: 1 }, name: 'user_archived' }, { key: { userId: 1, pinnedAt: -1 }, name: 'user_pinned' }]);
   await db.collection(C.communities).createIndexes([{ key: { inviteCode: 1 }, name: 'invite', unique: true, partialFilterExpression: { inviteCode: { $type: 'string' } } }]);
   await db.collection(C.communityMembers).createIndexes([{ key: { userId: 1, joinedAt: -1 }, name: 'user' }, { key: { communityId: 1, joinedAt: 1 }, name: 'community' }]);
+  await db.collection(C.communities).createIndexes([{ key: { listed: 1, official: -1, memberCount: -1 }, name: 'discover' }]);
+  await db.collection(C.circlePosts).createIndexes([{ key: { circleId: 1, createdAt: -1, _id: -1 }, name: 'feed' }, { key: { circleId: 1, status: 1 }, name: 'status' }, { key: { authorId: 1 }, name: 'author' }]);
+  await db.collection(C.circleComments).createIndexes([{ key: { postId: 1, createdAt: 1 }, name: 'post', partialFilterExpression: { postId: { $type: 'objectId' } } }, { key: { eventId: 1, createdAt: 1 }, name: 'event', partialFilterExpression: { eventId: { $type: 'objectId' } } }, { key: { authorId: 1 }, name: 'author' }]);
+  await db.collection(C.circleLikes).createIndexes([{ key: { postId: 1 }, name: 'post' }, { key: { userId: 1 }, name: 'user' }]);
+  await db.collection(C.circleReports).createIndexes([{ key: { circleId: 1, status: 1, at: -1 }, name: 'circle_open' }, { key: { postId: 1, status: 1 }, name: 'post' }]);
+  await db.collection(C.circleEvents).createIndexes([{ key: { circleId: 1, startsAt: 1 }, name: 'circle_time' }, { key: { status: 1, startsAt: 1 }, name: 'upcoming' }]);
+  await db.collection(C.circleRsvps).createIndexes([{ key: { eventId: 1, status: 1, at: 1 }, name: 'event_status' }, { key: { userId: 1, status: 1 }, name: 'user' }]);
   await db.collection(C.communityRequests).createIndexes([{ key: { communityId: 1, createdAt: 1 }, name: 'community' }]);
   await db.collection(C.conversations).createIndex({ communityId: 1 }, { name: 'community', partialFilterExpression: { communityId: { $type: 'objectId' } } });
   await db.collection(C.calls).createIndexes([{ key: { 'parts.userId': 1, createdAt: -1 }, name: 'part_recent' }, { key: { convId: 1, status: 1 }, name: 'conv_status' }, { key: { linkCode: 1, status: 1 }, name: 'link_status' }]);

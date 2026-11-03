@@ -1,6 +1,7 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
 import type { AiChat, AiChatSummary, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PaymentView, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
+import type { CircleComment, CircleDiscover, CircleEvent, CircleFeed, CircleMemberRow, CirclePost, CirclePostInput, CircleReview, CircleView, CreateCircleInput, CreateEventInput, MyCircles, PostReportReason, RsvpStatus, UpdateCircleInput, UpdateEventInput } from './circles';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
 export interface TokenStore {
@@ -30,6 +31,8 @@ export interface ClientOptions {
 const timeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch { return undefined; } };
 
 /** One typed client for web and mobile. Refreshes the access token once on 401 and retries. */
+const c = encodeURIComponent;
+
 export class YaysClient {
   private refreshing: Promise<boolean> | null = null;
   private readonly f: typeof fetch;
@@ -226,8 +229,10 @@ export class YaysClient {
   profiles(ids: string[]) { return this.request<PublicProfile[]>('GET', `/v1/users/profiles?ids=${ids.map(encodeURIComponent).join(',')}`); }
 
   /** Uploads a photo and returns its storage key (for a profile or group photo). */
-  async uploadPhoto(file: Blob): Promise<string> {
-    const t = await this.request<{ key: string; uploadUrl: string; headers: Record<string, string> }>('POST', '/v1/media/upload-url', { purpose: 'avatar', contentType: file.type, size: file.size });
+  /** A photo for a circle post (kept with media, not profile pictures). */
+  uploadPostPhoto(file: Blob) { return this.uploadPhoto(file, 'media'); }
+  async uploadPhoto(file: Blob, purpose: 'avatar' | 'media' = 'avatar'): Promise<string> {
+    const t = await this.request<{ key: string; uploadUrl: string; headers: Record<string, string> }>('POST', '/v1/media/upload-url', purpose === 'avatar' ? { purpose, contentType: file.type, size: file.size } : { purpose, kind: 'image', contentType: file.type, size: file.size });
     let r: Response;
     try { r = await this.f(t.uploadUrl, { method: 'PUT', headers: t.headers, body: file }); }
     catch { throw new ApiError(0, ErrorCode.PROVIDER_UNAVAILABLE, "The photo didn't upload. Check your connection and try again."); }
@@ -368,6 +373,50 @@ export class YaysClient {
   facebookSignInStart() { return this.request<{ url: string }>('POST', '/v1/auth/facebook/start', { device: this.o.device }, { auth: false }); }
   async facebookSignIn(ticket: string) { return this.signedIn(await this.request<SignInResult>('POST', '/v1/auth/facebook/finish', { ticket }, { auth: false })); }
   userSocials(userId: string) { return this.request<SocialsView>('GET', `/v1/users/${encodeURIComponent(userId)}/socials`); }
+
+  // ---- circles ----
+  myCircles() { return this.request<MyCircles>('GET', '/v1/circles'); }
+  discoverCircles(q = '', category = '') { const p = new URLSearchParams(); if (q) p.set('q', q); if (category) p.set('category', category); const s = p.toString(); return this.request<CircleDiscover>('GET', `/v1/circles/discover${s ? `?${s}` : ''}`); }
+  createCircle(v: CreateCircleInput) { return this.request<CircleView>('POST', '/v1/circles', v); }
+  circle(id: string) { return this.request<CircleView>('GET', `/v1/circles/${c(id)}`); }
+  updateCircle(id: string, v: UpdateCircleInput) { return this.request<CircleView>('PATCH', `/v1/circles/${c(id)}`, v); }
+  deleteCircle(id: string) { return this.request<void>('DELETE', `/v1/circles/${c(id)}`); }
+  joinCircle(id: string, answer?: string) { return this.request<CircleView>('POST', `/v1/circles/${c(id)}/join`, answer ? { answer } : {}); }
+  cancelCircleRequest(id: string) { return this.request<CircleView>('DELETE', `/v1/circles/${c(id)}/request`); }
+  leaveCircle(id: string) { return this.request<void>('POST', `/v1/circles/${c(id)}/leave`, {}); }
+  setCircleOwner(id: string, userId: string) { return this.request<CircleView>('POST', `/v1/circles/${c(id)}/owner`, { userId }); }
+  circleMembers(id: string) { return this.request<CircleMemberRow[]>('GET', `/v1/circles/${c(id)}/members`); }
+  muteCircleMember(id: string, userId: string, days: number, reason = '') { return this.request<void>('PUT', `/v1/circles/${c(id)}/mutes/${c(userId)}`, { days, reason }); }
+  unmuteCircleMember(id: string, userId: string) { return this.request<void>('DELETE', `/v1/circles/${c(id)}/mutes/${c(userId)}`); }
+  removeCircleMember(id: string, userId: string, reason = '') { return this.request<void>('POST', `/v1/circles/${c(id)}/members/${c(userId)}/remove`, { reason }); }
+  circleFeed(id: string, before?: string) { return this.request<CircleFeed>('GET', `/v1/circles/${c(id)}/posts${before ? `?before=${encodeURIComponent(before)}` : ''}`); }
+  createCirclePost(id: string, v: CirclePostInput) { return this.request<CirclePost>('POST', `/v1/circles/${c(id)}/posts`, v); }
+  circlePost(id: string) { return this.request<CirclePost>('GET', `/v1/circle-posts/${c(id)}`); }
+  editCirclePost(id: string, text: string) { return this.request<CirclePost>('PATCH', `/v1/circle-posts/${c(id)}`, { text }); }
+  deleteCirclePost(id: string) { return this.request<void>('DELETE', `/v1/circle-posts/${c(id)}`); }
+  likeCirclePost(id: string, on: boolean) { return this.request<CirclePost>(on ? 'PUT' : 'DELETE', `/v1/circle-posts/${c(id)}/like`); }
+  pinCirclePost(id: string, on: boolean) { return this.request<CirclePost>(on ? 'PUT' : 'DELETE', `/v1/circle-posts/${c(id)}/pin`); }
+  approveCirclePost(id: string) { return this.request<CirclePost>('POST', `/v1/circle-posts/${c(id)}/approve`, {}); }
+  removeCirclePost(id: string, reason = '') { return this.request<CirclePost>('POST', `/v1/circle-posts/${c(id)}/remove`, { reason }); }
+  reportCirclePost(id: string, reason: PostReportReason, block = false) { return this.request<void>('POST', `/v1/circle-posts/${c(id)}/report`, { reason, block }); }
+  circleComments(postId: string) { return this.request<CircleComment[]>('GET', `/v1/circle-posts/${c(postId)}/comments`); }
+  commentOnCirclePost(postId: string, text: string, parentId?: string) { return this.request<CircleComment>('POST', `/v1/circle-posts/${c(postId)}/comments`, { text, ...(parentId ? { parentId } : {}) }); }
+  deleteCircleComment(id: string) { return this.request<void>('DELETE', `/v1/circle-comments/${c(id)}`); }
+  markCircleAnswer(id: string, on: boolean) { return this.request<CircleComment>(on ? 'PUT' : 'DELETE', `/v1/circle-comments/${c(id)}/answer`); }
+  circleReview(id: string) { return this.request<CircleReview>('GET', `/v1/circles/${c(id)}/review`); }
+  settleCircleReport(circleId: string, reportId: string, action: 'remove' | 'keep', reason = '') { return this.request<void>('POST', `/v1/circles/${c(circleId)}/review/${c(reportId)}`, { action, reason }); }
+  circleEvents(id: string, past = false) { return this.request<CircleEvent[]>('GET', `/v1/circles/${c(id)}/events${past ? '?past=1' : ''}`); }
+  createCircleEvent(id: string, v: CreateEventInput) { return this.request<CircleEvent>('POST', `/v1/circles/${c(id)}/events`, v); }
+  circleEvent(id: string) { return this.request<CircleEvent>('GET', `/v1/circle-events/${c(id)}`); }
+  updateCircleEvent(id: string, v: UpdateEventInput) { return this.request<CircleEvent>('PATCH', `/v1/circle-events/${c(id)}`, v); }
+  cancelCircleEvent(id: string, note = '') { return this.request<CircleEvent>('POST', `/v1/circle-events/${c(id)}/cancel`, { note }); }
+  rsvp(id: string, status: Extract<RsvpStatus, 'going' | 'interested' | 'not_going'>) { return this.request<CircleEvent>('PUT', `/v1/circle-events/${c(id)}/rsvp`, { status }); }
+  leaveWaitlist(id: string) { return this.request<CircleEvent>('DELETE', `/v1/circle-events/${c(id)}/rsvp`); }
+  confirmSeat(id: string) { return this.request<CircleEvent>('POST', `/v1/circle-events/${c(id)}/confirm`, {}); }
+  ackEventChange(id: string) { return this.request<CircleEvent>('POST', `/v1/circle-events/${c(id)}/ack`, {}); }
+  rateEvent(id: string, stars: number) { return this.request<CircleEvent>('PUT', `/v1/circle-events/${c(id)}/rating`, { stars }); }
+  eventQuestions(id: string) { return this.request<CircleComment[]>('GET', `/v1/circle-events/${c(id)}/questions`); }
+  askEventQuestion(id: string, text: string, parentId?: string) { return this.request<CircleComment>('POST', `/v1/circle-events/${c(id)}/questions`, { text, ...(parentId ? { parentId } : {}) }); }
 
   /** The current access token, refreshed first when it is about to expire. Used to open the real-time connection. */
   async accessToken(forceRefresh = false): Promise<string | null> {

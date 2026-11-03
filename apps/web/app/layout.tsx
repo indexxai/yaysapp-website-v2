@@ -5,6 +5,7 @@ import '@yays/tokens/tokens.css';
 import '@/styles/yays.css';
 import '@/styles/app.css';
 import '@/styles/phase2.css';
+import '@/styles/circles.css';
 import { PREFS_BOOT } from '@/lib/prefs';
 import { Live } from '@/components/live';
 

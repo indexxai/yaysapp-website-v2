@@ -17,8 +17,10 @@ export interface CommunityDoc {
   inviteCode: string | null; announcementsId: ObjectId; memberCount: number;
   createdAt: Date; createdBy: ObjectId;
 }
-interface MemberDoc { _id: string; communityId: ObjectId; userId: ObjectId; joinedAt: Date }
-interface RequestDoc { _id: string; communityId: ObjectId; userId: ObjectId; createdAt: Date }
+interface MemberDoc { _id: string; communityId: ObjectId; userId: ObjectId; joinedAt: Date; seenAt?: Date }
+interface RequestDoc { _id: string; communityId: ObjectId; userId: ObjectId; createdAt: Date; answer?: string }
+interface BarDoc { _id: string; communityId?: ObjectId; circleId: ObjectId; userId: ObjectId; kind: 'declined' | 'removed'; until: Date; reason: string; at: Date }
+const REJOIN_MS = 30 * 86400_000;
 interface SuggestionDoc { _id: string; communityId: ObjectId; groupId: ObjectId; by: ObjectId; at: Date }
 
 const key = (c: ObjectId, u: ObjectId) => `${c.toHexString()}:${u.toHexString()}`;
@@ -33,11 +35,14 @@ export class CommunitiesService {
   readonly members: Collection<MemberDoc>;
   readonly requests: Collection<RequestDoc>;
   readonly suggestions: Collection<SuggestionDoc>;
+  /** Circles: people told no, or removed, can't ask back in for a while. */
+  readonly bars: Collection<BarDoc>;
   constructor(private readonly chat: ChatService, private readonly groups: GroupsService, private readonly db: Db) {
     this.comms = db.collection(C.communities);
     this.members = db.collection(C.communityMembers);
     this.requests = db.collection(C.communityRequests);
     this.suggestions = db.collection(C.communitySuggestions);
+    this.bars = db.collection(C.circleBars);
   }
   private get reports() { return this.db.collection<ReportDoc>(C.reports); }
 
@@ -235,11 +240,22 @@ export class CommunitiesService {
     catch { return; } // already in
     await this.comms.updateOne({ _id: c._id }, { $inc: { memberCount: 1 } });
     await this.requests.deleteOne({ _id: key(c._id, u) });
+    await this.bars.deleteOne({ _id: key(c._id, u) });
     const ann = await this.chat.convs.findOneAndUpdate({ _id: c.announcementsId }, { $addToSet: { members: u }, $pull: { former: u } }, { returnDocument: 'after' });
     if (ann) {
       await this.chat.receipts.updateOne({ _id: rKey(ann._id, u) }, { $set: { fromSeq: ann.seq, deliveredSeq: ann.seq, readSeq: ann.seq, updatedAt: new Date() }, $unset: { leftSeq: '' }, $setOnInsert: { convId: ann._id, userId: u } }, { upsert: true });
       this.chat.events.conversationChanged([u], ann._id.toHexString());
     }
+  }
+
+  /** Circles: anyone can join a public circle (unless they were removed recently). */
+  async addMemberPublic(c: CommunityDoc, u: ObjectId) { await this.notBarred(c, u); await this.addMember(c, u); }
+  private async notBarred(c: CommunityDoc, u: ObjectId) {
+    const b = await this.bars.findOne({ _id: key(c._id, u), until: { $gt: new Date() } });
+    if (b) throw AppError.forbidden(b.kind === 'removed' ? 'You were removed from this community. You can ask to join again later.' : 'The admins said no. You can ask again later.');
+  }
+  private async bar(c: CommunityDoc, u: ObjectId, kind: 'declined' | 'removed', reason = '') {
+    await this.bars.updateOne({ _id: key(c._id, u) }, { $set: { circleId: c._id, userId: u, kind, reason, at: new Date(), until: new Date(Date.now() + REJOIN_MS) } }, { upsert: true });
   }
 
   /** Out of the community and every one of its groups. The last admin hands over to the longest-standing member. */
@@ -254,6 +270,7 @@ export class CommunitiesService {
       }
     }
     await this.members.deleteOne({ _id: key(c._id, u) });
+    if (!u.equals(actor)) await this.bar(c, u, 'removed');
     let admins = c.admins.filter((a) => !a.equals(u));
     let owner = c.ownerId;
     const next = await this.members.find({ communityId: c._id }).sort({ joinedAt: 1 }).limit(1).toArray();
@@ -339,6 +356,7 @@ export class CommunitiesService {
   async join(me: ObjectId, code: string): Promise<CommunityJoinResult> {
     const c = await this.byCode(code);
     if (await this.members.findOne({ _id: key(c._id, me) })) return { status: 'joined', community: await this.info(me, c._id.toHexString()) };
+    await this.notBarred(c, me);
     if (c.settings.approveNew) {
       await this.requests.updateOne({ _id: key(c._id, me) }, { $setOnInsert: { communityId: c._id, userId: me, createdAt: new Date() } }, { upsert: true });
       return { status: 'requested' };
@@ -366,8 +384,10 @@ export class CommunitiesService {
   }
   async decline(me: ObjectId, id: string, uid: string) {
     const { c } = await this.mine(id, me, true);
-    const r = await this.requests.deleteOne({ _id: key(c._id, this.chat.parseId(uid)) });
+    const u = this.chat.parseId(uid);
+    const r = await this.requests.deleteOne({ _id: key(c._id, u) });
     if (!r.deletedCount) throw AppError.notFound('That request was already handled.');
+    await this.bar(c, u, 'declined');
   }
 
   // ---------------- moderation (w23) ----------------

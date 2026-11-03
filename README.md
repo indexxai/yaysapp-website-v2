@@ -82,12 +82,24 @@ GitHub Actions runs the same suites on every push (`.github/workflows/ci.yml`).
 - **Jack's AI**: conversations, documents (download as Word or PDF), web answers with sources, chat summaries (asks first, per chat), the Support desk's first answer and the website's Ask Jack box. `AI_DRIVER=anthropic` with `ANTHROPIC_API_KEY` uses Claude; `dev` gives labelled sample answers. 30 free messages a day; 50 points buy 10 more.
 - **Website**: signed-out visitors to `/` see the landing page; `/?ref=CODE` keeps an invite code for sign-up.
 
+## Yays Circle (communities became circles)
+
+A circle is a community underneath (same id, members, admins and group chats) with a feed, events and a few more settings. The **Circles** tab replaces Communities; old `/communities` links open the circle's Chats tab.
+
+- **Public or private.** Public: anyone can read and join at once. Private: only About and rules show; people answer the owners' question and wait. Requests lapse after 7 days. After a "no", or after being removed, people can ask again in 30 days (`yc_circle_bars`). Private circles can be hidden from Discover.
+- **Official.** Only circles YaysApp has checked are official; set `official: true` on the circle in `yc_communities` (there is no API for it on purpose). Other circles can't use "official" in their name, and names that look like an official circle's are marked **Not official**.
+- **Feed.** Posts with up to 4 photos, likes, comments with one level of replies, owners mark the answer, pin up to 3 posts, and optionally approve posts first. Posts, comments and events that promise profits or ask for money (`moneySchemeMatches` in `packages/shared/src/circles.ts`) are stopped; the writer can send them to the owners instead, who see them under **Review** with reported posts.
+- **Safety.** Reporting hides the post for the reporter (and can block the author). Owners mute people for 1 to 30 days (they can still read) or remove them with a reason they see.
+- **Events.** In person, online or both; the online link shows only to people going. Seat limits with a waitlist: a freed seat is offered to the next person for 12 hours. Moving the time or place asks people going "still going?". Cancelled events keep the host's message; ended ones take a recording, slides and ratings from people who went.
+- Not built yet: push reminders before events, photos for circle banners, mobile screens.
+
 ## Demo data
 
 With the app running locally (start-mac.command), double-click **demo-mac.command** (or run `pnpm demo`).
 It signs up Sara Ahmed and 14 friends, writes chats with photos, a voice note, a PDF, replies, reactions,
-a poll and pinned and starred messages, adds groups, two communities (with join requests and a reported
-message) and call history, spreads it over the last week, and opens the app signed in as Sara.
+a poll and pinned and starred messages, adds groups, circles with posts, events and things to review
+(an official Bitcoin YAY Circle, a private one, a full event with a waitlist, a changed and a cancelled event)
+and call history, spreads it over the last week, and opens the app signed in as Sara.
 
 - `pnpm demo --link` prints a fresh sign-in link for Sara.
 - `pnpm demo --reset` removes the demo people and everything they made, then seeds again.

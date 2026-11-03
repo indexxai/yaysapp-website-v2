@@ -49,7 +49,7 @@ export function CommunityList({ list, active, onOpen, onNew }: { list: Community
 }
 
 /** One community (w07): announcements, my groups, other groups, about and capacity. Admins can manage it (w23). */
-export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged: () => void; onLeft: () => void }) {
+export function CommunityView({ id, onChanged, onLeft, embedded }: { id: string; onChanged: () => void; onLeft: () => void; embedded?: boolean }) {
   const router = useRouter();
   const [c, setC] = useState<CommunityInfo | null>(null);
   const [chats, setChats] = useState<Record<string, ConversationSummary>>({});
@@ -83,9 +83,17 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
     const r = await api().joinCommunityGroup(c.id, g.id);
     if (r.status === 'joined') router.push(`/chats?c=${g.id}`);
   }, g.needsApproval ? `Asked to join ${g.name}. An admin will let you in.` : undefined);
+  const tools = (
+    <>
+      {admin && <OvalButton icon="link" label="Invite" size="sm" variant="soft" onClick={() => setDialog('invite')} />}
+      {admin && <OvalButton icon="plus" label="Add group" size="sm" variant="soft" onClick={() => setDialog('add')} />}
+      {!admin && c.settings.membersSuggest && <OvalButton icon="plus" label="Suggest a group" size="sm" variant="soft" onClick={() => setDialog('suggest')} />}
+      {admin && <OvalButton icon="settings" label="Manage" size="sm" variant="soft" onClick={() => setManaging(true)} />}
+    </>
+  );
   return (
-    <section className="community" aria-label={c.name}>
-      <div className="community__hero">
+    <section className={`community${embedded ? ' community--embedded' : ''}`} aria-label={c.name}>
+      {!embedded && <div className="community__hero">
         <span className="ys-feature__deco a" style={{ width: 380, top: -170, right: 120 }} aria-hidden />
         <LineArt name={artFor(c.id, BANNER_ART)} height={150} ink="#ffffff" opacity={0.85} className="community__art" />
         <span className="convo__back" style={{ marginBottom: 10 }}><OvalButton icon="arrow-left" label="Communities" size="sm" variant="soft" href="/communities" /></span>
@@ -96,15 +104,11 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
             <span>Community · {plural(c.memberCount, 'member')} · {plural(c.groupCount, 'group')}</span>
           </div>
         </div>
-        <div className="row" style={{ gap: 22, marginTop: 18 }}>
-          {admin && <OvalButton icon="link" label="Invite" size="sm" variant="soft" onClick={() => setDialog('invite')} />}
-          {admin && <OvalButton icon="plus" label="Add group" size="sm" variant="soft" onClick={() => setDialog('add')} />}
-          {!admin && c.settings.membersSuggest && <OvalButton icon="plus" label="Suggest a group" size="sm" variant="soft" onClick={() => setDialog('suggest')} />}
-          {admin && <OvalButton icon="settings" label="Manage" size="sm" variant="soft" onClick={() => setManaging(true)} />}
-        </div>
-      </div>
+        <div className="row" style={{ gap: 22, marginTop: 18 }}>{tools}</div>
+      </div>}
       <div className="community__body">
         <div className="community__main">
+          {embedded && <div className="row" style={{ gap: 22, justifyContent: 'flex-end' }}>{tools}</div>}
           {error && <Banner>{error}</Banner>}
           {notice && <Banner tone="success">{notice}</Banner>}
           {admin && c.pendingRequests > 0 && <Banner tone="info">{plural(c.pendingRequests, 'person')} asked to join. <button type="button" className="link-btn" onClick={() => setManaging(true)}>Review</button></Banner>}
@@ -139,7 +143,7 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
             </div>
           ))}
         </div>
-        <aside className="community__side" aria-label="About this community">
+        {!embedded && <aside className="community__side" aria-label="About this community">
           <section className="set-card set-card--pad"><h3 style={{ margin: 0, font: '700 15px var(--font-display)' }}>About</h3><p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: '20px', whiteSpace: 'pre-wrap' }}>{c.about || 'No description yet.'}</p></section>
           <section className="set-card set-card--pad" aria-label="Capacity">
             <h3 style={{ margin: 0, font: '700 15px var(--font-display)' }}>Capacity</h3>
@@ -148,7 +152,7 @@ export function CommunityView({ id, onChanged, onLeft }: { id: string; onChanged
           </section>
           <section className="set-card set-card--pad"><h3 style={{ margin: 0, font: '700 15px var(--font-display)' }}>Privacy</h3><span className="muted" style={{ fontSize: 13, lineHeight: '19px' }}>Your phone number and email are never shown to members.</span></section>
           <div className="row center"><ConfirmButton label="Exit community" confirm="Exit" question={`Exit ${c.name}? You’ll leave all its groups.`} onConfirm={() => run(async () => { await api().leaveCommunity(c.id); onLeft(); })} /></div>
-        </aside>
+        </aside>}
       </div>
       {dialog === 'invite' && <InviteDialog c={c} onClose={() => setDialog(null)} onChanged={() => void load()} />}
       {(dialog === 'add' || dialog === 'suggest') && <AddGroupDialog c={c} suggest={dialog === 'suggest'} onClose={() => setDialog(null)} onDone={(t) => { setDialog(null); setNotice(t); void load(); onChanged(); }} />}

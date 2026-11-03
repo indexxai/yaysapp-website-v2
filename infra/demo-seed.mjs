@@ -1,5 +1,5 @@
 // Fills a LOCAL YaysApp with demo data: Sara Ahmed and her friends, chats with photos, a voice note,
-// a PDF, replies, reactions and a poll, groups, two communities, calls, and a few unread messages;
+// a PDF, replies, reactions and a poll, groups, circles with posts and events, calls, and a few unread messages;
 // and Phase 2: IndexxPoints and a check-in streak, invites, a linked Indexx account with BTCY mining,
 // payments in chats, and Jack's AI conversations.
 // Everything goes through the API (so it behaves like real use); afterwards the times are spread
@@ -137,6 +137,14 @@ async function reset() {
     del('yc_community_members', { $or: [{ communityId: { $in: commIds } }, { userId: { $in: ids } }] }),
     del('yc_community_requests', { $or: [{ communityId: { $in: commIds } }, { userId: { $in: ids } }] }),
     del('yc_community_suggestions', { communityId: { $in: commIds } }),
+    del('yc_circle_posts', { $or: [{ circleId: { $in: commIds } }, { authorId: { $in: ids } }] }),
+    del('yc_circle_comments', { $or: [{ circleId: { $in: commIds } }, { authorId: { $in: ids } }] }),
+    del('yc_circle_likes', { userId: { $in: ids } }),
+    del('yc_circle_reports', { $or: [{ circleId: { $in: commIds } }, { reporterId: { $in: ids } }] }),
+    del('yc_circle_mutes', { circleId: { $in: commIds } }),
+    del('yc_circle_bars', { circleId: { $in: commIds } }),
+    del('yc_circle_rsvps', { userId: { $in: ids } }),
+    del('yc_circle_events', { circleId: { $in: commIds } }),
     del('yc_push_subscriptions', { userId: { $in: ids } }),
     del('yc_sessions', { userId: { $in: ids } }),
     del('yc_points', { _id: { $in: ids } }),
@@ -381,9 +389,83 @@ await say(lena, runners.announcementsId, 'Race day bibs are ready, pick them up 
 await say(hamza, raceDay, 'Who is doing the 10k?', [1, '21:05']);
 await say(hana, raceDay, 'Me! First one 😅', [1, '21:15']);
 
+const TZ = 'Asia/Karachi', TZ_PK = TZ;
+// ---------------- Yays Circle: the communities become circles, with posts and events ----------------
+console.log('\n▶ Circles: posts, events, discover');
+const HOURS = 3600_000, DAYS = 24 * HOURS;
+const wall = (ms, tz) => Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(ms)).map((x) => [x.type, Number(x.value)]));
+/** `hour` o'clock in `tz`, `days` from now. */
+const future = (days, hour, tz) => { const d = wall(now + days * DAYS, tz); const guess = Date.UTC(d.year, d.month - 1, d.day, hour); const w = wall(guess, tz); const shown = Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute); return new Date(guess - (shown - guess)).toISOString(); };
+const circleId = (c) => new ObjectId(c.id);
+// BTCY Traders becomes the official Bitcoin YAY Circle; Lahore Runners turns public.
+await db.collection('yc_communities').updateOne({ _id: circleId(btcyComm) }, { $set: { name: 'Bitcoin YAY Circle', about: 'Official updates, mining tutorials and support from the BTCY team. Questions get an answer within a day.', official: true, visibility: 'public', listed: true, category: 'crypto', rules: ['Be kind and on topic', 'No investment promotion or asking for money', 'Report fake “official” accounts'], postApproval: false, 'settings.approveNew': false } });
+await db.collection('yc_communities').updateOne({ _id: circleId(runners) }, { $set: { visibility: 'public', listed: true, category: 'sports', rules: ['All paces welcome', 'No selling'] } });
+const slc = await call('/v1/circles', { name: 'Salt Lake City AI & Blockchain', about: 'Seminars and meetups on AI and blockchain in Utah. Educational only.', category: 'ai', visibility: 'public', rules: ['Be kind', 'No investment promotion'] }, bilal.token);
+await db.collection('yc_communities').updateOne({ _id: circleId(slc) }, { $set: { official: true } });
+const wellness = await call('/v1/circles', { name: 'ReHuman Wellness Club', about: 'Habits, sleep and nutrition with the ReHuman team. Not medical advice.', category: 'wellness', visibility: 'private', joinQuestion: 'Why do you want to join?', rules: ['Be kind', 'No selling or asking for money', 'Health questions go to a doctor'] }, lena.token);
+const beginners = await call('/v1/circles', { name: 'Crypto Beginners PK', about: 'Ask anything about getting started, safely.', category: 'crypto', visibility: 'public' }, hamza.token);
+await call('/v1/circles', { name: 'Bitcoin YAY Signals', about: 'Daily signals. DM for VIP.', category: 'crypto', visibility: 'public' }, crypto.token);
+const founders = await call('/v1/circles', { name: 'Karachi Founders', about: 'Coffee and short intros from founders in Karachi.', category: 'local', visibility: 'private', listed: false }, omar.token);
+for (const who of [sara, hamza, hana, areeba, amara]) await call(`/v1/circles/${slc.id}/join`, {}, who.token);
+for (const who of [areeba, hana, amara]) await call(`/v1/circles/${btcyComm.id}/join`, {}, who.token).catch(() => undefined);
+for (const who of [sara, amara]) await call(`/v1/circles/${beginners.id}/join`, {}, who.token);
+await call(`/v1/circles/${wellness.id}/join`, { answer: 'I want to fix my sleep schedule.' }, hana.token);
+// Sara is in Karachi Founders (and on the waitlist for its breakfast).
+await db.collection('yc_community_members').insertOne({ _id: `${founders.id}:${sara.id}`, communityId: circleId(founders), userId: new ObjectId(sara.id), joinedAt: new Date(now - 3 * DAYS) });
+await db.collection('yc_community_members').insertOne({ _id: `${founders.id}:${hana.id}`, communityId: circleId(founders), userId: new ObjectId(hana.id), joinedAt: new Date(now - 3 * DAYS) });
+await db.collection('yc_communities').updateOne({ _id: circleId(founders) }, { $inc: { memberCount: 2 } });
+
+const cpost = async (who, c, text, ago, o = {}) => {
+  const photoKeys = o.media ? [await upload(who, MEDIA[o.media].file, MEDIA[o.media].type, 'image')] : [];
+  const p = await call(`/v1/circles/${c.id}/posts`, { text, photoKeys, send: o.review ? 'review' : 'normal' }, who.token);
+  await db.collection('yc_circle_posts').updateOne({ _id: new ObjectId(p.id) }, { $set: { createdAt: new Date(now - ago * MIN) } });
+  return p;
+};
+const pinned = await cpost(bilal, btcyComm, 'Mining v2 is live. Read the guide before your next session: team boost, streaks, and what happens when your phone is off.', 60 * 26, { media: 'chart' });
+await call(`/v1/circle-posts/${pinned.id}/pin`, {}, bilal.token, 'PUT');
+const tut = await cpost(bilal, btcyComm, 'New mining tutorial: how team boost works, and how to keep your streak going while travelling.', 120, { media: 'hills' });
+const q = await cpost(areeba, btcyComm, 'Is mining paused when my phone is off? Mine stopped at 3h left.', 240);
+const ans = await call(`/v1/circle-posts/${q.id}/comments`, { text: 'No, it keeps running for 24 hours once started. If the timer stopped, update the app and pull to refresh.' }, bilal.token);
+await call(`/v1/circle-comments/${ans.id}/answer`, {}, bilal.token, 'PUT');
+await call(`/v1/circle-posts/${q.id}/comments`, { text: 'That fixed it, thanks!', parentId: ans.id }, areeba.token);
+await call(`/v1/circle-posts/${q.id}/comments`, { text: 'Same here last week. Updating helped.' }, hamza.token);
+for (const who of [sara, hamza, hana, omar]) await call(`/v1/circle-posts/${tut.id}/like`, {}, who.token, 'PUT');
+await call(`/v1/circle-posts/${q.id}/like`, {}, hana.token, 'PUT');
+await cpost(hamza, btcyComm, 'Hit a 30-day streak today 🎉 Team boost really adds up.', 60 * 7);
+// Waiting for Sara (an admin) to review: a money-scheme post sent anyway, and a reported one.
+await cpost(crypto, btcyComm, 'Guaranteed 10% daily profit on BTCY! DM me to invest, only 5 spots left.', 25, { review: true });
+const spam = await cpost(crypto, btcyComm, 'Check out my channel for free signals, link in bio!!!', 50);
+for (const who of [hamza, omar]) await call(`/v1/circle-posts/${spam.id}/report`, { reason: 'spam' }, who.token);
+await cpost(bilal, slc, 'Slides from last month’s session are pinned in Chats. See you at the seminar!', 60 * 30);
+await cpost(lena, runners, 'Sunday long run: 6:30 am at Race Course Park. 10k and 5k groups.', 60 * 20);
+await cpost(hamza, beginners, 'Rule of thumb: nobody legit will ever ask you to send crypto first. Report it.', 60 * 50);
+
+const event = (who, c, b) => call(`/v1/circles/${c.id}/events`, b, who.token);
+const seminar = await event(bilal, slc, { title: 'AI & Blockchain Seminar', about: 'An evening on how AI and blockchain are used today, with live demos of BTCY mining and Jack’s AI, and time for questions. Free to attend.', startsAt: future(9, 18, 'America/Denver'), endsAt: future(9, 20, 'America/Denver'), timeZone: 'America/Denver', mode: 'both', place: 'Downtown Library, Room 2, Salt Lake City', onlineUrl: 'https://meet.example.com/slc-ai', seats: null });
+for (const who of [sara, hamza, hana, areeba]) await call(`/v1/circle-events/${seminar.id}/rsvp`, { status: 'going' }, who.token, 'PUT');
+await call(`/v1/circle-events/${seminar.id}/rsvp`, { status: 'interested' }, amara.token, 'PUT');
+const sq = await call(`/v1/circle-events/${seminar.id}/questions`, { text: 'Will the slides be shared afterwards?' }, hana.token);
+const sa = await call(`/v1/circle-events/${seminar.id}/questions`, { text: 'Yes, in this circle the next morning, with the recording.', parentId: sq.id }, bilal.token);
+await call(`/v1/circle-comments/${sa.id}/answer`, {}, bilal.token, 'PUT');
+// The host moved it an hour later after Sara said yes: she's asked "still going?".
+await call(`/v1/circle-events/${seminar.id}`, { startsAt: future(9, 19, 'America/Denver'), endsAt: future(9, 21, 'America/Denver'), place: 'Downtown Library, Room 4, Salt Lake City' }, bilal.token, 'PATCH');
+const qa = await event(bilal, btcyComm, { title: 'Live Q&A: Mining v2', startsAt: future(16, 19, TZ_PK), endsAt: future(16, 20, TZ_PK), timeZone: TZ_PK, mode: 'online', onlineUrl: 'https://meet.example.com/btcy-qa', seats: null });
+for (const who of [hamza, hana, areeba]) await call(`/v1/circle-events/${qa.id}/rsvp`, { status: 'going' }, who.token, 'PUT');
+const breakfast = await event(omar, founders, { title: 'Founders Breakfast', about: 'Coffee and short intros. Bring one problem you’re stuck on.', startsAt: future(18, 9, TZ_PK), endsAt: future(18, 11, TZ_PK), timeZone: TZ_PK, mode: 'in_person', place: 'The Second Cup, Clifton, Karachi', seats: 2 });
+await call(`/v1/circle-events/${breakfast.id}/rsvp`, { status: 'going' }, hana.token, 'PUT');
+await call(`/v1/circle-events/${breakfast.id}/rsvp`, { status: 'going' }, sara.token, 'PUT');
+// A past run with a recording, and a cancelled one.
+const pastRun = await event(lena, runners, { title: 'Monthly 10k', startsAt: future(2, 7, TZ_PK), endsAt: future(2, 9, TZ_PK), timeZone: TZ_PK, mode: 'in_person', place: 'Race Course Park, Lahore', seats: null });
+for (const who of [sara, hamza]) await call(`/v1/circle-events/${pastRun.id}/rsvp`, { status: 'going' }, who.token, 'PUT');
+await db.collection('yc_circle_events').updateOne({ _id: new ObjectId(pastRun.id) }, { $set: { startsAt: new Date(now - 5 * DAYS), endsAt: new Date(now - 5 * DAYS + 2 * HOURS), recordingUrl: 'https://video.example.com/monthly-10k' } });
+const night = await event(lena, runners, { title: 'Night run', startsAt: future(4, 21, TZ_PK), endsAt: future(4, 22, TZ_PK), timeZone: TZ_PK, mode: 'in_person', place: 'Liberty Roundabout, Lahore', seats: null });
+await call(`/v1/circle-events/${night.id}/rsvp`, { status: 'going' }, sara.token, 'PUT');
+await call(`/v1/circle-events/${night.id}/cancel`, { note: 'Sorry, the park is closed that night. We’ll post a new date soon.' }, lena.token);
+// Sara has seen most of the feeds.
+await db.collection('yc_community_members').updateMany({ userId: new ObjectId(sara.id) }, { $set: { seenAt: new Date(now - 3 * HOURS) } });
+
 // ---------------- Phase 2: points, Indexx account, BTCY, pay in chat, Jack's AI ----------------
 console.log('\n▶ Points, Indexx accounts, BTCY, payments and Jack’s AI');
-const TZ = 'Asia/Karachi';
 const dayOf = (d) => d.toLocaleDateString('en-CA', { timeZone: TZ });
 const daysAgo = (n) => new Date(now - n * 86400_000);
 const weekOf = (d) => { const k = dayOf(d); const x = new Date(`${k}T12:00:00Z`); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10); };
@@ -421,7 +503,7 @@ for (let i = 0; i < 5; i++) {
   await db.collection('yc_checkins').updateOne({ _id: `${sara.id}:${dayOf(at)}` }, { $set: { userId: oid(sara), day: dayOf(at), dayOfWeek: i + 1, streak: i + 1, points: pts[i], at } }, { upsert: true });
   await entry(sara, `checkin:${dayOf(at)}`, 'checkin', 'Daily check-in', `Day ${i + 1} streak`, pts[i], at, 'done', true);
 }
-await entry(sara, 'seed:post', 'activity', 'Posted in BTCY Traders', 'Community post', 15, when([1, '18:15']), 'done', true);
+await entry(sara, 'seed:post', 'activity', 'Posted in Bitcoin YAY Circle', 'Circle post', 15, when([1, '18:15']), 'done', true);
 await entry(sara, 'seed:messages', 'activity', 'Sent 10 messages', 'Daily activity', 10, when([1, '16:02']), 'done', true);
 await entry(sara, 'seed:spam', 'reversal', 'Spam post removed', 'Points taken back by a moderator', -15, when([1, '19:40']));
 await entry(sara, 'seed:convert', 'convert', 'Converted to BTCY Nuggets', '1,000 points → 10 Nuggets', -1000, when(TODAY(520)));
