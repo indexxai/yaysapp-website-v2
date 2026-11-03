@@ -10,8 +10,8 @@ import { Icon } from '@/lib/icons';
 import { CommunityView } from '../community';
 import { Switch } from '../group';
 import { Modal } from '../message-actions';
-import { Avatar, Banner, Field, LineArt, OvalButton } from '../ui';
-import { CircleMark, CircleTags, DateBlock, EventMiniRow, Note, State, Tag, compact, dateShort, errText, plural } from './common';
+import { Avatar, Banner, Field, LineArt, OvalButton, type ArtName } from '../ui';
+import { CircleBgArt, CircleMark, CircleTags, DateBlock, EventMiniRow, Note, State, Tag, compact, dateShort, errText, plural } from './common';
 import { EventForm, EventRow, EventsTab } from './events';
 import { FeedTab, PostCard } from './feed';
 
@@ -157,9 +157,9 @@ export function CircleHome({ id, me, tab: tab0, onChanged }: { id: string; me: M
     catch (e) { setError(errText(e, 'This circle isn’t available.')); }
   }, [id]);
   useEffect(() => { setC(null); void load(); }, [load]);
-  if (error && !c) return <Unavailable />;
+  if (error && !c) return <><Unavailable /><CircleBgArt name="explorer" /></>;
   if (!c) return <div className="pane-center"><span className="ys-spin" aria-label="Loading" /></div>;
-  if (c.access === 'removed') return <Removed c={c} />;
+  if (c.access === 'removed') return <><Removed c={c} /><CircleBgArt name="explorer" side="left" /></>;
   const member = c.access === 'admin' || c.access === 'member';
   const admin = c.access === 'admin';
   const join = async () => { setBusy(true); try { setC(await api().joinCircle(c.id)); onChanged(); } catch (e) { setError(errText(e)); } finally { setBusy(false); } };
@@ -169,7 +169,10 @@ export function CircleHome({ id, me, tab: tab0, onChanged }: { id: string; me: M
     ...(admin ? [['members', 'Members'] as [TabKey, string], ['review', c.pendingReview ? `Review · ${c.pendingReview}` : 'Review'] as [TabKey, string]] : []),
     ['about', 'About'],
   ];
+  const art: [ArtName, 'left' | 'right'] = !c.canRead ? ['morning', 'right'] : ({ feed: ['chat', 'right'], events: ['selfie', 'left'], chats: ['chat', 'right'], members: ['skater', 'left'], review: ['gear', 'right'], about: ['reader', 'left'] } as const)[tab] as [ArtName, 'left' | 'right'];
   return (
+    <>
+    <CircleBgArt name={art[0]} side={art[1]} />
     <section className="chome" aria-label={c.name}>
       <div className="chome__banner"><span className="ys-feature__deco a" style={{ width: 340, top: -150, right: 80 }} aria-hidden /><span className="chome__back"><OvalButton icon="arrow-left" label="Circles" size="sm" variant="secondary" href="/circles" /></span></div>
       <div className="chome__wrap">
@@ -207,6 +210,7 @@ export function CircleHome({ id, me, tab: tab0, onChanged }: { id: string; me: M
       {dialog === 'event' && <EventForm c={c} onClose={() => setDialog(null)} onSaved={(e) => { setDialog(null); router.push(`/circles/event?id=${e.id}`); }} />}
       {dialog === 'leave' && <LeaveDialog c={c} me={me} onClose={() => setDialog(null)} onLeft={() => { onChanged(); router.push('/circles'); }} />}
     </section>
+    </>
   );
 }
 

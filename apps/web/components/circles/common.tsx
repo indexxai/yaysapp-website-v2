@@ -2,7 +2,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { ApiError, CIRCLE_CATEGORY_LABEL, type CircleAuthor, type CircleCard, type CircleEventMini, type CircleView, type SchemeMatch } from '@yays/shared';
 import { Icon, type IconName } from '@/lib/icons';
-import { OvalButton } from '../ui';
+import { LineArt, OvalButton, type ArtName } from '../ui';
 
 export const errText = (e: unknown, f = 'That did not work. Try again.') => (e instanceof ApiError ? e.message : f);
 export const offline = (e: unknown) => e instanceof ApiError && e.status === 0;
@@ -118,3 +118,8 @@ export const ago = (iso: string) => {
   return new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
 };
 export const dateShort = (iso: string) => new Date(iso).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+
+/** Background drawing for circle screens: faint, behind everything, pinned to the bottom corner of the pane. */
+export function CircleBgArt({ name, side = 'right' }: { name: ArtName; side?: 'left' | 'right' }) {
+  return <LineArt name={name} height={300} opacity={0.17} className={`cbg-art cbg-art--${side}`} />;
+}

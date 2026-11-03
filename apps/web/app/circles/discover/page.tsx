@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
+import { CircleBgArt } from '@/components/circles/common';
 import { CreateCircleDialog, Discover } from '@/components/circles/circle';
 import { useMe } from '@/components/use-me';
 
@@ -12,7 +13,7 @@ export default function DiscoverPage() {
   const [creating, setCreating] = useState(false);
   return (
     <AppShell me={me} bare>
-      <div className="cpage">{me && <Discover onNew={() => setCreating(true)} />}</div>
+      <div className="cpage-wrap"><div className="cpage">{me && <Discover onNew={() => setCreating(true)} />}</div><CircleBgArt name="explorer" side="right" /></div>
       {creating && <CreateCircleDialog onClose={() => setCreating(false)} onCreated={(id) => router.push(`/circles?id=${id}`)} />}
     </AppShell>
   );

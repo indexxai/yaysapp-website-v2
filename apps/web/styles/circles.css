@@ -234,3 +234,12 @@
 /* Sign-in: other ways, as orange ovals in a row (p31 / W16). */
 .signin-alt { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 28px; }
 .signin-alt__google { flex-basis: 100%; display: flex; justify-content: center; }
+
+/* Background drawings on circle screens: behind the content, fixed to the pane's bottom corner. */
+.chats__pane, .cpage-wrap { isolation: isolate; }
+.cpage-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
+.cpage-wrap > .cpage, .chats__pane > .chome { background: transparent; }
+.cbg-art { position: absolute; bottom: 24px; z-index: -1 !important; pointer-events: none; }
+.cbg-art--right { right: 40px; }
+.cbg-art--left { left: 40px; }
+@media (max-width: 860px) { .cbg-art { height: 220px !important; bottom: 16px; } .cbg-art--right { right: -36px; } .cbg-art--left { left: -36px; } }
