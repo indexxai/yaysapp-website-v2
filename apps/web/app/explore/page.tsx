@@ -10,8 +10,8 @@ import { Icon, type IconName } from '@/lib/icons';
 import { PRODUCTS, useLoad } from '@/lib/phase2';
 
 const TILES: Array<{ title: string; sub: string; icon: IconName; href: string }> = [
-  { title: 'Wallet', sub: 'Points, Nuggets and USDXX', icon: 'wallet', href: '/wallet' },
-  { title: 'Invite friends', sub: '+100 points each', icon: 'person-add', href: '/earn/invite' },
+  { title: 'Wallet', sub: 'INEX, Nuggets and USDXX', icon: 'wallet', href: '/wallet' },
+  { title: 'Invite friends', sub: '+100 INEX each', icon: 'person-add', href: '/earn/invite' },
   { title: 'Help and support', sub: 'AI answers, then a person', icon: 'help', href: '/settings/help' },
 ];
 
@@ -45,7 +45,7 @@ export default function ExplorePage() {
           </Link>
           <div className="p2-card p2-checkin-tile">
             <div className="row" style={{ gap: 12 }}><span className="ys-oval ys-oval--wash" style={{ width: 48 }}><Icon name="gift" size={22} /></span><span className="p2-col"><strong>Daily check-in</strong><span className="muted">{c ? (c.claimedToday ? `Claimed · day ${c.streak} streak` : c.streak ? `Day ${c.streak + 1} streak` : 'Start a streak') : '…'}</span></span></div>
-            <div className="p2-big">{c ? (c.claimedToday ? `Tomorrow +${c.tomorrowPoints}` : `+${c.todayPoints} points`) : ' '}</div>
+            <div className="p2-big">{c ? (c.claimedToday ? `Tomorrow +${c.tomorrowPoints}` : `+${c.todayPoints} INEX`) : ' '}</div>
             {c && !c.claimedToday ? <OvalButton icon="check" label="Claim" size="md" onClick={() => setClaiming(true)} /> : <OvalButton icon="star" label="Ways to earn" size="md" variant="soft" href="/earn" />}
           </div>
         </div>

@@ -37,7 +37,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <nav aria-label="Footer" className="foot-links">
               <Link href="/privacy">Privacy</Link><Link href="/delete-account">Delete account</Link><Link href="/terms">Terms</Link><Link href="/support">Support</Link><a href={PLAY_URL}>Download</a>
             </nav>
-            <p className="fine">YaysApp is part of the Indexx ecosystem. IndexxPoints are in-app reward points, not currency, and carry no cash value.</p>
+            <p className="fine">YaysApp is part of the Indexx ecosystem. YaysApp rewards are paid in INEX, the Indexx coin.</p>
           </div>
         </footer>
       </body>

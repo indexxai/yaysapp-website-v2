@@ -9,6 +9,8 @@ import { ProfileForm } from '@/components/profile-form';
 import { Card, SetRow, SettingsFrame, useSaved } from '@/components/settings';
 import { Banner, Field, OvalButton } from '@/components/ui';
 import { Icon } from '@/lib/icons';
+import { SocialChips } from '@/components/socials';
+import { useLoad } from '@/lib/phase2';
 
 const errText = (e: unknown, f = 'That did not work. Try again.') => (e instanceof ApiError ? e.message : f);
 
@@ -36,6 +38,7 @@ function Profile({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }
       <section className="set-card set-card--pad" aria-label="Profile">
         <ProfileForm key={(me.username ?? '') + me.photoUrl} me={me} submitLabel="Save" layout="settings" onSaved={(m) => { setMe(m); saved.ok(); }} />
       </section>
+      <ProfileSocials />
       <Card title="Account">
         <SetRow label="Phone number" hint="Used to sign in. Others never see it.">
           <span className="set-row__value">{me.phone ?? 'None'}</span>
@@ -58,6 +61,32 @@ function Profile({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }
       {dialog === 'phone' && <PhoneDialog onClose={() => setDialog(null)} onDone={(m) => { setMe(m); setDialog(null); saved.ok('Your number was changed.'); }} />}
       {dialog === 'delete' && <DeleteDialog me={me} onClose={() => setDialog(null)} />}
     </>
+  );
+}
+
+/** p34: your socials as others see them, with a preview as a contact or as anyone else. */
+function ProfileSocials() {
+  const v = useLoad(() => api().socials());
+  const [as, setAs] = useState<'contact' | 'anyone'>('contact');
+  const d = v.data;
+  if (!d) return null;
+  const shown = d.visibility === 'everyone' || (d.visibility === 'contacts' && as === 'contact');
+  return (
+    <Card title="Socials">
+      <div style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {d.links.length ? <SocialChips links={d.links} /> : <span className="muted">No socials yet. Link Facebook or add a username to show them on your profile.</span>}
+        <span className="muted p2-small">{d.visibility === 'everyone' ? 'Anyone who opens your profile sees these.' : d.visibility === 'contacts' ? 'Your contacts see these. Others see your name and photo only.' : 'Hidden from everyone. Only you see them here.'}</span>
+        {!!d.links.length && (
+          <>
+            <div className="ys-tabs" role="radiogroup" aria-label="See your profile as" style={{ alignSelf: 'flex-start' }}>
+              {(['contact', 'anyone'] as const).map((x) => <button key={x} type="button" role="radio" className="ys-tab" aria-checked={as === x} aria-selected={as === x} onClick={() => setAs(x)}>{x === 'contact' ? 'A contact' : 'Anyone else'}</button>)}
+            </div>
+            <span className="p2-small" data-testid="socials-preview">{shown ? `${as === 'contact' ? 'A contact' : 'Anyone else'} sees all ${d.links.length} of your socials.` : `${as === 'contact' ? 'A contact' : 'Anyone else'} sees your name and photo only.`}</span>
+          </>
+        )}
+        <div><OvalButton icon="edit" label="Manage" size="sm" variant="soft" href="/settings/socials" /></div>
+      </div>
+    </Card>
   );
 }
 

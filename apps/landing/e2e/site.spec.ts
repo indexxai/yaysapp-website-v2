@@ -19,7 +19,7 @@ test('home: hero, Google Play link, App Store marked coming soon', async ({ page
   await expect(page.getByLabel('App Store, coming soon').first()).toBeVisible();
   await expect(page.getByRole('link', { name: /App Store/ })).toHaveCount(0);
   for (const id of ['features', 'earn', 'ecosystem']) await expect(page.locator(`#${id}`)).toBeVisible();
-  await expect(page.getByText('IndexxPoints are in-app reward points, not currency').first()).toBeVisible();
+  await expect(page.getByText('YaysApp rewards are paid in INEX').first()).toBeVisible();
   for (const img of await page.locator('img').all()) expect(await img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
 });
 

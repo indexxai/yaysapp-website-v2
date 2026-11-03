@@ -30,14 +30,14 @@ export default function InvitePage() {
         <div className="p2-head"><OvalButton icon="arrow-left" label="Earn" size="sm" variant="ghost" href="/earn" /><h1>Invite friends</h1></div>
         {r.error && <Banner>{r.error}</Banner>}
         <section className="p2-card p2-card--pad p2-invite">
-          <h2>Get {REFERRAL_POINTS} points for each friend</h2>
+          <h2>Get {REFERRAL_POINTS} INEX for each friend</h2>
           <p className="muted" style={{ margin: 0 }}>Your friend joins with your code, verifies their number and sends a first message. Your code also works across Indexx products.</p>
           <div className="p2-code p2-code--big"><span className="p2-code__label">Your code</span><strong>{d?.code ?? '…'}</strong><OvalButton icon={copied === 'code' ? 'check' : 'copy'} label={copied === 'code' ? 'Copied' : 'Copy'} size="sm" variant="soft" onClick={() => void copy('code')} /></div>
           <div className="row center"><OvalButton icon={copied === 'link' ? 'check' : 'share'} label={copied === 'link' ? 'Link copied' : 'Share invite link'} size="lg" onClick={() => void copy('link')} disabled={!d} /></div>
           <div className="p2-stats">
             <div><b>{d?.invited ?? '–'}</b><span>Invited</span></div>
             <div><b>{d?.joined ?? '–'}</b><span>Joined</span></div>
-            <div><b>{d?.pointsEarned ?? '–'}</b><span>Points earned</span></div>
+            <div><b>{d?.pointsEarned ?? '–'}</b><span>INEX earned</span></div>
           </div>
         </section>
         <section className="p2-card" aria-labelledby="inv">

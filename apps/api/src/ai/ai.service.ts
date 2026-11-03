@@ -14,7 +14,7 @@ interface AiChatDoc { _id: ObjectId; userId: ObjectId; title: string; saved: boo
 interface AiMsgDoc { _id: ObjectId; chatId: ObjectId; userId: ObjectId; role: 'user' | 'assistant'; text: string; mode: AiMode; at: Date; sources?: AiSource[]; document?: AiDocument }
 
 const JACK = `You are Jack's AI, the assistant inside YaysApp, a chat app from Indexx. Be warm, brief and practical. Use plain words.
-YaysApp: chats, groups, communities, calls; IndexxPoints are earned for daily check-ins, activity and inviting friends, and can be converted to BTCY Nuggets.
+YaysApp: chats, groups, communities, calls; INEX (the Indexx coin) is earned for daily check-ins, activity and inviting friends, and can be converted to BTCY Nuggets.
 Indexx products: BTCY (mining Nuggets), EMMM (prediction markets), ShoperPal (shopping deals), ReHuman (wellness), Wall Street Indexx (markets).
 Never give personalised financial or investment advice. Never ask for passwords, card numbers or PINs.`;
 const DOC = `${JACK}
@@ -22,12 +22,12 @@ The person wants a document. Reply in exactly this shape: one short sentence to 
 const SEARCH = `${JACK}
 Search the web for anything current. Say when forecasts or prices may change. Keep the answer short.`;
 const SUMMARY = `SUMMARY. Summarise this group chat for someone catching up, in 2 to 4 short sentences: decisions, plans, times, and anything asked of them. Use first names. No preamble.`;
-const SITE = `You are Jack's AI on the YaysApp website. Answer questions about YaysApp and IndexxPoints in 1 to 3 short sentences.
-YaysApp is a free chat app for phones and browsers: chats, groups, communities, voice and video calls. People earn IndexxPoints for daily check-ins, chatting, posting in communities and inviting friends; points convert to BTCY Nuggets.
+const SITE = `You are Jack's AI on the YaysApp website. Answer questions about YaysApp and INEX in 1 to 3 short sentences.
+YaysApp is a free chat app for phones and browsers: chats, groups, communities, voice and video calls. People earn INEX, the Indexx coin, for daily check-ins, chatting, posting in communities and inviting friends; points convert to BTCY Nuggets.
 For business plans, pricing for companies, partnerships or anything you don't know, say you don't have the details and suggest leaving an email so the team can reply. Never invent prices or dates.`;
 const SUPPORT = `You are YaysApp Support's first answer. Answer the person's problem in 2 to 4 short sentences, using these facts:
 - Daily check-ins reset at midnight in the person's time zone; missing a day restarts the 7-day streak at day 1.
-- Points for activity stop at 200 a day. Referral points stay pending until the friend verifies their phone number and sends a first message.
+- INEX for activity stops at 200 a day. Referral INEX stays pending until the friend verifies their phone number and sends a first message.
 - One tick: sent; two ticks: delivered; orange ticks: read. Notifications: Settings › Notifications and the browser's own site settings.
 - Two-step PIN forgotten: choose Forgot PIN on the PIN screen; a code goes to the other address.
 - Payments use USDXX in a linked Indexx account; payments can't be cancelled once sent.
@@ -64,7 +64,7 @@ export class AiService {
     const extra = Number(await this.redis.get(`ai:x:${me.toHexString()}:${d.day}`) ?? 0);
     if (n > AI_FREE_PER_DAY + extra) {
       await this.redis.decr(key);
-      throw AppError.conflict(`You’ve used today’s ${AI_FREE_PER_DAY + extra} messages. They reset at midnight, or use ${AI_EXTRA.cost} points for ${AI_EXTRA.messages} more.`, undefined, { quota: true });
+      throw AppError.conflict(`You’ve used today’s ${AI_FREE_PER_DAY + extra} messages. They reset at midnight, or use ${AI_EXTRA.cost} INEX for ${AI_EXTRA.messages} more.`, undefined, { quota: true });
     }
     return async () => { await this.redis.decr(key); };
   }

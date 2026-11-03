@@ -70,17 +70,17 @@ export class IndexxService {
   async convert(me: ObjectId, tzSent: string | null, points: number): Promise<WalletView> {
     const account = await this.need(me);
     const tz = await this.rewards.tz(me, tzSent);
-    if (points < CONVERT.min) throw AppError.validation(`The smallest conversion is ${CONVERT.min.toLocaleString('en-US')} points.`);
-    if (points % CONVERT.pointsPerNugget) throw AppError.validation(`Convert in steps of ${CONVERT.pointsPerNugget} points.`);
+    if (points < CONVERT.min) throw AppError.validation(`The smallest conversion is ${CONVERT.min.toLocaleString('en-US')} INEX.`);
+    if (points % CONVERT.pointsPerNugget) throw AppError.validation(`Convert in steps of ${CONVERT.pointsPerNugget} INEX.`);
     const left = CONVERT.dailyMax - (await this.convertedToday(me, tz));
-    if (points > left) throw AppError.validation(left > 0 ? `You can convert ${left.toLocaleString('en-US')} more points today.` : 'You’ve converted the most allowed today. Try again tomorrow.');
+    if (points > left) throw AppError.validation(left > 0 ? `You can convert ${left.toLocaleString('en-US')} more INEX today.` : 'You’ve converted the most allowed today. Try again tomorrow.');
     const nuggets = points / CONVERT.pointsPerNugget, ref = randomUUID();
-    const debit = await this.rewards.award(me, tz, { key: `convert:${ref}`, kind: 'convert', title: 'Converted to BTCY Nuggets', sub: `${points.toLocaleString('en-US')} points → ${nuggets} Nuggets`, amount: -points });
+    const debit = await this.rewards.award(me, tz, { key: `convert:${ref}`, kind: 'convert', title: 'Converted to BTCY Nuggets', sub: `${points.toLocaleString('en-US')} INEX → ${nuggets} Nuggets`, amount: -points });
     if (!debit) throw AppError.validation('That didn’t go through. Try again.');
     try { await this.provider.creditNuggets(account, nuggets * NUGGET_UNIT, `yays-convert-${ref}`); }
     catch (e) {
-      await this.rewards.award(me, tz, { key: `convert-refund:${ref}`, kind: 'reversal', title: 'Conversion refunded', sub: 'Indexx didn’t accept it, so your points are back', amount: points });
-      throw e instanceof AppError ? e : AppError.validation('Indexx didn’t accept the conversion. Your points are back.');
+      await this.rewards.award(me, tz, { key: `convert-refund:${ref}`, kind: 'reversal', title: 'Conversion refunded', sub: 'Indexx didn’t accept it, so your INEX is back', amount: points });
+      throw e instanceof AppError ? e : AppError.validation('Indexx didn’t accept the conversion. Your INEX is back.');
     }
     return this.wallet(me, tz);
   }
@@ -89,7 +89,7 @@ export class IndexxService {
     const out: WalletTx[] = [];
     if (filter !== 'pay') {
       const conv = await this.rewards.ledger.find({ userId: me, kind: 'convert' }).sort({ _id: -1 }).limit(30).toArray();
-      for (const c of conv) out.push({ id: c._id.toHexString(), kind: 'convert', direction: 'in', title: 'Converted points', sub: c.sub, at: c.at.toISOString(), status: 'done', amount: (-c.amount / CONVERT.pointsPerNugget) * NUGGET_UNIT, unit: 'NUGGET' });
+      for (const c of conv) out.push({ id: c._id.toHexString(), kind: 'convert', direction: 'in', title: 'Converted INEX', sub: c.sub, at: c.at.toISOString(), status: 'done', amount: (-c.amount / CONVERT.pointsPerNugget) * NUGGET_UNIT, unit: 'NUGGET' });
     }
     if (filter !== 'points' && this.payments) out.push(...(await this.payments.activity(me)));
     return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50);

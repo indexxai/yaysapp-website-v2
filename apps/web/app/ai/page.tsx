@@ -17,7 +17,7 @@ const MODES: Array<{ id: AiMode; label: string; icon: IconName; hint: string }> 
   { id: 'search', label: 'Web search', icon: 'globe', hint: 'Ask about something current…' },
   { id: 'document', label: 'Document', icon: 'document', hint: 'Describe a document, or a change to it…' },
 ];
-const SUGGEST = ['Give me 3 post ideas for my community', 'Translate “See you at 7” into Urdu', 'How do IndexxPoints work?', 'Write a one-page event proposal'];
+const SUGGEST = ['Give me 3 post ideas for my community', 'Translate “See you at 7” into Urdu', 'How do INEX rewards work?', 'Write a one-page event proposal'];
 
 function groupOf(c: AiChatSummary) {
   if (c.saved) return 'Saved';
@@ -139,7 +139,7 @@ function Ai() {
               <div role="status" className="p2-ai__out">
                 <span className="ys-oval ys-oval--ember" style={{ width: 44 }}><Icon name="clock" size={20} /></span>
                 <span style={{ flex: 1 }}><strong>You’ve used today’s {quota.limit} messages.</strong><br /><span className="muted">They reset at midnight (in {timeLeft(quota.resetsAt)}). You can still read and copy past answers.</span></span>
-                <OvalButton icon="star" label={`Use ${quota.extraCost} points`} size="sm" loading={buying} onClick={() => void buy()} />
+                <OvalButton icon="star" label={`Use ${quota.extraCost} INEX`} size="sm" loading={buying} onClick={() => void buy()} />
               </div>
             ) : (
               <>

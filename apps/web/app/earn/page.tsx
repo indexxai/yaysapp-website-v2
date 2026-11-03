@@ -36,7 +36,7 @@ export default function EarnPage() {
           <div className="p2-hero">
             <span className="ys-feature__deco a" />
             <img src="/brand/coin.png" alt="" className="p2-hero__coin" />
-            <span className="p2-hero__eyebrow">IndexxPoints</span>
+            <span className="p2-hero__eyebrow">INEX</span>
             <div className="p2-hero__num" data-testid="points-balance">{p ? fmtPoints(p.balance) : '—'}</div>
             <span>{p ? `+${fmtPoints(p.earnedThisWeek)} this week${p.pending ? ` · ${fmtPoints(p.pending)} pending` : ''}` : ' '}</span>
             <div className="row" style={{ gap: 26, marginTop: 18 }}>
@@ -60,7 +60,7 @@ export default function EarnPage() {
 
           <section className="p2-card p2-card--pad" aria-labelledby="ref">
             <h2 id="ref">Invite friends</h2>
-            <p className="muted" style={{ margin: 0 }}>Get 100 points when a friend joins with your code, verifies their number and sends a first message.</p>
+            <p className="muted" style={{ margin: 0 }}>Get 100 INEX when a friend joins with your code, verifies their number and sends a first message.</p>
             <div className="p2-code"><strong>{r?.code ?? '…'}</strong><OvalButton icon={copied ? 'check' : 'copy'} label={copied ? 'Copied' : 'Copy link'} size="sm" onClick={() => void copy()} disabled={!r} /></div>
             <div className="p2-stats">
               <div><b>{r?.invited ?? '–'}</b><span>Invited</span></div>

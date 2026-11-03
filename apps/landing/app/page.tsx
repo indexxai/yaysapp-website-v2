@@ -5,7 +5,7 @@ const FEATURES = [
   { mark: '#', title: 'Communities for every interest', text: 'Join one or start your own, with admins, polls and announcements.' },
   { mark: '☎', title: 'Voice and video calls', text: 'Call one friend or a whole group, on your phone or the web.' },
   { mark: '↺', title: 'Your old chats come with you', text: 'Used YaysApp before? Sign in and your chats and groups are already there.' },
-  { mark: '★', title: 'IndexxPoints for everyday activity', text: 'Chat, post, check in, invite. Every reward in one history.' },
+  { mark: '★', title: 'INEX for everyday activity', text: 'Chat, post, check in, invite. Every reward in one history.' },
   { mark: '◎', title: 'The whole Indexx ecosystem', text: 'Mining, prediction markets, courses and the marketplace — one account throughout.' },
 ];
 const POINTS = [
@@ -33,17 +33,17 @@ export default function Home() {
         <div>
           <span className="eyebrow">The new YaysApp</span>
           <h1>Chat. <em>Earn.</em> Together.</h1>
-          <p className="lead">YaysApp is a messaging app that pays attention to the rest of your day. Talk to friends, call your family, join communities, and earn IndexxPoints for the things you already do.</p>
+          <p className="lead">YaysApp is a messaging app that pays attention to the rest of your day. Talk to friends, call your family, join communities, and earn INEX, the Indexx coin, for the things you already do.</p>
           <Stores />
           <p className="note">Free on Android. iPhone coming soon. Also works in your browser.</p>
         </div>
         <div className="phone" aria-label="A chat in YaysApp">
           <div className="bubble them">Are you joining the community call tonight?</div>
           <div className="bubble me">Yes — just checked in for today too</div>
-          <span className="earned">+20 points</span>
+          <span className="earned">+20 INEX</span>
           <div className="bubble them">Nice. Send me your invite code?</div>
-          <div className="bubble me">Sending now — you get points too</div>
-          <span className="earned">+100 points</span>
+          <div className="bubble me">Sending now — you get INEX too</div>
+          <span className="earned">+100 INEX</span>
         </div>
       </div>
 
@@ -60,7 +60,7 @@ export default function Home() {
         <div className="wrap">
           <span className="eyebrow">Earn as you go</span>
           <h2>The things you already do are worth something.</h2>
-          <p className="sub">IndexxPoints are in-app reward points. They are not currency and carry no cash value.</p>
+          <p className="sub">INEX is the Indexx coin. You earn it in YaysApp and can convert it to BTCY Nuggets.</p>
           <div className="points">{POINTS.map((p) => <div key={p.label} className={`point${p.soon ? ' soon' : ''}`}><span className="oval" style={{ width: 40, fontSize: 13 }} aria-hidden="true">★</span>{p.label}<b>{p.pts}</b></div>)}</div>
         </div>
       </section>

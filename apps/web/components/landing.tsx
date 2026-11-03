@@ -27,7 +27,7 @@ const SAFETY: Array<[IconName, string, string]> = [
 ];
 const FAQ: Array<[string, string]> = [
   ['Is YaysApp free?', 'Yes. Chats, calls and communities are free. Some Indexx products inside Explore have their own pricing.'],
-  ['How do IndexxPoints work?', 'You earn points for daily check-ins, chatting, posting in communities and inviting friends. Your wallet shows your balance and history.'],
+  ['How do INEX rewards work?', 'You earn INEX for daily check-ins, chatting, posting in communities and inviting friends. Your wallet shows your balance and history.'],
   ['Can I use YaysApp on my computer?', 'Yes. Open the web app and scan the QR code with YaysApp on your phone, or sign in with a code.'],
   ['What is Jack’s AI?', 'An AI assistant built into YaysApp. It answers questions, summarises long chats and helps you write. It only reads a chat when you allow it.'],
   ['How do I start a community?', 'Go to Communities, choose New, add a name and pick the groups to bring in. Every community gets an announcements group.'],
@@ -78,7 +78,7 @@ export function Landing() {
         <div className="lp-hero__copy">
           <span className="ys-eyebrow">Chat. Earn. Belong.</span>
           <h1>The chat app that rewards you for showing up.</h1>
-          <p>Message friends, join communities and earn IndexxPoints every day.</p>
+          <p>Message friends, join communities and earn INEX every day.</p>
           <div className="row" style={{ gap: 24, alignItems: 'flex-start' }}>
             <OvalButton icon="globe" label="Open web app" size="lg" href="/sign-in" />
             <OvalButton icon="download" label="Get the app" size="lg" variant="soft" onClick={() => document.getElementById('download')?.scrollIntoView({ behavior: 'smooth' })} />
@@ -93,20 +93,20 @@ export function Landing() {
         <div className="lp-cards lp-cards--4">{FEATURES.map(([i, t, d]) => <div key={t} className="ys-card lp-card"><span className="ys-oval ys-oval--ember" style={{ width: 48 }}><Icon name={i} size={22} /></span><strong>{t}</strong><span>{d}</span></div>)}</div>
       </Section>
 
-      <Section id="earn" label="e" eyebrow="IndexxPoints" title="Earn points for the things you already do" lead="Points add up in your wallet. Convert them to BTCY Nuggets, or spend them across Indexx products." art={<><LineArt name="coins" height={260} opacity={0.22} className="lp-art lp-art--l" /><LineArt name="pay" height={240} opacity={0.2} className="lp-art lp-art--c" /></>}>
+      <Section id="earn" label="e" eyebrow="INEX" title="Earn INEX for the things you already do" lead="INEX, the Indexx coin, adds up in your wallet. Convert it to BTCY Nuggets, or use it across Indexx products." art={<><LineArt name="coins" height={260} opacity={0.22} className="lp-art lp-art--l" /><LineArt name="pay" height={240} opacity={0.2} className="lp-art lp-art--c" /></>}>
         <div className="lp-earn">
           <ul className="lp-ways">{WAYS.map(([i, t, d, p]) => <li key={t}><span className="ys-oval ys-oval--wash" style={{ width: 44 }}><Icon name={i} size={20} /></span><span className="p2-col" style={{ flex: 1 }}><strong>{t}</strong><span className="muted">{d}</span></span><b>{p}</b></li>)}</ul>
           <div className="lp-example">
-            <div className="p2-hero lp-example__hero"><span className="ys-feature__deco a" /><span className="p2-hero__eyebrow">Your points</span><div className="p2-hero__num">2,450</div><span>+85 this week · 5-day streak</span></div>
+            <div className="p2-hero lp-example__hero"><span className="ys-feature__deco a" /><span className="p2-hero__eyebrow">Your INEX</span><div className="p2-hero__num">2,450</div><span>+85 this week · 5-day streak</span></div>
             <div className="p2-card p2-card--pad"><div className="p2-card__head"><strong>Daily check-in</strong><span className="p2-accent">Claim +20 today</span></div>
               <div className="p2-week">{days.map((d) => <div key={d.label} className={`p2-week__day p2-week__day--${d.state}`}><span className="ys-oval">{d.state === 'done' ? <Icon name="check" size={16} /> : `+${d.p}`}</span><span>{d.label}</span></div>)}</div>
             </div>
-            <span className="muted p2-xs">Example account. Points rules can change.</span>
+            <span className="muted p2-xs">Example account. INEX rules can change.</span>
           </div>
         </div>
       </Section>
 
-      <Section label="x" eyebrow="Indexx ecosystem" title="One account for every Indexx product" lead="Open BTCY, EMMM and the rest from Explore, and keep your points and referrals everywhere." art={<><LineArt name="trader" height={280} opacity={0.22} className="lp-art lp-art--r" /><LineArt name="wallet" height={220} opacity={0.2} className="lp-art lp-art--c" /></>}>
+      <Section label="x" eyebrow="Indexx ecosystem" title="One account for every Indexx product" lead="Open BTCY, EMMM and the rest from Explore, and keep your INEX and referrals everywhere." art={<><LineArt name="trader" height={280} opacity={0.22} className="lp-art lp-art--r" /><LineArt name="wallet" height={220} opacity={0.2} className="lp-art lp-art--c" /></>}>
         <div className="lp-cards lp-cards--6">{PRODUCTS.map((p) => <div key={p.id} className={`ys-card lp-product${p.href ? '' : ' p2-product--soon'}`}><span className="ys-oval" style={{ width: 56, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted">{p.sub}</span></div>)}</div>
       </Section>
 
@@ -196,7 +196,7 @@ function SiteAssistant() {
   };
   return (
     <>
-      {!open && <div className="sa-greet" aria-hidden><strong>Hi, I’m Jack’s AI</strong>Questions about YaysApp or IndexxPoints? Ask me here.</div>}
+      {!open && <div className="sa-greet" aria-hidden><strong>Hi, I’m Jack’s AI</strong>Questions about YaysApp or INEX? Ask me here.</div>}
       {open && (
         <div className="sa-panel" role="dialog" aria-labelledby="sa-title">
           <div className="sa-head">
@@ -205,7 +205,7 @@ function SiteAssistant() {
             <button type="button" className="sa-min" aria-label="Minimise chat" onClick={() => setOpen(false)}><Icon name="chevron-down" size={16} /></button>
           </div>
           <div className="ys-thread sa-thread" ref={box} aria-live="polite">
-            {!msgs.length && <div className="ys-bubble ys-bubble--them">Hi! Ask me how YaysApp works, how to earn points, or anything else.</div>}
+            {!msgs.length && <div className="ys-bubble ys-bubble--them">Hi! Ask me how YaysApp works, how to earn INEX, or anything else.</div>}
             {msgs.map((m, i) => <div key={i} className={`ys-bubble ys-bubble--${m.role === 'user' ? 'me' : 'them'}`}>{m.text}</div>)}
             {busy && !lead && <div className="ys-bubble ys-bubble--them"><span className="ys-spin" aria-label="Jack is typing" /></div>}
             {lead && (sent ? <div className="ys-bubble ys-bubble--them">Thanks, {name.split(/\s+/)[0]}. Our team will email you at {email}.</div> : (

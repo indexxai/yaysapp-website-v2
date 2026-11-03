@@ -38,7 +38,7 @@ export default function BtcyPage() {
         {b && !b.linked && (
           <div className="p2-card p2-card--pad p2-link-cta">
             <img src="/brand/btcy-coin.png" alt="" style={{ width: 64 }} />
-            <span className="p2-col" style={{ flex: 1 }}><strong>Link your Indexx account to see BTCY here</strong><span className="muted">Your mining, Nuggets and team, and BTCY bonus tasks count toward IndexxPoints.</span></span>
+            <span className="p2-col" style={{ flex: 1 }}><strong>Link your Indexx account to see BTCY here</strong><span className="muted">Your mining, Nuggets and team, and BTCY bonus tasks count toward INEX.</span></span>
             <OvalButton icon="link" label="Link account" size="sm" href="/settings/indexx" />
           </div>
         )}

@@ -155,7 +155,7 @@ describe('Jack’s AI, the Jack bonus and pop-ups', () => {
     await t.redis.set(keys[0]!, '30');
     const full = await t.http.post('/v1/ai/chats').set(sara.auth).send({ text: 'one more' });
     expect(full.status).toBe(409);
-    expect(full.body.error.message).toContain('50 points');
+    expect(full.body.error.message).toContain('50 INEX');
     const bal = (await points(t, sara)).balance;
     const after = (await t.http.post('/v1/ai/quota/extra').set(sara.auth).expect(200)).body;
     expect(after).toMatchObject({ used: 30, limit: 40 });
@@ -212,7 +212,7 @@ describe('Indexx account, wallet, BTCY and pay in chat', () => {
     const w = (await t.http.post('/v1/wallet/convert').set(sara.auth).set(TZ).send({ points: 1000 }).expect(200)).body as WalletView;
     expect(w).toMatchObject({ points: 1450, nuggets: 20, convert: { usedToday: 1000 } });
     const act = (await t.http.get('/v1/wallet/activity?filter=points').set(sara.auth).expect(200)).body;
-    expect(act[0]).toMatchObject({ kind: 'convert', title: 'Converted points', amount: 10 * 10000, unit: 'NUGGET' });
+    expect(act[0]).toMatchObject({ kind: 'convert', title: 'Converted INEX', amount: 10 * 10000, unit: 'NUGGET' });
   });
 
   it('BTCY: mining, and the weekly bonus pays each finished task', async () => {

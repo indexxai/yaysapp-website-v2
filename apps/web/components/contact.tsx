@@ -281,7 +281,7 @@ function UserSocials({ userId }: { userId: string }) {
   if (!links.length) return null;
   return (
     <section className="info-section" aria-label="Social accounts">
-      <h5 className="info-label">Socials</h5>
+      <h5 className="info-label">{links.every((l) => l.verified) ? 'Socials · verified' : 'Socials'}</h5>
       <SocialChips links={links} />
     </section>
   );

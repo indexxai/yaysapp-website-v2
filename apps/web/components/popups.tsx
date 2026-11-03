@@ -64,14 +64,14 @@ export function CheckinPopup({ first, status, onClose }: { first: string; status
           <span className="ys-feature__deco a" /><span className="ys-feature__deco b" />
           <img src="/brand/coin.png" alt="" className="p2-checkin__coin" />
           <span className="p2-checkin__eyebrow">Daily check-in · Day {s.dayOfWeek}</span>
-          <div className="p2-checkin__pts">+{s.todayPoints} points</div>
+          <div className="p2-checkin__pts">+{s.todayPoints} INEX</div>
           <span>{done ? `New balance: ${fmtPoints(s.balance)}` : `Balance after claim: ${fmtPoints(s.balance + s.todayPoints)}`}</span>
         </div>
         <div className="p2-checkin__body">
           <div className="p2-checkin__head">
             <div>
-              <h2 id="ci-title">{done ? `+${s.todayPoints} points added` : `Welcome back, ${first}`}</h2>
-              <p>{done ? `That’s a ${s.streak}-day streak.` : s.streak ? `You’re on a ${s.streak}-day streak. Claim today’s points to keep it going.` : 'Claim today’s points to start a streak.'}</p>
+              <h2 id="ci-title">{done ? `+${s.todayPoints} INEX added` : `Welcome back, ${first}`}</h2>
+              <p>{done ? `That’s a ${s.streak}-day streak.` : s.streak ? `You’re on a ${s.streak}-day streak. Claim today’s INEX to keep it going.` : 'Claim today’s INEX to start a streak.'}</p>
             </div>
             <OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={later} />
           </div>
@@ -117,7 +117,7 @@ export function BonusPopup({ first, bonus: b, onClose }: { first: string; bonus:
   const lead = jack
     ? `Welcome back, ${first}. Finish these ${b.tasks.length} tasks with Jack’s AI before midnight and the bonus is yours.`
     : b.needsLink ? `Welcome back, ${first}. Link your Indexx account and these count from BTCY this week. Each task pays on its own.`
-      : `Welcome back, ${first}. Do any of these in BTCY this week. Each task pays its points as soon as it’s done.`;
+      : `Welcome back, ${first}. Do any of these in BTCY this week. Each task pays its INEX as soon as it’s done.`;
   return (
     <div className="p2-pop-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) later(); }}>
       <div className={`p2-bonus p2-bonus--${b.product}`} role="dialog" aria-modal="true" aria-labelledby="bonus-title" ref={box}>
@@ -128,11 +128,11 @@ export function BonusPopup({ first, bonus: b, onClose }: { first: string; bonus:
           <span className="p2-bonus__close"><OvalButton icon="close" label="Close" size="sm" variant="ghost" onClick={later} /></span>
           <div className="p2-bonus__head">
             <span className="ys-eyebrow">{b.eyebrow}</span>
-            <h2 id="bonus-title">Earn {jack ? '' : 'up to '}<span>+{b.points}</span> {jack ? 'bonus points' : 'IndexxPoints'}</h2>
+            <h2 id="bonus-title">Earn {jack ? '' : 'up to '}<span>+{b.points}</span> {jack ? 'bonus INEX' : 'INEX'}</h2>
             <p>{lead}</p>
           </div>
           <TaskList tasks={b.tasks} />
-          <div className="p2-note"><Icon name="clock" size={18} /><span>Ends in <strong>{timeLeft(b.endsAt)}</strong>. {b.allRequired ? `The ${b.points} points land in your wallet when all ${b.tasks.length} are done.` : 'Points land in your wallet as each task is done.'}</span></div>
+          <div className="p2-note"><Icon name="clock" size={18} /><span>Ends in <strong>{timeLeft(b.endsAt)}</strong>. {b.allRequired ? `The ${b.points} INEX land in your wallet when all ${b.tasks.length} are done.` : 'INEX lands in your wallet as each task is done.'}</span></div>
           <div className="p2-bonus__actions">
             <OvalButton icon="clock" label="Remind me later" size="lg" variant="ghost" onClick={later} />
             <OvalButton icon={jack ? 'sparkles' : 'bitcoin'} label={jack ? 'Ask Jack now' : b.needsLink ? 'Link Indexx account' : 'Open BTCY'} size="xl" onClick={go} data-autofocus />

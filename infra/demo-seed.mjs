@@ -1,6 +1,6 @@
 // Fills a LOCAL YaysApp with demo data: Sara Ahmed and her friends, chats with photos, a voice note,
 // a PDF, replies, reactions and a poll, groups, circles with posts and events, calls, and a few unread messages;
-// and Phase 2: IndexxPoints and a check-in streak, invites, a linked Indexx account with BTCY mining,
+// and Phase 2: INEX and a check-in streak, invites, a linked Indexx account with BTCY mining,
 // payments in chats, and Jack's AI conversations.
 // Everything goes through the API (so it behaves like real use); afterwards the times are spread
 // over the last week so the lists read naturally. Ends by printing a link that signs you in as Sara.
@@ -506,7 +506,7 @@ for (let i = 0; i < 5; i++) {
 await entry(sara, 'seed:post', 'activity', 'Posted in Bitcoin YAY Circle', 'Circle post', 15, when([1, '18:15']), 'done', true);
 await entry(sara, 'seed:messages', 'activity', 'Sent 10 messages', 'Daily activity', 10, when([1, '16:02']), 'done', true);
 await entry(sara, 'seed:spam', 'reversal', 'Spam post removed', 'Points taken back by a moderator', -15, when([1, '19:40']));
-await entry(sara, 'seed:convert', 'convert', 'Converted to BTCY Nuggets', '1,000 points → 10 Nuggets', -1000, when(TODAY(520)));
+await entry(sara, 'seed:convert', 'convert', 'Converted to BTCY Nuggets', '1,000 INEX → 10 Nuggets', -1000, when(TODAY(520)));
 await entry(sara, `ref:${hana.id}`, 'referral', 'Invited Hana', 'Joined, verified and said hi', 100, daysAgo(19));
 await entry(sara, `ref:${hamza.id}`, 'referral', 'Invited Hamza', 'Waiting for him to verify and say hi', 100, when(TODAY(480)), 'pending');
 await db.collection('yc_referrals').updateOne({ _id: oid(hana) }, { $set: { inviterId: oid(sara), code: 'SARA-7K2', status: 'rewarded', at: daysAgo(19), rewardedAt: daysAgo(19) } }, { upsert: true });
@@ -535,7 +535,7 @@ async function aiChat(title, at, turns, o = {}) {
   await aiMsgs.insertMany(turns.map((t, i) => ({ _id: new ObjectId(), chatId: id, userId: oid(sara), role: i % 2 ? 'assistant' : 'user', text: t.text ?? t, mode: o.mode ?? 'chat', at: new Date(at.getTime() - (turns.length - i) * 20_000), ...(t.document ? { document: t.document } : {}) })));
 }
 await aiChat('Birthday message for Nani', daysAgo(4), ['Write a short birthday message for my Nani, warm and simple', 'Happy birthday, Nani! Thank you for every story, every cup of chai and every prayer. We love you more than words can say. 🎂']);
-await aiChat('Points to Nuggets: how it works', daysAgo(2), ['How do I turn IndexxPoints into BTCY Nuggets?', 'Open **Wallet**, enter how many points to convert and confirm.\n\n- 100 points = 1 Nugget\n- At least 500 points, up to 5,000 a day\n- Nuggets arrive in your BTCY balance straight away\n\nConversions can’t be undone.'], { saved: true });
+await aiChat('INEX to Nuggets: how it works', daysAgo(2), ['How do I turn INEX into BTCY Nuggets?', 'Open **Wallet**, enter how much INEX to convert and confirm.\n\n- 100 INEX = 1 Nugget\n- At least 500 INEX, up to 5,000 a day\n- Nuggets arrive in your BTCY balance straight away\n\nConversions can’t be undone.'], { saved: true });
 await aiChat('Lahore Runners – Sponsorship Proposal', when([1, '20:30']), [
   'Write a one-page sponsorship proposal for our Lahore running community. Word file please.',
   { text: 'Done. It’s open on the right. I added a tiers table and a short “why sponsor us” section.', document: { title: 'Sponsor Lahore Runners', version: 1, markdown: '# Sponsor Lahore Runners\n\nProposal for the 2027 season\n\n## Who we are\n\nA community of 2,400 runners who meet every weekend for group runs across Lahore, plus four races a year.\n\n## Sponsor tiers\n\n| Tier | What you get | Price |\n|---|---|---|\n| Gold | Logo on race shirts, 4 posts | [PRICE] |\n| Silver | Logo on banners, 2 posts | [PRICE] |\n| Community | Thank-you post | [PRICE] |\n\n## Next step\n\nReply by 15 November to lock your tier.' } },

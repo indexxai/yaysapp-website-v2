@@ -18,7 +18,7 @@ test('the website: sections, Ask Jack, and leaving an email for the team', async
   await page.setViewportSize(VP);
   await page.goto('/?ref=SARA-7K2');
   await expect(page.getByRole('heading', { name: 'The chat app that rewards you for showing up.' })).toBeVisible();
-  for (const h of ['Everything you need to stay close', 'Earn points for the things you already do', 'One account for every Indexx product', 'Bring your people together', 'You decide who reaches you', 'Questions people ask']) await expect(page.getByRole('heading', { name: h })).toBeVisible();
+  for (const h of ['Everything you need to stay close', 'Earn INEX for the things you already do', 'One account for every Indexx product', 'Bring your people together', 'You decide who reaches you', 'Questions people ask']) await expect(page.getByRole('heading', { name: h })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('yays.ref'))).toBe('SARA-7K2');
   await shot(page, 'w07-landing');
   await page.getByRole('button', { name: 'Open the chat assistant' }).click();
@@ -47,15 +47,15 @@ test('pop-ups as the app opens: check-in, then the Jack’s AI bonus, then BTCY'
   await expect(ci.getByText('Daily check-in · Day 1')).toBeVisible();
   await shot(a.page, 'w08-checkin');
   await ci.getByRole('button', { name: 'Claim +10' }).click();
-  await expect(a.page.getByRole('heading', { name: '+10 points added' })).toBeVisible();
-  await expect(a.page.getByRole('link', { name: '10 IndexxPoints' })).toBeVisible();
+  await expect(a.page.getByRole('heading', { name: '+10 INEX added' })).toBeVisible();
+  await expect(a.page.getByRole('link', { name: '10 INEX' })).toBeVisible();
   await shot(a.page, 'p18-checkin-claimed');
   await a.page.getByRole('button', { name: 'Done' }).click();
   await a.ctx.close();
   // A new tab: the next pop-up.
   const b = await pageAs(browser, sara, VP, { popups: true });
   await b.page.goto('/chats');
-  const jack = b.page.getByRole('dialog', { name: /Earn \+50 bonus points/ });
+  const jack = b.page.getByRole('dialog', { name: /Earn \+50 bonus INEX/ });
   await expect(jack).toBeVisible();
   await expect(jack.getByText('Ask Jack’s AI 3 questions')).toBeVisible();
   await expect(jack.getByRole('img', { name: 'Jack’s AI' })).toBeVisible();
@@ -65,7 +65,7 @@ test('pop-ups as the app opens: check-in, then the Jack’s AI bonus, then BTCY'
   await b.ctx.close();
   const c = await pageAs(browser, sara, VP, { popups: true });
   await c.page.goto('/chats');
-  const btcy = c.page.getByRole('dialog', { name: /Earn up to \+100 IndexxPoints/ });
+  const btcy = c.page.getByRole('dialog', { name: /Earn up to \+100 INEX/ });
   await expect(btcy.getByText('Convert nuggets to tokens with Alchemy')).toBeVisible();
   await shot(c.page, 'w14-btcy-bonus');
   await btcy.getByRole('button', { name: 'Link Indexx account' }).click();
@@ -90,7 +90,7 @@ test('Explore, Earn, history and invites', async ({ browser }) => {
   await expect(a.page.getByText('BTCY', { exact: true })).toBeHidden();
   await a.page.getByRole('button', { name: 'Claim' }).click();
   await a.page.getByRole('button', { name: 'Claim +10' }).click();
-  await expect(a.page.getByRole('heading', { name: '+10 points added' })).toBeVisible();
+  await expect(a.page.getByRole('heading', { name: '+10 INEX added' })).toBeVisible();
   await a.page.getByRole('button', { name: 'Done' }).click();
   // Hamza joins with Sara's code and says hi.
   const code = (await apiCall('/v1/rewards/referrals', undefined, sara.tokens.accessToken)).code as string;
@@ -126,16 +126,16 @@ test('Indexx account, wallet conversion and BTCY', async ({ browser }) => {
   await shot(a.page, 'p15-indexx-account');
   await a.page.goto('/wallet');
   await expect(a.page.getByText('$42.50')).toBeVisible();
-  await a.page.getByLabel('IndexxPoints to convert').fill('3000');
-  await expect(a.page.getByText('You have 2,450 points. Enter 2,450 or less.')).toBeVisible();
+  await a.page.getByLabel('INEX to convert').fill('3000');
+  await expect(a.page.getByText('You have 2,450 INEX. Enter 2,450 or less.')).toBeVisible();
   await shot(a.page, 'w04-wallet');
-  await a.page.getByLabel('IndexxPoints to convert').fill('1000');
+  await a.page.getByLabel('INEX to convert').fill('1000');
   await a.page.getByRole('button', { name: 'Convert', exact: true }).click();
-  const dlg = a.page.getByRole('dialog', { name: 'Convert points?' });
+  const dlg = a.page.getByRole('dialog', { name: 'Convert INEX?' });
   await expect(dlg.getByText('10.00 BTCY Nuggets')).toBeVisible();
   await dlg.getByRole('button', { name: 'Convert' }).click();
-  await expect(a.page.getByText('1,000 points became 10.00 BTCY Nuggets.')).toBeVisible();
-  await expect(a.page.getByRole('cell', { name: /Converted points/ })).toBeVisible();
+  await expect(a.page.getByText('1,000 INEX became 10.00 BTCY Nuggets.')).toBeVisible();
+  await expect(a.page.getByRole('cell', { name: /Converted INEX/ })).toBeVisible();
   await a.page.goto('/btcy');
   await a.page.getByRole('button', { name: 'Keep mining' }).click();
   await expect(a.page.getByText(/Mining active · .+ left/)).toBeVisible();
@@ -180,7 +180,7 @@ test('Jack’s AI: answers, documents, and the daily limit', async ({ browser })
     await a.page.reload();
     await expect(a.page.getByText('You’ve used today’s 30 messages.')).toBeVisible();
     await shot(a.page, 'w02-ai-limit');
-    await a.page.getByRole('button', { name: 'Use 50 points' }).click();
+    await a.page.getByRole('button', { name: 'Use 50 INEX' }).click();
     await expect(a.page.getByLabel('Message Jack')).toBeVisible();
     await expect(a.page.getByText('30 of 40 today')).toBeVisible();
   }
@@ -271,6 +271,11 @@ test('Facebook: link it, sign in with it, and it shows verified on the profile',
   await expect(a.page.getByTestId('facebook-row')).toContainText(`${fbName} · verified`);
   await expect(a.page.getByRole('switch', { name: /Sign in with Facebook/ })).toHaveAttribute('aria-checked', 'true');
   await shot(a.page, 'p30-facebook-linked');
+  // Her own profile shows it, with a preview of what others see (p34).
+  await a.page.goto('/settings/profile');
+  await expect(a.page.getByLabel(`Facebook: ${fbName}, verified`)).toBeVisible();
+  await a.page.getByRole('radio', { name: 'Anyone else' }).click();
+  await expect(a.page.getByTestId('socials-preview')).toBeVisible();
   await a.ctx.close();
   // Amara sees it, ticked, on Sara's contact info.
   const conv = (await apiCall('/v1/conversations/direct', { userId: sara.id }, amara.tokens.accessToken)).id as string;

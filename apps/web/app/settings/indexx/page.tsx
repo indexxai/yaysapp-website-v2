@@ -52,7 +52,7 @@ function Indexx({ email }: { email: string | null }) {
       <Card label="What linking shows">
         <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Wallet</span><span className="ys-row-item__sub">BTCY Nuggets, USDXX and Exchange balances; convert points</span></span></div>
         <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Pay in chat</span><span className="ys-row-item__sub">Send and request USDXX in one-to-one chats</span></span></div>
-        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">BTCY bonus</span><span className="ys-row-item__sub">Invites, mining days and Alchemy count toward IndexxPoints</span></span></div>
+        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">BTCY bonus</span><span className="ys-row-item__sub">Invites, mining days and Alchemy count toward INEX</span></span></div>
       </Card>
     </>
   );
