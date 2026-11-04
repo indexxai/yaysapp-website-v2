@@ -239,7 +239,19 @@
 .chats__pane, .cpage-wrap { isolation: isolate; }
 .cpage-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface); }
 .cpage-wrap > .cpage, .chats__pane > .chome { background: transparent; }
-.cbg-art { position: absolute; bottom: 24px; z-index: -1 !important; pointer-events: none; }
-.cbg-art--right { right: 40px; }
-.cbg-art--left { left: 40px; }
-@media (max-width: 860px) { .cbg-art { height: 220px !important; bottom: 16px; } .cbg-art--right { right: -36px; } .cbg-art--left { left: -36px; } }
+.cbg-art { position: absolute; z-index: -1 !important; }
+
+/* Background drawings (design W01–W24): one per screen, large, in the middle of the content area, behind everything. */
+.p2-art, .convo__art, .settings__art, .cbg-art, .cempty__art {
+  display: block; height: min(620px, 72vh) !important; width: auto !important; opacity: 0.17 !important;
+  top: 50% !important; left: 50% !important; right: auto !important; bottom: auto !important;
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+/* Full pages scroll with the window, so the drawing stays put in the middle of the area beside the rail. */
+.page > .p2-art { position: fixed; left: calc(50% + 44px) !important; }
+.settings__art { position: fixed; left: calc(50% + 230px) !important; }
+@media (max-width: 860px) {
+  .p2-art, .convo__art, .settings__art, .cbg-art, .cempty__art { height: min(380px, 52vh) !important; }
+  .settings__art { left: 50% !important; }
+}
+@media (max-width: 560px) { .page > .p2-art { left: calc(50% + 32px) !important; } }

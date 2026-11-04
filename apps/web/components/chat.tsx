@@ -408,7 +408,6 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
       {summary && <JackSummary c={c} onClose={() => setSummary(false)} />}
       {/* Each chat keeps its own piece of brand art behind the messages. */}
       <LineArt name={artFor(id, c.kind === 'group' ? GROUP_ART : DIRECT_ART)} width={190} opacity={0.08} className="convo__art" />
-      <LineArt name={artFor(id + ':2', CORNER_ART)} width={150} opacity={0.06} className="convo__art convo__art--low" />
       {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
       {notice && <div className="convo__error"><Banner tone="success">{notice}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon name="close" size={16} /></button></div>}
       <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />
@@ -546,7 +545,6 @@ function Bubble({ m, mine, sender, c, onOpenMedia, face }: { m: ThreadItem; mine
 
 const DIRECT_ART = ['chat', 'selfie', 'reader', 'morning', 'lantern', 'snap'] as const;
 const GROUP_ART = ['hype', 'explorer', 'skater', 'gear', 'trader', 'chat'] as const;
-const CORNER_ART = ['coins', 'pay', 'wallet', 'lantern', 'gear'] as const;
 
 /** Sender names get one of a few readable colours, the same for a person every time. */
 const SENDER_COLORS = ['var(--name-pink)', 'var(--success-ink)', 'var(--ember-ink)', 'var(--info)', 'var(--warning-ink)'];

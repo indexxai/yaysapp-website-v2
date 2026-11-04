@@ -29,7 +29,6 @@ export default function ExplorePage() {
   return (
     <AppShell me={me}>
       <LineArt name="skater" height={420} opacity={0.2} className="p2-art p2-art--br" />
-      <LineArt name="coins" height={200} opacity={0.16} className="p2-art p2-art--bl" />
       <div className="p2-page">
         <div className="p2-head">
           <h1>Explore</h1>
