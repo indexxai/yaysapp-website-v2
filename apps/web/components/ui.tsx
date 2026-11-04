@@ -47,8 +47,12 @@ const ART_RATIO: Record<ArtName, string> = {
 export const artFor = (id: string, set: readonly ArtName[]): ArtName => set[[...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 11) % set.length]!;
 /** A hand-drawn line drawing painted in one colour (ember by default), always decoration. */
 /** One of the brand drawings, in a single ink (ember by default). Give a width, or a height for tall spaces. */
+/** Every drawing is shown half as big again as the size asked for (Nov 2026 design pass). The big screen backgrounds are sized in CSS instead. */
+const ART_SCALE = 1.5;
 export function LineArt({ name, width, height, ink, opacity, className, style }: { name: ArtName; width?: number; height?: number; ink?: string; opacity?: number; className?: string; style?: CSSProperties }) {
-  return <span aria-hidden className={`ys-lineart${className ? ` ${className}` : ''}`} style={{ ['--ys-art-src' as string]: `url("/lineart/${name}.webp")`, ['--ys-art-ink' as string]: ink ?? 'var(--ember)', ...(height !== undefined && width === undefined ? { height } : { width: width ?? 160 }), aspectRatio: ART_RATIO[name], ...(opacity !== undefined ? { opacity } : {}), ...style }} />;
+  if (width !== undefined) width = Math.round(width * ART_SCALE);
+  if (height !== undefined) height = Math.round(height * ART_SCALE);
+  return <span aria-hidden className={`ys-lineart${className ? ` ${className}` : ''}`} style={{ ['--ys-art-src' as string]: `url("/lineart/${name}.webp")`, ['--ys-art-ink' as string]: ink ?? 'var(--ember)', ...(height !== undefined && width === undefined ? { height } : { width: width ?? 240 }), aspectRatio: ART_RATIO[name], ...(opacity !== undefined ? { opacity } : {}), ...style }} />;
 }
 
 /** The brand palette for things that need telling apart (community marks, sender names). No new hues. */
