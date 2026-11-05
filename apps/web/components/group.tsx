@@ -6,6 +6,7 @@ import { useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, LineArt, OvalButton, PhotoPick, shareInvite } from './ui';
 import { Modal } from './message-actions';
 import { BlockReportDialog, MuteRow } from './contact';
+import { PHOTO_ACCEPT, PhotoError, preparePhoto } from '@/lib/photo';
 
 const msg = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -121,7 +122,7 @@ export function NewGroup({ onClose, onCreated }: { onClose: () => void; onCreate
   };
   const pickPhoto = async (f: File) => {
     setUploading(true); setError(null);
-    try { const key = await engine.uploadPhoto(f); setPhoto({ key, url: URL.createObjectURL(f) }); } catch (err) { setError(msg(err, "The photo didn't upload.")); } finally { setUploading(false); }
+    try { const small = await preparePhoto(f); const key = await engine.uploadPhoto(small); setPhoto({ key, url: URL.createObjectURL(small) }); } catch (err) { setError(err instanceof PhotoError ? err.message : msg(err, "The photo didn't upload.")); } finally { setUploading(false); }
   };
   const create = async (e: FormEvent) => {
     e.preventDefault();
@@ -303,9 +304,8 @@ function EditGroup({ g, onDone }: { g: GroupInfo; onDone: (saved: boolean) => vo
   const file = useRef<HTMLInputElement>(null);
   const pickPhoto = async (f: File | undefined) => {
     if (!f) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(f.type) || f.size > 5 * 1024 * 1024) { setError('Photos must be JPG, PNG or WebP and under 5 MB.'); return; }
     setBusy(true); setError(null);
-    try { const key = await engine.uploadPhoto(f); setPhoto({ key, url: URL.createObjectURL(f) }); } catch (e) { setError(msg(e, "The photo didn't upload.")); } finally { setBusy(false); }
+    try { const small = await preparePhoto(f); const key = await engine.uploadPhoto(small); setPhoto({ key, url: URL.createObjectURL(small) }); } catch (e) { setError(e instanceof PhotoError ? e.message : msg(e, "The photo didn't upload.")); } finally { setBusy(false); }
   };
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -327,7 +327,7 @@ function EditGroup({ g, onDone }: { g: GroupInfo; onDone: (saved: boolean) => vo
           <OvalButton icon="camera" label={photo.url ? 'Change photo' : 'Add photo'} size="sm" variant="soft" onClick={() => file.current?.click()} disabled={busy} />
           {photo.url && <OvalButton icon="trash" label="Remove photo" size="sm" variant="ghost" onClick={() => setPhoto({ key: null, url: null })} />}
         </div>
-        <input ref={file} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => void pickPhoto(e.target.files?.[0])} aria-label="Group photo" />
+        <input ref={file} type="file" accept={PHOTO_ACCEPT} hidden onChange={(e) => void pickPhoto(e.target.files?.[0])} aria-label="Group photo" />
       </div>
       <div className={`ys-field${error ? ' ys-field--error' : ''}`}>
         <label className="ys-field__label" htmlFor="ename">Group name</label>

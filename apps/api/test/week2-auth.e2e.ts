@@ -392,6 +392,37 @@ describe('Week 2 · profile, username and photo', () => {
     expect((await t.http.get(new URL(me.photoUrl).pathname.slice(0, -3) + 'abc')).status).toBe(403);
   });
 
+  it('changing the photo saves the new one and deletes the old file, unless a group still uses it', async () => {
+    const a = await signInEmail(t, 'ph3@example.com');
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4c40000000049454e44ae426082', 'hex');
+    const upload = async () => {
+      const k = (await t.http.post('/v1/media/upload-url').set(bearer(a)).send({ purpose: 'avatar', contentType: 'image/png', size: png.length }).expect(200)).body;
+      await t.http.put(new URL(k.uploadUrl).pathname).set('content-type', 'image/png').send(png).expect(204);
+      return k.key as string;
+    };
+    const first = await upload();
+    const one = (await t.http.patch('/v1/me').set(bearer(a)).send({ photoKey: first }).expect(200)).body;
+    await t.http.get(new URL(one.photoUrl).pathname).expect(200);
+    // A new photo replaces it: the new one shows (also after reloading the profile), the old file is gone.
+    const second = await upload();
+    const two = (await t.http.patch('/v1/me').set(bearer(a)).send({ photoKey: second }).expect(200)).body;
+    expect(two.photoUrl).not.toBe(one.photoUrl);
+    expect((await t.http.get('/v1/me').set(bearer(a)).expect(200)).body.photoUrl).toBe(two.photoUrl);
+    let gone = 0;
+    for (let i = 0; i < 20 && gone !== 404; i++) { gone = (await t.http.get(new URL(one.photoUrl).pathname)).status; if (gone !== 404) await new Promise((r) => setTimeout(r, 50)); }
+    expect(gone).toBe(404);
+    await t.http.get(new URL(two.photoUrl).pathname).expect(200);
+    // The same file used as a group photo too is kept when the profile photo is removed.
+    const friend = await signInEmail(t, 'ph4@example.com', device(2));
+    const r = await t.http.post('/v1/groups').set(bearer(a)).send({ name: 'Photo test', memberIds: [friend.me.id] });
+    expect(r.status).toBe(200);
+    const g = r.body.id as string;
+    await t.http.patch(`/v1/groups/${g}`).set(bearer(a)).send({ photoKey: second }).expect(200);
+    expect((await t.http.patch('/v1/me').set(bearer(a)).send({ photoKey: null }).expect(200)).body.photoUrl).toBeNull();
+    await new Promise((r) => setTimeout(r, 200));
+    expect((await t.http.get(new URL(two.photoUrl).pathname)).status).toBe(200);
+  });
+
   it('refuses uploads larger than the ticket allows', async () => {
     const a = await signInEmail(t, 'big@example.com');
     const ticket = (await t.http.post('/v1/media/upload-url').set(bearer(a)).send({ purpose: 'avatar', contentType: 'image/jpeg', size: 1000 }).expect(200)).body;

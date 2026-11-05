@@ -4,8 +4,7 @@ import { ApiError, USERNAME_RE, type MeProfile } from '@yays/shared';
 import { api } from '@/lib/api';
 import { Avatar, Banner, Field, OvalButton } from './ui';
 import { Icon } from '@/lib/icons';
-
-const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+import { PHOTO_ACCEPT, PhotoError, preparePhoto } from '@/lib/photo';
 
 export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me: MeProfile; submitLabel: string; onSaved: (m: MeProfile) => void; layout?: 'setup' | 'settings' }) {
   // A name made up from the email is a placeholder, not the person's choice: start empty.
@@ -34,19 +33,27 @@ export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me
     return () => { live = false; clearTimeout(t); };
   }, [username, me.username]);
 
+  // Settings saves a new photo straight away (like the phone apps); the first-time profile step keeps it for Continue.
+  const autoSave = layout === 'settings';
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
   const pick = async (f: File | undefined) => {
+    if (file.current) file.current.value = '';
     if (!f) return;
-    setError(null);
-    if (!TYPES.includes(f.type)) { setError('Photos must be JPG, PNG or WebP.'); return; }
-    if (f.size > 5 * 1024 * 1024) { setError('That photo is larger than 5 MB.'); return; }
+    setError(null); setPhotoNote(null);
     setUploading(true);
     try {
-      const t = await api().request<{ key: string; uploadUrl: string; headers: Record<string, string> }>('POST', '/v1/media/upload-url', { purpose: 'avatar', contentType: f.type, size: f.size });
-      const r = await fetch(t.uploadUrl, { method: 'PUT', headers: t.headers, body: f });
-      if (!r.ok) throw new Error('upload failed');
-      setPhoto({ key: t.key, url: URL.createObjectURL(f) });
-    } catch { setError("The photo didn't upload. Check your connection and try again."); }
-    finally { setUploading(false); if (file.current) file.current.value = ''; }
+      const small = await preparePhoto(f);
+      const key = await api().uploadPhoto(small);
+      const url = URL.createObjectURL(small);
+      if (autoSave) {
+        const m = await api().updateMe({ photoKey: key });
+        setPhoto({ key: null, url: m.photoUrl ?? url });
+        setPhotoNote('Photo saved.');
+        onSaved(m);
+      } else setPhoto({ key, url });
+    } catch (e) {
+      setError(e instanceof PhotoError || e instanceof ApiError ? e.message : "The photo didn't upload. Check your connection and try again.");
+    } finally { setUploading(false); }
   };
 
   const submit = async (e: FormEvent) => {
@@ -69,18 +76,26 @@ export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me
     } finally { setBusy(false); }
   };
 
-  const removePhoto = async () => { setPhoto({ key: null, url: null }); try { onSaved(await api().updateMe({ photoKey: null })); } catch { /* shown on next save */ } };
+  const removePhoto = async () => {
+    const before = photo;
+    setPhoto({ key: null, url: null }); setError(null); setPhotoNote(null);
+    // Nothing saved yet on the first-time step: just forget the picked photo.
+    if (!autoSave && !me.photoUrl) return;
+    try { onSaved(await api().updateMe({ photoKey: null })); if (autoSave) setPhotoNote('Photo removed.'); }
+    catch (e) { setPhoto(before); setError(e instanceof ApiError ? e.message : 'The photo wasn’t removed. Try again.'); }
+  };
   if (layout === 'settings') {
-    const discard = () => { setName(me.displayName); setUsername(me.username ?? ''); setAbout(me.about); setPhoto({ key: null, url: me.photoUrl }); setFieldErr({}); setError(null); };
+    const discard = () => { setName(me.displayName); setUsername(me.username ?? ''); setAbout(me.about); setFieldErr({}); setError(null); };
     return (
       <form onSubmit={submit} className="profile-side" noValidate>
-        <input ref={file} type="file" accept={TYPES.join(',')} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
+        <input ref={file} type="file" accept={PHOTO_ACCEPT} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
         <div className="profile-side__photo">
           <button type="button" className="profile-photo" aria-label={photo.url ? 'Change photo' : 'Add photo'} onClick={() => file.current?.click()} disabled={uploading}>
             <Avatar name={name || me.displayName} photoUrl={photo.url} size={116} />
             <span className="profile-photo__badge">{uploading ? <span className="ys-spin" aria-hidden /> : <Icon name="camera" size={16} />}</span>
           </button>
-          {photo.url && <button type="button" className="link-btn link-btn--danger" style={{ fontSize: 13 }} onClick={() => void removePhoto()}>Remove photo</button>}
+          {photo.url && <button type="button" className="link-btn link-btn--danger" style={{ fontSize: 13 }} onClick={() => void removePhoto()} disabled={uploading}>Remove photo</button>}
+          {photoNote && <span className="muted p2-small" role="status" data-testid="photo-note">{photoNote}</span>}
         </div>
         <div className="profile-side__fields">
           {error && <Banner>{error}</Banner>}
@@ -109,7 +124,7 @@ export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me
       {error && <Banner>{error}</Banner>}
       <div className="row">
         <Avatar name={name || me.displayName} photoUrl={photo.url} size={96} />
-        <input ref={file} type="file" accept={TYPES.join(',')} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
+        <input ref={file} type="file" accept={PHOTO_ACCEPT} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
         <OvalButton icon="camera" label={photo.url ? 'Change photo' : 'Add photo'} size="md" variant="soft" loading={uploading} onClick={() => file.current?.click()} />
         {photo.url && <OvalButton icon="trash" label="Remove" size="md" variant="ghost" onClick={() => void removePhoto()} />}
       </div>

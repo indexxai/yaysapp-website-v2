@@ -9,6 +9,7 @@ import { listTime } from '@/lib/chat';
 import { ConfirmButton, Switch } from './group';
 import { Modal } from './message-actions';
 import { LineArt, Avatar, Banner, OvalButton, PhotoPick, artFor } from './ui';
+import { PhotoError, preparePhoto } from '@/lib/photo';
 
 const BANNER_ART = ['hype', 'skater', 'trader', 'explorer', 'coins', 'snap'] as const;
 
@@ -239,7 +240,7 @@ export function CreateCommunityDialog({ onClose, onCreated }: { onClose: () => v
   useEffect(() => { void api().conversations({ limit: 100 }).then((r) => setMine(r.items.filter((x) => x.kind === 'group' && x.group?.role === 'admin' && !x.group.community)), () => setMine([])); }, []);
   const pickPhoto = async (f: File) => {
     setUploading(true); setError(null);
-    try { const key = await api().uploadPhoto(f); setPhoto({ key, url: URL.createObjectURL(f) }); } catch (e) { setError(errText(e, "The photo didn't upload.")); } finally { setUploading(false); }
+    try { const small = await preparePhoto(f); const key = await api().uploadPhoto(small); setPhoto({ key, url: URL.createObjectURL(small) }); } catch (e) { setError(e instanceof PhotoError ? e.message : errText(e, "The photo didn't upload.")); } finally { setUploading(false); }
   };
   const create = async () => {
     setBusy(true); setError(null);

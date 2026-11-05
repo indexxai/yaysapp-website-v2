@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { HeadBucketCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Config } from '../config';
 
@@ -16,6 +16,8 @@ export interface Storage {
   head(key: string): Promise<StoredObject | null>;
   /** A link valid for at least an hour. The same key gives the same link within the hour, so browsers can cache it. */
   downloadUrl(key: string, opts?: DownloadOpts): Promise<string>;
+  /** Removes a stored file; quietly does nothing if it isn't there. */
+  remove(key: string): Promise<void>;
 }
 export interface DownloadOpts { /** Save with this file name instead of showing inline. */ filename?: string }
 
@@ -51,6 +53,7 @@ export class S3Storage implements Storage {
     const cmd = new GetObjectCommand({ Bucket: this.bucket, Key: key, ...(opts.filename ? { ResponseContentDisposition: contentDisposition(opts.filename) } : {}) });
     return getSignedUrl(this.s3, cmd, { expiresIn: 7200, signingDate: new Date(hourStart()) });
   }
+  async remove(key: string) { await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })); }
 }
 
 /**
@@ -104,7 +107,11 @@ export class LocalStorage implements Storage {
   }
   async downloadUrl(key: string, opts: DownloadOpts = {}) {
     return `${this.publicUrl}/v1/media/local/${this.sign({ op: 'get', key, exp: hourStart() + 2 * HOUR, ...(opts.filename ? { fn: opts.filename } : {}) })}`;
+  }  async remove(key: string) {
+    const f = this.file(key);
+    await Promise.all([fs.rm(f, { force: true }), fs.rm(f + '.meta', { force: true })]);
   }
+
 }
 
 export function createStorage(c: Config): Storage {

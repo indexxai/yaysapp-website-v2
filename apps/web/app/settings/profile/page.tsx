@@ -36,7 +36,7 @@ function Profile({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }
     <>
       {saved.banner}
       <section className="set-card set-card--pad" aria-label="Profile">
-        <ProfileForm key={(me.username ?? '') + me.photoUrl} me={me} submitLabel="Save" layout="settings" onSaved={(m) => { setMe(m); saved.ok(); }} />
+        <ProfileForm key={me.username ?? ''} me={me} submitLabel="Save" layout="settings" onSaved={(m) => { setMe(m); saved.ok(); }} />
       </section>
       <ProfileSocials />
       <Card title="Account">

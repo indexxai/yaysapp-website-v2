@@ -8,6 +8,8 @@ import { AUTH, type AuthService } from '../auth/auth.service';
 import { SESSIONS, type SessionService } from '../auth/sessions';
 import { RATE_LIMITER } from '../infra/tokens';
 import type { RateLimiter } from '../infra/rate-limit';
+import type { Db } from 'mongodb';
+import { C, DB } from '../infra/mongo';
 import { STORAGE, type Storage } from '../infra/storage';
 import { isDuplicate, toMe, USERS, type UsersRepo } from './users.repo';
 import { ACCOUNT, type AccountService } from './account.service';
@@ -21,7 +23,8 @@ const AVATAR_MAX = 5 * 1024 * 1024;
 @UseGuards(AuthGuard)
 export class MeController {
   constructor(@Inject(USERS) private users: UsersRepo, @Inject(STORAGE) private storage: Storage, @Inject(AUTH) private auth: AuthService,
-    @Inject(SESSIONS) private sessions: SessionService, @Inject(RATE_LIMITER) private limiter: RateLimiter, @Inject(ACCOUNT) private account: AccountService) {}
+    @Inject(SESSIONS) private sessions: SessionService, @Inject(RATE_LIMITER) private limiter: RateLimiter, @Inject(ACCOUNT) private account: AccountService,
+    @Inject(DB) private db: Db) {}
   private photo = (k: string) => this.storage.downloadUrl(k);
 
   @Get()
@@ -59,13 +62,24 @@ export class MeController {
     if (v.username !== undefined) set.username = v.username;
     if (v.about !== undefined) set.about = v.about;
     if (v.photoKey !== undefined) set.photoKey = v.photoKey;
+    const before = v.photoKey !== undefined ? (await this.users.byId(a.userId))?.yc?.photoKey ?? null : null;
     try {
       const u = await this.users.setYc(a.userId, set);
+      if (before && before !== v.photoKey) void this.dropOldPhoto(a.userId.toHexString(), before);
       return toMe(u!, this.photo);
     } catch (e) {
       if (isDuplicate(e, 'username')) throw AppError.conflict('That username is taken.', ErrorCode.CONFLICT, { fields: { username: 'That username is taken.' } });
       throw e;
     }
+  }
+
+  /** A replaced or removed profile photo is deleted from storage, unless the same file is also a group or circle photo. Best effort. */
+  private async dropOldPhoto(me: string, key: string) {
+    if (!key.startsWith(`avatars/${me}/`)) return;
+    try {
+      const used = (await this.db.collection(C.conversations).countDocuments({ photoKey: key }, { limit: 1 })) + (await this.db.collection(C.communities).countDocuments({ photoKey: key }, { limit: 1 }));
+      if (!used) await this.storage.remove(key);
+    } catch { /* an orphaned file is harmless */ }
   }
 
   @Post('phone/start') @HttpCode(200)

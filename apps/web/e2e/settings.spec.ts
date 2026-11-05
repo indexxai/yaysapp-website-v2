@@ -1,4 +1,6 @@
 import { expect, test } from './test';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { API, NO_POPUPS, apiCall, apiUser, codeFor, db, pageAs, signInWithEmail, typeCode, type ApiUser } from './helpers';
 
 const say = (u: ApiUser, c: string, text: string) => apiCall(`/v1/conversations/${c}/messages`, { clientId: crypto.randomUUID(), text }, u.tokens.accessToken);
@@ -160,6 +162,37 @@ test.describe('Settings on the web', () => {
     await expect(a.page.getByRole('status')).toContainText('Your account was deleted.');
     await a.page.goto('/chats');
     await expect(a.page).toHaveURL(/\/sign-in/);
+    await a.ctx.close();
+  });
+
+  test('profile photo: a big photo is made square and small, saved at once, kept after a reload, seen by others, and can be removed', async ({ browser }) => {
+    const ali = await apiUser('Ali'), sara = await apiUser('Sara');
+    const a = await pageAs(browser, ali);
+    await a.page.goto('/settings/profile');
+    await a.page.getByTestId('photo-input').setInputFiles({ name: 'holiday.jpg', mimeType: 'image/jpeg', buffer: readFileSync(path.join(__dirname, 'fixtures/wide-photo.jpg')) });
+    await expect(a.page.getByTestId('photo-note')).toHaveText('Photo saved.');
+    // Saved without pressing Save: the server has it, as a 640 × 640 WebP well under the original's size.
+    await expect.poll(async () => (await me(ali)).photoUrl).not.toBeNull();
+    const url = (await me(ali)).photoUrl as string;
+    const img = await fetch(url);
+    expect(img.headers.get('content-type')).toBe('image/webp');
+    expect((await img.arrayBuffer()).byteLength).toBeLessThan(150_000);
+    const size = await a.page.evaluate(async (u) => { const i = new Image(); i.src = u; await i.decode(); return [i.naturalWidth, i.naturalHeight]; }, url);
+    expect(size).toEqual([640, 640]);
+    // Still there after a reload, and the side bar shows it too.
+    await a.page.reload();
+    await expect(a.page.locator('.profile-photo img')).toHaveAttribute('src', /\/v1\/media\//);
+    await expect(a.page.locator('.rail__me img')).toHaveAttribute('src', /\/v1\/media\//);
+    // Other people get the new photo.
+    const seen = await (await fetch(`${API}/v1/users/profiles?ids=${ali.id}`, { headers: { authorization: `Bearer ${sara.tokens.accessToken}` } })).json();
+    expect(seen[0].photoUrl).toBeTruthy();
+    // Removing it is saved at once too.
+    await a.page.getByRole('button', { name: 'Remove photo' }).click();
+    await expect(a.page.getByTestId('photo-note')).toHaveText('Photo removed.');
+    await expect.poll(async () => (await me(ali)).photoUrl).toBeNull();
+    // Something that isn't a photo is refused with a clear message.
+    await a.page.getByTestId('photo-input').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
+    await expect(a.page.getByText('Choose a photo (JPG, PNG, WebP or HEIC).')).toBeVisible();
     await a.ctx.close();
   });
 
