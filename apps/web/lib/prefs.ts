@@ -1,14 +1,10 @@
 'use client';
 import { useSyncExternalStore } from 'react';
+import type { AppPreferences } from '@yays/shared';
+import { api } from './api';
 
-/** Settings that belong to this browser, not the account (like WhatsApp Web). */
-export interface LocalPrefs {
-  theme: 'system' | 'light' | 'dark';
-  /** 1 (small) to 5 (largest); 3 is the default. */
-  textSize: 1 | 2 | 3 | 4 | 5;
-  enterToSend: boolean;
-  sound: boolean;
-}
+/** Theme, text size, Enter to send and sound. Kept on the account (so every device matches) and copied in this browser, so the page paints right before anything loads. */
+export type LocalPrefs = AppPreferences;
 export const PREFS_KEY = 'yays.prefs';
 const DEFAULTS: LocalPrefs = { theme: 'system', textSize: 3, enterToSend: true, sound: true };
 export const TEXT_SCALE = [0.85, 0.93, 1, 1.1, 1.22];
@@ -27,6 +23,41 @@ export function setPrefs(p: Partial<LocalPrefs>) {
   applyPrefs(cache);
   listeners.forEach((l) => l());
 }
+/** Changes a setting here and saves it to the account. Quick repeats (dragging the text size) are sent once.
+ *  Until the account has it, the change is also noted in this browser, so leaving the page straight away doesn't lose it. */
+const UNSENT_KEY = 'yays.prefs.unsent';
+const readUnsent = (): Partial<LocalPrefs> | null => { try { const v = localStorage.getItem(UNSENT_KEY); return v ? JSON.parse(v) as Partial<LocalPrefs> : null; } catch { return null; } };
+const writeUnsent = (p: Partial<LocalPrefs> | null) => { try { if (p) localStorage.setItem(UNSENT_KEY, JSON.stringify(p)); else localStorage.removeItem(UNSENT_KEY); } catch { /* private window */ } };
+let pending: Partial<LocalPrefs> = {};
+let timer: ReturnType<typeof setTimeout> | null = null;
+let waiting: Array<{ ok: () => void; fail: (e: unknown) => void }> = [];
+function send(p: Partial<LocalPrefs>) {
+  return api().setPreferences(p).then(() => { if (!timer) writeUnsent(null); });
+}
+export function savePrefs(p: Partial<LocalPrefs>): Promise<void> {
+  setPrefs(p);
+  pending = { ...pending, ...p };
+  writeUnsent({ ...(readUnsent() ?? {}), ...p });
+  if (timer) clearTimeout(timer);
+  return new Promise((ok, fail) => {
+    waiting.push({ ok, fail });
+    timer = setTimeout(() => {
+      const body = pending, wait = waiting;
+      pending = {}; waiting = []; timer = null;
+      send(body).then(() => wait.forEach((w) => w.ok()), (e) => wait.forEach((w) => w.fail(e)));
+    }, 300);
+  });
+}
+/** When the app loads, the account's settings win (they may have been changed on another device),
+ *  unless this browser still has a change the account never got: that one is sent now. */
+export function adoptPrefs(server: LocalPrefs | undefined) {
+  if (!server || timer) return;
+  const unsent = readUnsent();
+  if (unsent && Object.keys(unsent).length) { setPrefs(unsent); void send(unsent).catch(() => undefined); return; }
+  const cur = getPrefs();
+  if ((Object.keys(server) as Array<keyof LocalPrefs>).some((k) => cur[k] !== server[k])) setPrefs(server);
+}
+
 /** Theme and text size go on <html>, so every page follows them. */
 export function applyPrefs(p = getPrefs()) {
   const h = document.documentElement;

@@ -129,7 +129,7 @@ function AskSupport() {
   return (
     <section className="set-card set-card--pad" aria-labelledby="ask-h">
       <div className="row" style={{ gap: 12 }}><img src="/brand/jack.png" alt="" style={{ width: 28 }} /><h3 id="ask-h" style={{ margin: 0 }}>What’s going wrong?</h3></div>
-      <div className="ys-field"><div className="ys-field__box"><textarea className="ys-input" rows={2} value={q} maxLength={1000} onChange={(e) => { setQ(e.target.value); setAnswer(null); }} placeholder="For example: my check-in didn’t add points" aria-label="Describe the problem" style={{ resize: 'vertical' }} /></div></div>
+      <div className="ys-field"><div className="ys-field__box"><textarea className="ys-input" rows={2} value={q} maxLength={1000} onChange={(e) => { setQ(e.target.value); setAnswer(null); }} placeholder="For example: my check-in didn’t add INEX" aria-label="Describe the problem" style={{ resize: 'vertical' }} /></div></div>
       {error && <Banner>{error}</Banner>}
       {answer === null ? (
         <div className="row center"><OvalButton icon="sparkles" label="Get an answer" size="md" loading={busy === 'ask'} disabled={q.trim().length < 3} onClick={() => void ask()} /></div>

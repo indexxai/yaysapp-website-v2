@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ApiError, DEFAULT_NOTIFICATIONS, DEFAULT_PRIVACY, type AuthResult, type MeProfile } from '@yays/shared';
+import { ApiError, DEFAULT_APP_PREFS, DEFAULT_NOTIFICATIONS, DEFAULT_PRIVACY, type AuthResult, type MeProfile } from '@yays/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, onSignedOut, tokenStore } from './api';
 
@@ -35,7 +35,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-const placeholderMe: MeProfile = { id: '', displayName: '', username: null, about: '', photoUrl: null, phone: null, email: null, hasGoogle: false, createdAt: '', migrated: false, pending: [], twoStep: false, privacy: DEFAULT_PRIVACY, notifications: DEFAULT_NOTIFICATIONS };
+const placeholderMe: MeProfile = { id: '', displayName: '', username: null, about: '', photoUrl: null, phone: null, email: null, hasGoogle: false, createdAt: '', migrated: false, pending: [], twoStep: false, privacy: DEFAULT_PRIVACY, notifications: DEFAULT_NOTIFICATIONS, preferences: DEFAULT_APP_PREFS };
 
 export function useSession() {
   const s = useContext(Ctx);

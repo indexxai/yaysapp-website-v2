@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, attachmentLabel, systemText, type ChatMessage, type ConversationSummary } from '@yays/shared';
 import { api } from '@/lib/api';
-import { setPrefs, TEXT_SCALE, usePrefs, type LocalPrefs } from '@/lib/prefs';
+import { savePrefs, TEXT_SCALE, usePrefs, type LocalPrefs } from '@/lib/prefs';
 import { Switch } from '@/components/group';
 import { Card, SetRow, SettingsFrame, useSaved } from '@/components/settings';
 import { OvalButton } from '@/components/ui';
@@ -16,8 +16,11 @@ export default function AppearancePage() {
 
 function Appearance() {
   const p = usePrefs();
+  const saved = useSaved();
+  const setPrefs = (v: Partial<LocalPrefs>) => { savePrefs(v).then(() => saved.ok('Saved. Your other devices use this too.'), (e) => saved.fail(e instanceof ApiError ? e.message : 'Saved in this browser only. Check your connection.')); };
   return (
     <>
+      {saved.banner}
       <Card title="Theme">
         <div className="theme-grid" role="radiogroup" aria-label="Theme">
           {THEMES.map(([v, l]) => (
@@ -39,7 +42,7 @@ function Appearance() {
       </Card>
       <ExportChat />
       <Card title="Chat backup">
-        <p className="muted" style={{ margin: '4px 18px 16px', fontSize: 14, lineHeight: '20px' }}>Your chats are kept safely on YaysApp’s servers, so they’re here whenever you sign in on a new browser. Saved only in this browser: theme, text size and sounds.</p>
+        <p className="muted" style={{ margin: '4px 18px 16px', fontSize: 14, lineHeight: '20px' }}>Your chats are kept safely on YaysApp’s servers, so they’re here whenever you sign in on a new browser. Your theme, text size, Enter to send and sound are saved to your account too, so every device looks the same.</p>
       </Card>
     </>
   );

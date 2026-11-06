@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { addPhoneStartSchema, addPhoneVerifySchema, deleteAccountSchema, ErrorCode, notificationsSchema, pinCheckSchema, privacySchema, profileSchema, setPinSchema, USERNAME_RE } from '@yays/shared';
+import { addEmailStartSchema, addEmailVerifySchema, addPhoneStartSchema, addPhoneVerifySchema, deleteAccountSchema, ErrorCode, notificationsSchema, pinCheckSchema, preferencesSchema, type AppPreferences, privacySchema, profileSchema, setPinSchema, USERNAME_RE } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { parse } from '../common/zod';
 import { Auth, AuthGuard, type AuthCtx } from '../auth/auth.guard';
@@ -88,6 +88,12 @@ export class MeController {
   @Post('phone/verify') @HttpCode(200)
   async verifyPhone(@Auth() a: AuthCtx, @Body() b: unknown) { const v = parse(addPhoneVerifySchema, b); return toMe(await this.auth.verifyAddPhone(a.userId, v.phone, v.code), this.photo); }
 
+  @Post('email/start') @HttpCode(200)
+  startEmail(@Auth() a: AuthCtx, @Body() b: unknown, @Req() r: Request) { return this.auth.startAddEmail(a.userId, parse(addEmailStartSchema, b).email, r.ip ?? 'unknown'); }
+
+  @Post('email/verify') @HttpCode(200)
+  async verifyEmail(@Auth() a: AuthCtx, @Body() b: unknown) { const v = parse(addEmailVerifySchema, b); return toMe(await this.auth.verifyAddEmail(a.userId, v.email, v.code), this.photo); }
+
   @Get('devices')
   devices(@Auth() a: AuthCtx) { return this.sessions.list(a.userId, a.sid); }
 
@@ -111,6 +117,9 @@ export class MeController {
 
   @Put('notifications')
   notifications(@Auth() a: AuthCtx, @Body() b: unknown) { return this.account.setNotifications(a.userId, parse(notificationsSchema, b)); }
+
+  @Put('preferences')
+  preferences(@Auth() a: AuthCtx, @Body() b: unknown) { return this.account.setPreferences(a.userId, parse(preferencesSchema, b) as Partial<AppPreferences>); }
 
   @Post('delete/start') @HttpCode(200)
   startDelete(@Auth() a: AuthCtx, @Req() r: Request) { return this.account.startDelete(a.userId, r.ip ?? 'unknown'); }

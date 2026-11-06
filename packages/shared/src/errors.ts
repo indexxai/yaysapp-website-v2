@@ -11,6 +11,7 @@ export const ErrorCode = {
   CODE_LOCKED: 'code_locked',
   EMAIL_LINK_REQUIRED: 'email_link_required',
   PHONE_TAKEN: 'phone_taken',
+  EMAIL_TAKEN: 'email_taken',
   ACCOUNT_DISABLED: 'account_disabled',
   SESSION_REVOKED: 'session_revoked',
   PROVIDER_UNAVAILABLE: 'provider_unavailable',

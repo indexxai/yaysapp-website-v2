@@ -56,6 +56,8 @@ export const linkEmailStartSchema = z.object({ email: emailSchema });
 export const linkEmailVerifySchema = z.object({ email: emailSchema, code: codeSchema });
 export const addPhoneStartSchema = phoneStartSchema;
 export const addPhoneVerifySchema = z.object({ phone: phoneSchema, code: codeSchema });
+export const addEmailStartSchema = z.object({ email: emailSchema });
+export const addEmailVerifySchema = z.object({ email: emailSchema, code: codeSchema });
 export const refreshSchema = z.object({ refreshToken: z.string().min(20).max(4096) });
 export const contactsMatchSchema = z.object({ phones: z.array(z.string().max(32)).max(5000) });
 
@@ -81,6 +83,11 @@ export const notificationsSchema = z.object({
   quietHours: z.object({ on: z.boolean(), from: hhmm, to: hhmm }).optional(),
   timeZone: z.string().max(64).refine((tz) => { try { new Intl.DateTimeFormat('en', { timeZone: tz }); return true; } catch { return false; } }, 'Unknown time zone.').optional(),
 }).refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
+export const preferencesSchema = z.object({
+  theme: z.enum(['system', 'light', 'dark']).optional(),
+  textSize: z.number().int().min(1).max(5).optional(),
+  enterToSend: z.boolean().optional(), sound: z.boolean().optional(),
+}).strict().refine((v) => Object.values(v).some((x) => x !== undefined), 'Nothing to change.');
 export const problemReportSchema = z.object({
   text: z.string().trim().min(10, 'Tell us a bit more (at least 10 characters).').max(2000),
   screenshotKey: z.string().max(512).optional(), userAgent: z.string().max(400).optional(), appVersion: z.string().max(40).optional(), page: z.string().max(200).optional(),

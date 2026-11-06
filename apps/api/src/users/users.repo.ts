@@ -1,5 +1,5 @@
 import { MongoServerError, ObjectId, type Collection, type Db } from 'mongodb';
-import { DEFAULT_NOTIFICATIONS, DEFAULT_PRIVACY, type MeProfile, type NotificationSettings, type PrivacySettings, type PublicProfile } from '@yays/shared';
+import { DEFAULT_APP_PREFS, DEFAULT_NOTIFICATIONS, DEFAULT_PRIVACY, type AppPreferences, type MeProfile, type NotificationSettings, type PrivacySettings, type PublicProfile } from '@yays/shared';
 import { C } from '../infra/mongo';
 
 /** v2's own fields, kept under `yc` so nothing BTCY or the old app reads ever changes. */
@@ -25,6 +25,7 @@ export interface YcFields {
   deletedAt?: Date;
   privacy?: Partial<PrivacySettings>;
   notify?: Partial<NotificationSettings>;
+  prefs?: Partial<AppPreferences>;
   /** Phase 2: Facebook link, typed-in socials, payment PIN, linked Indexx account. */
   facebook?: unknown;
   socials?: unknown;
@@ -63,9 +64,10 @@ export class UsersRepo {
   async byEmail(email: string): Promise<UserDoc | null> {
     const linked = await this.col.findOne({ 'yc.emailLower': email });
     if (linked) return linked;
-    const exact = await this.col.find({ email }).sort({ lastLogin: -1, _id: 1 }).limit(1).toArray();
+    // An old-app email counts only until the person sets another one in YaysApp (then the old one no longer signs in).
+    const exact = await this.col.find({ email, 'yc.emailLower': { $exists: false } }).sort({ lastLogin: -1, _id: 1 }).limit(1).toArray();
     if (exact[0]) return exact[0];
-    const any = await this.col.find({ email: { $regex: `^${escapeRe(email)}$`, $options: 'i' } }).sort({ lastLogin: -1, _id: 1 }).limit(1).toArray();
+    const any = await this.col.find({ email: { $regex: `^${escapeRe(email)}$`, $options: 'i' }, 'yc.emailLower': { $exists: false } }).sort({ lastLogin: -1, _id: 1 }).limit(1).toArray();
     return any[0] ?? null;
   }
 
@@ -135,10 +137,12 @@ export async function toMe(u: UserDoc, photoUrl: (key: string) => Promise<string
     twoStep: !!yc.twoStep,
     privacy: privacyOf(u),
     notifications: notifyOf(u),
+    preferences: prefsOf(u),
   };
 }
 
 export const privacyOf = (u: UserDoc): PrivacySettings => ({ ...DEFAULT_PRIVACY, ...(u.yc?.privacy ?? {}) });
+export const prefsOf = (u: UserDoc): AppPreferences => ({ ...DEFAULT_APP_PREFS, ...(u.yc?.prefs ?? {}) });
 export const notifyOf = (u: UserDoc): NotificationSettings => ({ ...DEFAULT_NOTIFICATIONS, ...(u.yc?.notify ?? {}), quietHours: { ...DEFAULT_NOTIFICATIONS.quietHours, ...(u.yc?.notify?.quietHours ?? {}) } });
 
 export async function toPublic(u: UserDoc, photoUrl: (key: string) => Promise<string>): Promise<PublicProfile> {

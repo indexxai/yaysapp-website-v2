@@ -57,7 +57,7 @@ function Socials() {
             <div key={n} className="ys-row-item">
               <span className="ys-oval" style={{ width: 40, ['--ys-oval-fill' as string]: SOCIAL[n].fill, ['--ys-oval-ink' as string]: '#fff' }}><Icon name={SOCIAL[n].icon} size={18} /></span>
               <span className="ys-row-item__text"><span className="ys-row-item__title">{SOCIAL[n].name}</span><span className="ys-row-item__sub">{l ? <a href={l.url ?? '#'} target="_blank" rel="noopener noreferrer">{l.handle}</a> : 'Not added'}</span></span>
-              {l ? <OvalButton icon="close" label="Remove" size="sm" variant="ghost" onClick={() => void run(() => api().removeSocial(n), `${SOCIAL[n].name} removed.`)} /> : <OvalButton icon="plus" label="Add" size="sm" variant="soft" onClick={() => setEditing(n)} />}
+              {l ? <OvalButton icon="close" label="Remove" size="sm" variant="ghost" aria-label={`Remove ${SOCIAL[n].name}`} onClick={() => void run(() => api().removeSocial(n), `${SOCIAL[n].name} removed.`)} /> : <OvalButton icon="plus" label="Add" size="sm" variant="soft" aria-label={`Add ${SOCIAL[n].name}`} onClick={() => setEditing(n)} />}
             </div>
           );
         })}

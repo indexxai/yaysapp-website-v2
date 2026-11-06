@@ -177,6 +177,55 @@ describe('Notification settings', () => {
   });
 });
 
+describe('Look and feel preferences', () => {
+  let t: TestApp; let ali: TUser;
+  beforeAll(async () => { t = await startApp(); ali = await makeUser(t, 'Ali'); });
+  afterAll(async () => { await t.close(); });
+
+  it('start at the defaults, save on the account (a new device gets them), and refuse bad values', async () => {
+    expect((await meOf(t, ali)).preferences).toEqual({ theme: 'system', textSize: 3, enterToSend: true, sound: true });
+    const me = (await t.http.put('/v1/me/preferences').set(ali.auth).send({ theme: 'dark', textSize: 5 }).expect(200)).body as MeProfile;
+    expect(me.preferences).toEqual({ theme: 'dark', textSize: 5, enterToSend: true, sound: true });
+    await t.http.put('/v1/me/preferences').set(ali.auth).send({ enterToSend: false, sound: false }).expect(200);
+    // Signing in on another device: the same settings come with the profile.
+    await resetLimits(t);
+    const email = (await meOf(t, ali)).email!;
+    await t.http.post('/v1/auth/email/start').send({ email }).expect(200);
+    const other = (await t.http.post('/v1/auth/email/verify').send({ email, code: await lastCode(t, email), device: device(9) }).expect(200)).body;
+    expect((await t.http.get('/v1/me').set(bearer(other)).expect(200)).body.preferences).toEqual({ theme: 'dark', textSize: 5, enterToSend: false, sound: false });
+    for (const bad of [{ theme: 'neon' }, { textSize: 9 }, { textSize: 2.5 }, { sound: 'yes' }, {}, { wallpaper: 'x' }]) expect((await t.http.put('/v1/me/preferences').set(ali.auth).send(bad)).status).toBe(400);
+    expect((await t.http.put('/v1/me/preferences').send({ theme: 'light' })).status).toBe(401);
+    // Exporting my data includes them.
+    expect((await t.http.get('/v1/me/export').set(ali.auth).expect(200)).body.profile.preferences.theme).toBe('dark');
+  });
+});
+
+describe('Change email', () => {
+  let t: TestApp; let ali: TUser; let sara: TUser;
+  beforeAll(async () => { t = await startApp(); ali = await makeUser(t, 'Ali'); sara = await makeUser(t, 'Sara'); });
+  afterAll(async () => { await t.close(); });
+
+  it('a code to the new address; then it signs in to the same account and the old one no longer does', async () => {
+    const old = (await meOf(t, ali)).email!;
+    const taken = (await meOf(t, sara)).email!;
+    expect((await t.http.post('/v1/me/email/start').set(ali.auth).send({ email: taken })).status).toBe(409);
+    expect((await t.http.post('/v1/me/email/start').set(ali.auth).send({ email: old })).status).toBe(409);
+    expect((await t.http.post('/v1/me/email/start').set(ali.auth).send({ email: 'not-an-email' })).status).toBe(400);
+    const next = 'ali.new@example.com';
+    await t.http.post('/v1/me/email/start').set(ali.auth).send({ email: 'Ali.New@Example.com' }).expect(200);
+    expect((await t.http.post('/v1/me/email/verify').set(ali.auth).send({ email: next, code: '000000' })).status).toBe(400);
+    const me = (await t.http.post('/v1/me/email/verify').set(ali.auth).send({ email: next, code: await lastCode(t, next) }).expect(200)).body as MeProfile;
+    expect(me.email).toBe(next);
+    const signIn = async (email: string) => {
+      await resetLimits(t);
+      await t.http.post('/v1/auth/email/start').send({ email }).expect(200);
+      return (await t.http.post('/v1/auth/email/verify').send({ email, code: await lastCode(t, email), device: device(11) }).expect(200)).body;
+    };
+    expect((await signIn(next)).me.id).toBe(ali.id);
+    expect((await signIn(old)).me.id).not.toBe(ali.id);
+  });
+});
+
 describe('Account: delete, export, delete chat, support, storage', () => {
   let t: TestApp;
   beforeAll(async () => { t = await startApp(); });

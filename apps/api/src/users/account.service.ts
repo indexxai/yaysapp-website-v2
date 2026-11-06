@@ -1,5 +1,5 @@
 import { ObjectId, type Db } from 'mongodb';
-import type { CodeSent, MeProfile, NotificationSettings, PrivacySettings } from '@yays/shared';
+import type { AppPreferences, CodeSent, MeProfile, NotificationSettings, PrivacySettings } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { C } from '../infra/mongo';
 import type { Storage } from '../infra/storage';
@@ -11,7 +11,7 @@ import type { ChatService } from '../chat/chat.service';
 import type { GroupsService } from '../chat/groups.service';
 import type { ChatPrefsService } from '../chat/prefs.service';
 import type { PushService } from '../push/push.service';
-import { displayNameOf, notifyOf, privacyOf, toMe, type UsersRepo } from './users.repo';
+import { displayNameOf, notifyOf, prefsOf, privacyOf, toMe, type UsersRepo } from './users.repo';
 
 const EXPORT_MESSAGES = 20_000;
 
@@ -60,6 +60,12 @@ export class AccountService {
     return toMe((await this.users.setYc(id, { notify: next }))!, this.photo);
   }
 
+  async setPreferences(id: ObjectId, v: Partial<AppPreferences>): Promise<MeProfile> {
+    const u = await this.me(id);
+    const next = { ...prefsOf(u), ...Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined)) } as AppPreferences;
+    return toMe((await this.users.setYc(id, { prefs: next }))!, this.photo);
+  }
+
   // ---------- delete account ----------
   private target(u: Awaited<ReturnType<AccountService['me']>>) {
     if (u.yc?.phoneE164) return { kind: 'phone' as const, value: u.yc.phoneE164, channel: 'sms' as const };
@@ -92,7 +98,7 @@ export class AccountService {
       this.push.subs.deleteMany({ userId: id }),
     ]);
     await this.users.setYc(id, { deletedAt: new Date(), disabledAt: new Date(), photoKey: null },
-      ['phoneE164', 'phoneVerifiedAt', 'emailLower', 'emailVerifiedAt', 'googleSub', 'displayName', 'username', 'about', 'twoStep', 'privacy', 'notify', 'facebook', 'socials', 'payPin', 'indexx']);
+      ['phoneE164', 'phoneVerifiedAt', 'emailLower', 'emailVerifiedAt', 'googleSub', 'displayName', 'username', 'about', 'twoStep', 'privacy', 'notify', 'prefs', 'facebook', 'socials', 'payPin', 'indexx']);
     await this.db.collection(C.accountDeletions).insertOne({ userId: id, reason: reason?.trim() || null, at: new Date() });
     await this.sessions.revokeAll(id, 'account_deleted');
   }

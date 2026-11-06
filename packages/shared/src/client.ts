@@ -1,5 +1,5 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
-import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
+import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, AppPreferences, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
 import type { AiChat, AiChatSummary, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PaymentView, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
 import type { CircleComment, CircleDiscover, CircleEvent, CircleFeed, CircleMemberRow, CirclePost, CirclePostInput, CircleReview, CircleView, CreateCircleInput, CreateEventInput, MyCircles, PostReportReason, RsvpStatus, UpdateCircleInput, UpdateEventInput } from './circles';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
@@ -147,6 +147,7 @@ export class YaysClient {
   removePin(pin: string) { return this.request<MeProfile>('DELETE', '/v1/me/two-step', { pin }); }
   setPrivacy(p: Partial<PrivacySettings>) { return this.request<MeProfile>('PUT', '/v1/me/privacy', p); }
   setNotifications(n: Partial<NotificationSettings>) { return this.request<MeProfile>('PUT', '/v1/me/notifications', n); }
+  setPreferences(p: Partial<AppPreferences>) { return this.request<MeProfile>('PUT', '/v1/me/preferences', p); }
   /** Deleting the account: a code goes to the phone (or email) first. */
   startDeleteAccount() { return this.request<CodeSent>('POST', '/v1/me/delete/start', {}); }
   async deleteAccount(code: string, reason?: string) { await this.request<void>('POST', '/v1/me/delete', { code, ...(reason ? { reason } : {}) }); await this.o.tokens.set(null); }
@@ -161,6 +162,8 @@ export class YaysClient {
   checkUsername(username: string) { return this.request<{ available: boolean; reason?: string }>('GET', `/v1/me/username-available?u=${encodeURIComponent(username)}`); }
   startAddPhone(phone: string, channel: 'sms' | 'whatsapp' = 'sms') { return this.request<CodeSent>('POST', '/v1/me/phone/start', { phone, channel }); }
   verifyAddPhone(phone: string, code: string) { return this.request<MeProfile>('POST', '/v1/me/phone/verify', { phone, code }); }
+  startAddEmail(email: string) { return this.request<CodeSent>('POST', '/v1/me/email/start', { email }); }
+  verifyAddEmail(email: string, code: string) { return this.request<MeProfile>('POST', '/v1/me/email/verify', { email, code }); }
   devices() { return this.request<DeviceSession[]>('GET', '/v1/me/devices'); }
   revokeDevice(id: string) { return this.request<void>('DELETE', `/v1/me/devices/${encodeURIComponent(id)}`); }
   revokeOtherDevices() { return this.request<{ revoked: number }>('POST', '/v1/me/devices/revoke-others', {}); }

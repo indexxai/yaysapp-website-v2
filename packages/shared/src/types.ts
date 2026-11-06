@@ -24,6 +24,8 @@ export interface MeProfile {
   twoStep: boolean;
   privacy: PrivacySettings;
   notifications: NotificationSettings;
+  /** Look and feel, kept on the account so every device matches. */
+  preferences: AppPreferences;
 }
 
 /** "contacts": people I have a direct chat with. */
@@ -50,6 +52,17 @@ export interface NotificationSettings {
   quietHours: { on: boolean; from: string; to: string };
   timeZone: string;
 }
+export interface AppPreferences {
+  theme: 'system' | 'light' | 'dark';
+  /** 1 (smallest) to 5 (largest); 3 is the default. */
+  textSize: 1 | 2 | 3 | 4 | 5;
+  /** Enter sends; off: Enter makes a new line and Ctrl/Cmd+Enter sends. */
+  enterToSend: boolean;
+  /** A soft sound for new messages while the app is open. */
+  sound: boolean;
+}
+export const DEFAULT_APP_PREFS: AppPreferences = { theme: 'system', textSize: 3, enterToSend: true, sound: true };
+
 export const DEFAULT_NOTIFICATIONS: NotificationSettings = { preview: true, groups: true, quietHours: { on: false, from: '23:00', to: '07:00' }, timeZone: 'UTC' };
 
 /** Signing in to an account with two-step verification: the PIN comes next. */

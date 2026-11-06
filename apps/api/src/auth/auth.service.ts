@@ -239,5 +239,18 @@ export class AuthService {
     try { return (await this.users.setYc(userId, { phoneE164: phone, phoneVerifiedAt: new Date() }))!; }
     catch (e) { if (isDuplicate(e)) throw AppError.conflict('This number is already used by another account.', ErrorCode.PHONE_TAKEN); throw e; }
   }
+
+  // ---------- add or change email while signed in ----------
+  async startAddEmail(userId: ObjectId, email: string, ip: string) {
+    const owner = await this.users.byEmail(email);
+    if (owner && !owner._id.equals(userId)) throw AppError.conflict('This email is already used by another account.', ErrorCode.EMAIL_TAKEN);
+    if (owner) throw AppError.conflict('This is already your email.');
+    return this.otp.start('add_email', { kind: 'email', value: email }, ip, userId.toHexString());
+  }
+  async verifyAddEmail(userId: ObjectId, email: string, code: string) {
+    await this.otp.verify('add_email', { kind: 'email', value: email }, code, userId.toHexString());
+    try { return (await this.users.setYc(userId, { emailLower: email, emailVerifiedAt: new Date() }))!; }
+    catch (e) { if (isDuplicate(e)) throw AppError.conflict('This email is already used by another account.', ErrorCode.EMAIL_TAKEN); throw e; }
+  }
 }
 export const AUTH = Symbol('AUTH');

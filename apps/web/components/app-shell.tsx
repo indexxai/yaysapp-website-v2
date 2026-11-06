@@ -6,7 +6,7 @@ import type { MeProfile } from '@yays/shared';
 import { Icon, type IconName } from '@/lib/icons';
 import { Avatar } from './ui';
 import { useOptionalChatState } from '@/lib/chat';
-import { setPrefs, usePrefs } from '@/lib/prefs';
+import { savePrefs, usePrefs } from '@/lib/prefs';
 import { fmtPoints, useBalance } from '@/lib/phase2';
 import { PopupHost } from './popups';
 
@@ -46,7 +46,7 @@ function ThemeButton() {
   const prefs = usePrefs();
   const dark = prefs.theme === 'dark' || (prefs.theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   return (
-    <button type="button" className="ys-ovalbtn rail__tab rail__theme" onClick={() => setPrefs({ theme: dark ? 'light' : 'dark' })} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}>
+    <button type="button" className="ys-ovalbtn rail__tab rail__theme" onClick={() => { void savePrefs({ theme: dark ? 'light' : 'dark' }).catch(() => undefined); }} aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}>
       <span className="ys-oval"><Icon name={dark ? 'sun' : 'moon'} size={16} /></span>
       <span className="ys-ovalbtn__label">Theme</span>
     </button>

@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
-import { ApiError, normalizePhone, pinSchema, type CodeSent, type MeProfile } from '@yays/shared';
+import { ApiError, emailSchema, normalizePhone, pinSchema, type CodeSent, type MeProfile } from '@yays/shared';
 import { api } from '@/lib/api';
 import { disablePush } from '@/lib/push';
 import { Modal } from '@/components/message-actions';
@@ -20,7 +20,7 @@ export default function ProfileSettings() {
 
 function Profile({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }) {
   const saved = useSaved();
-  const [dialog, setDialog] = useState<'pin' | 'pin-off' | 'delete' | 'phone' | null>(null);
+  const [dialog, setDialog] = useState<'pin' | 'pin-off' | 'delete' | 'phone' | 'email' | null>(null);
   const [exporting, setExporting] = useState(false);
   const download = async () => {
     setExporting(true);
@@ -42,9 +42,12 @@ function Profile({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }
       <Card title="Account">
         <SetRow label="Phone number" hint="Used to sign in. Others never see it.">
           <span className="set-row__value">{me.phone ?? 'None'}</span>
-          <OvalButton icon="edit" label={me.phone ? 'Change' : 'Add'} size="sm" variant="ghost" onClick={() => setDialog('phone')} />
+          <OvalButton icon="edit" label={me.phone ? 'Change' : 'Add'} size="sm" variant="ghost" aria-label={me.phone ? 'Change phone number' : 'Add phone number'} onClick={() => setDialog('phone')} />
         </SetRow>
-        <SetRow label="Email" hint="For sign-in codes and recovery."><span className="set-row__value">{me.email ?? 'None'}</span></SetRow>
+        <SetRow label="Email" hint="For sign-in codes and recovery.">
+          <span className="set-row__value">{me.email ?? 'None'}</span>
+          <OvalButton icon="edit" label={me.email ? 'Change' : 'Add'} size="sm" variant="ghost" aria-label={me.email ? 'Change email' : 'Add email'} onClick={() => setDialog('email')} />
+        </SetRow>
         <SetRow label="Two-step verification" hint="A PIN is asked after the code whenever you sign in.">
           <span className="set-row__value">{me.twoStep ? 'On' : 'Off'}</span>
           {me.twoStep
@@ -59,6 +62,7 @@ function Profile({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => void }
       {dialog === 'pin' && <PinDialog me={me} onClose={() => setDialog(null)} onDone={(m) => { setMe(m); setDialog(null); saved.ok(me.twoStep ? 'Your PIN was changed.' : 'Two-step verification is on.'); }} />}
       {dialog === 'pin-off' && <PinOffDialog onClose={() => setDialog(null)} onDone={(m) => { setMe(m); setDialog(null); saved.ok('Two-step verification is off.'); }} />}
       {dialog === 'phone' && <PhoneDialog onClose={() => setDialog(null)} onDone={(m) => { setMe(m); setDialog(null); saved.ok('Your number was changed.'); }} />}
+      {dialog === 'email' && <EmailDialog onClose={() => setDialog(null)} onDone={(m) => { setMe(m); setDialog(null); saved.ok('Your email was changed. Sign in with the new one from now on.'); }} />}
       {dialog === 'delete' && <DeleteDialog me={me} onClose={() => setDialog(null)} />}
     </>
   );
@@ -164,6 +168,35 @@ function PhoneDialog({ onClose, onDone }: { onClose: () => void; onDone: (m: MeP
           <p className="muted" style={{ margin: 0, fontSize: 14 }}>We sent a 6-digit code to <strong>{sent.sentTo}</strong>.</p>
           <Field id="phone-code" label="Code"><input id="phone-code" className="ys-input code-input" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus /></Field>
           <div className="modal__actions"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /><OvalButton type="submit" icon="check" label="Change number" size="sm" variant="primary" disabled={busy || code.length !== 6} /></div>
+        </form>
+      )}
+    </Modal>
+  );
+}
+
+/** A new email gets a code first; the old one stops signing in. */
+function EmailDialog({ onClose, onDone }: { onClose: () => void; onDone: (m: MeProfile) => void }) {
+  const [raw, setRaw] = useState('');
+  const [email, setEmail] = useState<string | null>(null);
+  const [sent, setSent] = useState<CodeSent | null>(null);
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const run = async (fn: () => Promise<void>) => { setBusy(true); setError(null); try { await fn(); } catch (e) { setError(errText(e)); } finally { setBusy(false); } };
+  return (
+    <Modal title="Change email" onClose={onClose}>
+      {error && <Banner>{error}</Banner>}
+      {!sent ? (
+        <form noValidate className="ys-col" style={{ padding: 0, gap: 14 }} onSubmit={(e) => { e.preventDefault(); const p = emailSchema.safeParse(raw); if (!p.success) { setError('Enter an email address, for example name@example.com.'); return; } void run(async () => { setSent(await api().startAddEmail(p.data)); setEmail(p.data); }); }}>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>Sign-in codes and account messages go to the new address. The old one stops working for sign-in.</p>
+          <Field id="new-email" label="New email"><input id="new-email" className="ys-input" type="email" inputMode="email" autoComplete="email" value={raw} onChange={(e) => setRaw(e.target.value)} placeholder="name@example.com" autoFocus /></Field>
+          <div className="modal__actions"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /><OvalButton type="submit" icon="send" label="Send code" size="sm" variant="primary" disabled={busy || !raw.trim()} /></div>
+        </form>
+      ) : (
+        <form className="ys-col" style={{ padding: 0, gap: 14 }} onSubmit={(e) => { e.preventDefault(); void run(async () => onDone(await api().verifyAddEmail(email!, code))); }}>
+          <p className="muted" style={{ margin: 0, fontSize: 14 }}>We sent a 6-digit code to <strong>{sent.sentTo}</strong>.</p>
+          <Field id="email-code" label="Code"><input id="email-code" className="ys-input code-input" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus /></Field>
+          <div className="modal__actions"><OvalButton icon="close" label="Cancel" size="sm" variant="soft" onClick={onClose} /><OvalButton type="submit" icon="check" label="Change email" size="sm" variant="primary" disabled={busy || code.length !== 6} /></div>
         </form>
       )}
     </Modal>

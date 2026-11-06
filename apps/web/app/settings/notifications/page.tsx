@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, type MeProfile, type NotificationSettings } from '@yays/shared';
 import { api } from '@/lib/api';
-import { setPrefs, usePrefs } from '@/lib/prefs';
+import { savePrefs, usePrefs } from '@/lib/prefs';
 import { disablePush, enablePush, pushState, type PushState } from '@/lib/push';
 import { Switch } from '@/components/group';
 import { Card, SetRow, SettingsFrame, useSaved } from '@/components/settings';
@@ -39,7 +39,7 @@ function Notifications({ me, setMe }: { me: MeProfile; setMe: (m: MeProfile) => 
       <Card title="Messages">
         <Switch on={push === 'on'} onChange={(v) => void toggleDesktop(v)} disabled={push === 'blocked' || push === 'unsupported'} label="Desktop notifications" hint="Show a notification for new messages when this tab isn’t in front." />
         <Switch on={n.preview} onChange={(v) => void set({ preview: v })} label="Show message preview" hint="Off: notifications only say who it’s from." />
-        <Switch on={local.sound} onChange={(v) => setPrefs({ sound: v })} label="Sound" hint="A soft sound for new messages while YaysApp is open in this browser." />
+        <Switch on={local.sound} onChange={(v) => { savePrefs({ sound: v }).then(() => saved.ok(), (e) => saved.fail(e instanceof ApiError ? e.message : 'Could not save. Try again.')); }} label="Sound" hint="A soft sound for new messages while YaysApp is open." />
         <Switch on={n.groups} onChange={(v) => void set({ groups: v })} label="Group messages" hint="Off: no notifications for groups. Chats with one person still notify." />
       </Card>
       <Card title="Quiet hours">
