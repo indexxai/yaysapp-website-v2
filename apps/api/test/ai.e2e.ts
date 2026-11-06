@@ -81,6 +81,33 @@ describe('OpenAI pictures', () => {
     expect(edited.width).toBe(1024);
   });
 
+  it('a model this account can’t use: the next one is tried and remembered; none at all says so', async () => {
+    const { OpenAiImages, IMAGE_MODEL_FALLBACKS } = await import('../src/ai/ai.images');
+    const tried: string[] = [];
+    const ok = new Set(['dall-e-3']);
+    const fake = (async (_u: string, init: { body: string | FormData }) => {
+      const body = typeof init.body === 'string' ? JSON.parse(init.body) : Object.fromEntries((init.body as FormData).entries());
+      tried.push(`${body.model}${body.response_format ? `:${body.response_format}` : ''}`);
+      if (!ok.has(body.model)) return reply({ error: { message: `The model '${body.model}' does not exist.`, param: 'model', code: 'invalid_value' } }, 400);
+      return reply({ data: [{ b64_json: Buffer.from('p').toString('base64') }] });
+    }) as unknown as typeof fetch;
+    const p = new OpenAiImages({ baseUrl: 'https://x', key: 'k', model: 'gpt-image-1' }, noLog, fake);
+    expect(await p.generate({ prompt: 'kite', n: 2 })).toHaveLength(2);
+    expect(tried).toEqual(['gpt-image-1', 'gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini', 'dall-e-3:b64_json', 'dall-e-3:b64_json']);
+    expect(p.model).toBe('dall-e-3');
+    tried.length = 0;
+    await p.generate({ prompt: 'boat', n: 1 });
+    expect(tried).toEqual(['dall-e-3:b64_json']);
+    // DALL·E can't change pictures, and no GPT image model is available here.
+    await expect(p.edit({ prompt: 'x', image: Buffer.from('i'), mime: 'image/png' })).rejects.toThrow('Pictures aren’t set up correctly');
+    expect(IMAGE_MODEL_FALLBACKS[0]).toBe('gpt-image-2');
+    // A newer model that works is used straight away and remembered.
+    ok.clear(); ok.add('gpt-image-2'); tried.length = 0;
+    const q = new OpenAiImages({ baseUrl: 'https://x', key: 'k', model: 'gpt-image-1' }, noLog, fake);
+    await q.generate({ prompt: 'a', n: 1 }); await q.generate({ prompt: 'b', n: 1 });
+    expect(tried).toEqual(['gpt-image-1', 'gpt-image-2', 'gpt-image-2']);
+  });
+
   it('a refused prompt, being busy and a bad key each say what happened', async () => {
     const { OpenAiImages } = await import('../src/ai/ai.images');
     const make = (status: number, body: unknown) => new OpenAiImages({ baseUrl: 'https://x', key: 'k', model: 'gpt-image-1' }, noLog, (async () => reply(body, status)) as unknown as typeof fetch);

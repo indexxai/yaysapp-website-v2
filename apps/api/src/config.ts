@@ -62,7 +62,8 @@ const schema = z.object({
   AI_MODEL: z.string().optional(),
   /** Images: dev draws a plain sample picture; openai uses OPENAI_API_KEY. auto: openai if its key is set, else dev. */
   AI_IMAGE_DRIVER: z.enum(['auto', 'dev', 'openai', 'off']).default('auto'),
-  AI_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  /** Tried first; if this OpenAI account can't use it, newer and older GPT image models are tried in turn. */
+  AI_IMAGE_MODEL: z.string().default('gpt-image-2'),
   /** How many pictures each image request makes (each counts toward the daily image limit). */
   AI_IMAGE_OPTIONS: z.coerce.number().int().min(1).max(4).default(1),
   AI_IMAGES_PER_DAY: z.coerce.number().int().min(0).max(200).default(5),

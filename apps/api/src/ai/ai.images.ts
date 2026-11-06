@@ -18,13 +18,24 @@ const SIZE = 1024;
 /** What people see when the image model says no (it checks prompts and pictures for things it won't draw). */
 export const IMAGE_REFUSED = 'Jack can’t make that picture. Try describing it another way, without real brands, real people or anything unsafe.';
 
-/** OpenAI's image model (gpt-image-1 by default): new pictures and edits of an earlier one. */
+/** Image models to try, newest first, when the one set isn't available to this OpenAI account. */
+export const IMAGE_MODEL_FALLBACKS = ['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1', 'gpt-image-1-mini', 'dall-e-3'];
+/** OpenAI said the model name isn't one this account can use. */
+const MODEL_MISSING = /does not exist|model_not_found|not found|invalid model|do not have access|must be verified|unsupported model/i;
+class ModelMissing extends Error {}
+
+/**
+ * OpenAI's image models: new pictures and changes to an earlier one. The model set in AI_IMAGE_MODEL is tried first;
+ * if this account can't use it, the next one on the list is tried and remembered.
+ */
 export class OpenAiImages implements ImageProvider {
   readonly name = 'openai' as const;
+  private working: string | null = null;
   constructor(private readonly o: { baseUrl: string; key: string; model: string }, private readonly log: Logger, private readonly f: typeof fetch = fetch) {}
-  get model() { return this.o.model; }
+  get model() { return this.working ?? this.o.model; }
+  private candidates() { return [...new Set([this.working ?? this.o.model, this.o.model, ...IMAGE_MODEL_FALLBACKS])]; }
 
-  private async call(path: string, init: { json?: unknown; form?: FormData }) {
+  private async call(path: string, model: string, init: { json?: unknown; form?: FormData }) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 150_000);
     let res: Response;
@@ -38,7 +49,8 @@ export class OpenAiImages implements ImageProvider {
     finally { clearTimeout(timer); }
     if (!res.ok) {
       const text = (await res.text().catch(() => '')).slice(0, 400);
-      this.log.warn({ status: res.status, body: text, path }, 'image request failed');
+      this.log.warn({ status: res.status, body: text, path, model }, 'image request failed');
+      if ((res.status === 400 || res.status === 403 || res.status === 404) && MODEL_MISSING.test(text) && /model/i.test(text)) throw new ModelMissing(text);
       if (res.status === 400 && /moderation|safety|content_policy|policy/i.test(text)) throw AppError.validation(IMAGE_REFUSED, { refused: true });
       if (res.status === 429) throw AppError.conflict('Jack’s AI is busy making pictures. Try again in a minute.');
       if (res.status === 401 || res.status === 403) throw AppError.conflict('Pictures aren’t set up correctly. The team has been told.');
@@ -50,17 +62,40 @@ export class OpenAiImages implements ImageProvider {
     return out;
   }
 
+  /** Tries each model until one this account can use answers; remembers it. */
+  private async withModel<T>(fn: (model: string) => Promise<T>, skip: (m: string) => boolean = () => false): Promise<T> {
+    for (const model of this.candidates()) {
+      if (skip(model)) continue;
+      try {
+        const r = await fn(model);
+        if (this.working !== model) { this.working = model; if (model !== this.o.model) this.log.warn({ wanted: this.o.model, using: model }, 'image model not available; using another'); }
+        return r;
+      } catch (e) { if (!(e instanceof ModelMissing)) throw e; }
+    }
+    this.log.warn({ tried: this.candidates() }, 'no image model available to this OpenAI account');
+    throw AppError.conflict('Pictures aren’t set up correctly. The team has been told.');
+  }
+
   generate(o: { prompt: string; n: number }) {
-    return this.call('/images/generations', { json: { model: this.o.model, prompt: o.prompt, n: o.n, size: `${SIZE}x${SIZE}` } });
+    return this.withModel(async (model) => {
+      if (!model.startsWith('dall-e')) return this.call('/images/generations', model, { json: { model, prompt: o.prompt, n: o.n, size: `${SIZE}x${SIZE}` } });
+      // DALL·E 3 makes one picture per request and has to be asked for the picture itself.
+      const all: MadeImage[] = [];
+      for (let i = 0; i < o.n; i++) all.push(...await this.call('/images/generations', model, { json: { model, prompt: o.prompt, n: 1, size: `${SIZE}x${SIZE}`, response_format: 'b64_json' } }));
+      return all;
+    });
   }
 
   async edit(o: { prompt: string; image: Buffer; mime: string }) {
-    const form = new FormData();
-    form.set('model', this.o.model);
-    form.set('prompt', o.prompt);
-    form.set('size', `${SIZE}x${SIZE}`);
-    form.set('image', new Blob([new Uint8Array(o.image)], { type: o.mime }), o.mime === 'image/png' ? 'image.png' : 'image.jpg');
-    return (await this.call('/images/edits', { form }))[0]!;
+    // DALL·E can't change a picture, so only the GPT image models are tried.
+    return this.withModel(async (model) => {
+      const form = new FormData();
+      form.set('model', model);
+      form.set('prompt', o.prompt);
+      form.set('size', `${SIZE}x${SIZE}`);
+      form.set('image', new Blob([new Uint8Array(o.image)], { type: o.mime }), o.mime === 'image/png' ? 'image.png' : 'image.jpg');
+      return (await this.call('/images/edits', model, { form }))[0]!;
+    }, (m) => m.startsWith('dall-e'));
   }
 }
 
