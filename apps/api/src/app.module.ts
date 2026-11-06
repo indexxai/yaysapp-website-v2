@@ -49,6 +49,7 @@ import { DevIndexx, INDEXX, offIndexx } from './indexx/indexx.provider';
 import { INDEXX_SERVICE, IndexxService } from './indexx/indexx.service';
 import { PAYMENTS, PaymentsService } from './pay/payments.service';
 import { AI_PROVIDER, createAiProvider } from './ai/ai.provider';
+import { createImageProvider } from './ai/ai.images';
 import { AI, AiService } from './ai/ai.service';
 import { FacebookController } from './auth/facebook.controller';
 import { createFacebook, FACEBOOK, FacebookService } from './auth/facebook';
@@ -89,7 +90,7 @@ export class AppModule {
     indexx.payments = payments;
     const facebook = new FacebookService(createFacebook(c, log), users.col, redis, c);
     const aiProvider = createAiProvider(c, log);
-    const ai = new AiService(aiProvider, db, redis, chat, rewards);
+    const ai = new AiService(aiProvider, db, redis, chat, rewards, storage, createImageProvider(c, log), { imagesPerDay: c.AI_IMAGES_PER_DAY, imageOptions: c.AI_IMAGE_OPTIONS, fullJackUrl: c.JACK_AI_URL });
     ai.support = support;
     // Points for activity and referrals; never in the way of the message itself.
     circles.onPost = (u) => { void rewards.onCirclePost(u).catch((e) => log.warn({ err: e }, 'points for a circle post failed')); };

@@ -48,10 +48,28 @@ const schema = z.object({
   LIVEKIT_API_SECRET: z.string().optional(),
   /** How long a call rings before it counts as missed. */
   CALL_RING_SECONDS: z.coerce.number().int().min(2).max(120).default(45),
-  /** Jack's AI. dev: answers without a model (development and tests). anthropic: Claude, with ANTHROPIC_API_KEY. */
-  AI_DRIVER: z.enum(['dev', 'anthropic']).default('dev'),
+  /**
+   * Jack's AI (the light version inside YaysApp). Talking, documents and web answers:
+   *   dev: sample answers without a model (development and tests); openrouter: OPENROUTER_API_KEY;
+   *   openai: OPENAI_API_KEY; anthropic: ANTHROPIC_API_KEY. auto (the default): openrouter if its key is set,
+   *   then openai, then dev.
+   */
+  AI_DRIVER: z.enum(['auto', 'dev', 'openrouter', 'openai', 'anthropic']).default('auto'),
   ANTHROPIC_API_KEY: z.string().optional(),
-  AI_MODEL: z.string().default('claude-sonnet-5-5'),
+  OPENROUTER_API_KEY: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  /** The talking model. Empty: a sensible one for the driver (OpenRouter: openai/gpt-4o-mini; OpenAI: gpt-4o-mini; Anthropic: claude-sonnet-5-5). */
+  AI_MODEL: z.string().optional(),
+  /** Images: dev draws a plain sample picture; openai uses OPENAI_API_KEY. auto: openai if its key is set, else dev. */
+  AI_IMAGE_DRIVER: z.enum(['auto', 'dev', 'openai', 'off']).default('auto'),
+  AI_IMAGE_MODEL: z.string().default('gpt-image-1'),
+  /** How many pictures each image request makes (each counts toward the daily image limit). */
+  AI_IMAGE_OPTIONS: z.coerce.number().int().min(1).max(4).default(2),
+  AI_IMAGES_PER_DAY: z.coerce.number().int().min(0).max(200).default(10),
+  /** Where "open the full Jack's AI" sends people for specialised work (browsing, files, video, code). */
+  JACK_AI_URL: z.string().url().default('https://jack.indexx.ai'),
+  OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
+  OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
   /** Indexx accounts (BTCY, Indexx Pay, EMMM). dev: a stand-in kept in this database. off: linking isn't offered. */
   INDEXX_DRIVER: z.enum(['dev', 'off']).default('dev'),
   /** Facebook link and sign-in. dev: a stand-in page served by this API. facebook: real Facebook Login. off: not offered. */
@@ -64,7 +82,7 @@ const schema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
-export type Config = z.infer<typeof schema> & { corsOrigins: string[]; googleClientIds: string[]; version: string };
+export type Config = z.infer<typeof schema> & { aiDriver: 'dev' | 'openrouter' | 'openai' | 'anthropic'; aiImageDriver: 'dev' | 'openai' | 'off'; corsOrigins: string[]; googleClientIds: string[]; version: string };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const parsed = schema.safeParse(env);
@@ -83,7 +101,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (c.PUSH_DRIVER === 'dev') problems.push('PUSH_DRIVER=dev is not allowed in production');
     if (c.PUSH_INSECURE_TLS) problems.push('PUSH_INSECURE_TLS must be off in production');
     if (c.FACEBOOK_DRIVER === 'dev') problems.push('FACEBOOK_DRIVER=dev is not allowed in production (use facebook, or off)');
-    if (c.AI_DRIVER === 'dev') problems.push('AI_DRIVER=dev is not allowed in production (use anthropic)');
+    if (c.AI_DRIVER === 'dev') problems.push('AI_DRIVER=dev is not allowed in production (use openrouter, openai or anthropic)');
     if (c.INDEXX_DRIVER === 'dev') problems.push('INDEXX_DRIVER=dev is not allowed in production (use off until the Indexx API is connected)');
   }
   if (c.SMS_DRIVER === 'twilio' && !(c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN && c.TWILIO_VERIFY_SID)) problems.push('SMS_DRIVER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SID');
@@ -94,10 +112,19 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (c.NODE_ENV === 'production' && c.LIVEKIT_API_SECRET && c.LIVEKIT_API_SECRET.length < 32) problems.push('LIVEKIT_API_SECRET must be at least 32 characters in production');
   if (c.FACEBOOK_DRIVER === 'facebook' && !(c.FACEBOOK_APP_ID && c.FACEBOOK_APP_SECRET)) problems.push('FACEBOOK_DRIVER=facebook needs FACEBOOK_APP_ID and FACEBOOK_APP_SECRET');
   if (c.AI_DRIVER === 'anthropic' && !c.ANTHROPIC_API_KEY) problems.push('AI_DRIVER=anthropic needs ANTHROPIC_API_KEY');
+  if (c.AI_DRIVER === 'openrouter' && !c.OPENROUTER_API_KEY) problems.push('AI_DRIVER=openrouter needs OPENROUTER_API_KEY');
+  if (c.AI_DRIVER === 'openai' && !c.OPENAI_API_KEY) problems.push('AI_DRIVER=openai needs OPENAI_API_KEY');
+  if (c.AI_IMAGE_DRIVER === 'openai' && !c.OPENAI_API_KEY) problems.push('AI_IMAGE_DRIVER=openai needs OPENAI_API_KEY');
+  const aiDriver = c.AI_DRIVER !== 'auto' ? c.AI_DRIVER : c.OPENROUTER_API_KEY ? 'openrouter' : c.OPENAI_API_KEY ? 'openai' : 'dev';
+  const aiImageDriver = c.AI_IMAGE_DRIVER !== 'auto' ? c.AI_IMAGE_DRIVER : c.OPENAI_API_KEY ? 'openai' : 'dev';
+  if (c.NODE_ENV === 'production' && c.AI_DRIVER === 'auto' && aiDriver === 'dev') problems.push('Jack\'s AI needs OPENROUTER_API_KEY or OPENAI_API_KEY in production');
+  if (c.NODE_ENV === 'production' && aiImageDriver === 'dev') problems.push('Jack\'s AI images need OPENAI_API_KEY in production (or AI_IMAGE_DRIVER=off)');
   if (c.GOOGLE_DRIVER === 'google' && !c.GOOGLE_CLIENT_IDS) problems.push('GOOGLE_DRIVER=google needs GOOGLE_CLIENT_IDS');
   if (problems.length) throw new Error(`Invalid configuration:\n  ${problems.join('\n  ')}`);
   return {
     ...c,
+    aiDriver: aiDriver as 'dev' | 'openrouter' | 'openai' | 'anthropic',
+    aiImageDriver: aiImageDriver as 'dev' | 'openai' | 'off',
     corsOrigins: c.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     googleClientIds: c.GOOGLE_CLIENT_IDS.split(',').map((s) => s.trim()).filter(Boolean),
     version: process.env.npm_package_version ?? '0.1.0',

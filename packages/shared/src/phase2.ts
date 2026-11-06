@@ -156,20 +156,42 @@ export const payPinSchema = z.object({ pin: z.string().regex(/^\d{6}$/, 'The PIN
 
 /* ------------------------------------------------------------------ Jack's AI */
 
-export type AiMode = 'chat' | 'search' | 'document';
+export type AiMode = 'chat' | 'search' | 'document' | 'image';
 export interface AiSource { n: number; title: string; url: string; domain: string; quote: string }
 export interface AiDocument { title: string; markdown: string; version: number }
-export interface AiMessage { id: string; role: 'user' | 'assistant'; text: string; at: string; mode: AiMode; sources?: AiSource[]; document?: AiDocument }
+/** A picture Jack made. `n` is its number in the reply (1, 2…), used for "edit number 1". */
+export interface AiImage { n: number; url: string; width: number; height: number }
+/** Work the light Jack's AI doesn't do here (browsing, files, video, code…): a link to the full Jack's AI. */
+export interface AiHandoff { url: string; label: string }
+export interface AiMessage {
+  id: string; role: 'user' | 'assistant'; text: string; at: string; mode: AiMode;
+  sources?: AiSource[]; document?: AiDocument; images?: AiImage[]; handoff?: AiHandoff;
+  /** On a request to change a picture: which one (message id and number). */
+  editOf?: { messageId: string; n: number };
+}
 export interface AiChatSummary { id: string; title: string; saved: boolean; mode: AiMode; updatedAt: string }
-export interface AiQuota { used: number; limit: number; resetsAt: string; extraCost: number; extraMessages: number }
+export interface AiQuota {
+  used: number; limit: number; resetsAt: string; extraCost: number; extraMessages: number;
+  /** Pictures today (separate from messages); same reset time. */
+  images: { used: number; limit: number; perRequest: number };
+}
 export interface AiChat { id: string; title: string; saved: boolean; mode: AiMode; messages: AiMessage[]; quota: AiQuota; document: AiDocument | null }
 export interface AiReply { chat: AiChatSummary; user: AiMessage; assistant: AiMessage; quota: AiQuota }
 export interface AiSummary { conversationId: string; text: string; count: number; at: string }
+/** What this server's Jack's AI can do right now. */
+export interface AiInfo { model: string; images: boolean; search: boolean; demo: boolean; fullJackUrl: string }
 
 export const AI_FREE_PER_DAY = 30;
 export const AI_EXTRA = { cost: 50, messages: 10 } as const;
 export const AI_MAX_INPUT = 4000;
-export const aiAskSchema = z.object({ text: z.string().trim().min(1, 'Type a question.').max(AI_MAX_INPUT, 'That message is too long.'), mode: z.enum(['chat', 'search', 'document']).default('chat') });
+export const aiAskSchema = z.object({
+  text: z.string().trim().min(1, 'Type a question.').max(AI_MAX_INPUT, 'That message is too long.'),
+  mode: z.enum(['chat', 'search', 'document', 'image']).default('chat'),
+  /** Change a picture from earlier in this conversation. */
+  editOf: z.object({ messageId: z.string().regex(/^[a-f0-9]{24}$/i), n: z.number().int().min(1).max(4) }).optional(),
+});
+/** Send something Jack made into a YaysApp chat: one picture (n), or the document. */
+export const aiShareSchema = z.object({ conversationId: z.string().min(1), n: z.number().int().min(1).max(4).optional(), caption: z.string().trim().max(1000).default('') });
 export const aiChatPatchSchema = z.object({ title: z.string().trim().min(1).max(80).optional(), saved: z.boolean().optional() });
 
 export const siteAskSchema = z.object({ messages: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().trim().min(1).max(1000) })).min(1).max(12) });

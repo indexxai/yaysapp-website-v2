@@ -14,7 +14,7 @@ let seq = 0;
 export async function startApp(overrides: Record<string, string> = {}, opts: { keepRedis?: boolean; keepDb?: boolean } = {}): Promise<TestApp> {
   const infra = JSON.parse(readFileSync(path.join(tmpdir(), 'yays-e2e-env.json'), 'utf8')) as { MONGO_URI: string; REDIS_URL: string };
   const env: Record<string, string> = {
-    NODE_ENV: 'test', LOG_LEVEL: 'silent', TEST_OUTBOX: '1',
+    NODE_ENV: 'test', LOG_LEVEL: 'silent', TEST_OUTBOX: '1', AI_DRIVER: 'dev', AI_IMAGE_DRIVER: 'dev',
     MONGO_URI: infra.MONGO_URI, MONGO_DB: `e2e_${process.pid}_${Date.now()}_${seq++}`, REDIS_URL: infra.REDIS_URL,
     JWT_SECRET: 'test-secret-that-is-long-enough-1234567890', PUBLIC_URL: 'http://127.0.0.1:0',
     LOCAL_STORAGE_DIR: mkdtempSync(path.join(tmpdir(), 'yays-store-')), OTP_RESEND_SECONDS: '0', CORS_ORIGINS: 'http://localhost:3000',

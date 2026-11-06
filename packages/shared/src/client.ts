@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, AppPreferences, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
-import type { AiChat, AiChatSummary, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PaymentView, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
+import type { AiChat, AiChatSummary, AiInfo, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PaymentView, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
 import type { CircleComment, CircleDiscover, CircleEvent, CircleFeed, CircleMemberRow, CirclePost, CirclePostInput, CircleReview, CircleView, CreateCircleInput, CreateEventInput, MyCircles, PostReportReason, RsvpStatus, UpdateCircleInput, UpdateEventInput } from './circles';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
@@ -350,7 +350,9 @@ export class YaysClient {
   // ---- Jack's AI ----
   aiChats() { return this.request<AiChatSummary[]>('GET', '/v1/ai/chats'); }
   aiChat(id: string) { return this.request<AiChat>('GET', `/v1/ai/chats/${encodeURIComponent(id)}`); }
-  aiAsk(chatId: string | null, text: string, mode: AiMode = 'chat') { return this.request<AiReply>('POST', chatId ? `/v1/ai/chats/${encodeURIComponent(chatId)}/messages` : '/v1/ai/chats', { text, mode }); }
+  aiAsk(chatId: string | null, text: string, mode: AiMode = 'chat', editOf?: { messageId: string; n: number }) { return this.request<AiReply>('POST', chatId ? `/v1/ai/chats/${encodeURIComponent(chatId)}/messages` : '/v1/ai/chats', { text, mode, ...(editOf ? { editOf } : {}) }); }
+  aiInfo() { return this.request<AiInfo>('GET', '/v1/ai/info'); }
+  aiShare(messageId: string, conversationId: string, opts: { n?: number; caption?: string } = {}) { return this.request<{ messageId: string; conversationId: string }>('POST', `/v1/ai/messages/${encodeURIComponent(messageId)}/share`, { conversationId, ...opts }); }
   aiUpdateChat(id: string, v: { title?: string; saved?: boolean }) { return this.request<AiChatSummary>('PATCH', `/v1/ai/chats/${encodeURIComponent(id)}`, v); }
   aiDeleteChat(id: string) { return this.request<void>('DELETE', `/v1/ai/chats/${encodeURIComponent(id)}`); }
   aiQuota() { return this.request<AiQuota>('GET', '/v1/ai/quota'); }

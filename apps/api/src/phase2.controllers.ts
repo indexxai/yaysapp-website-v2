@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Ip, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ObjectId, type Collection } from 'mongodb';
 import {
-  aiAskSchema, aiChatPatchSchema, convertSchema, dismissPopupSchema, leadSchema, linkIndexxSchema, payPinSchema, payRequestSchema, paySendSchema, referralCodeSchema,
+  aiAskSchema, aiShareSchema, aiChatPatchSchema, convertSchema, dismissPopupSchema, leadSchema, linkIndexxSchema, payPinSchema, payRequestSchema, paySendSchema, referralCodeSchema,
   siteAskSchema, socialSchema, socialUrl, socialVisibilitySchema, supportAskSchema, supportTicketSchema, SOCIAL_NETWORKS,
   type SocialNetwork, type SocialsView,
 } from '@yays/shared';
@@ -83,9 +83,12 @@ export class AiController {
   constructor(@Inject(AI) private ai: AiService, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
   private async slow(a: AuthCtx) { await this.limiter.hit(`ai:${a.userId}`, 12, 60, 'Slow down a little. Try again in a minute.'); }
   @Get('chats') list(@Auth() a: AuthCtx) { return this.ai.list(a.userId); }
-  @Post('chats') @HttpCode(200) async start(@Auth() a: AuthCtx, @Body() b: unknown) { await this.slow(a); const v = parse(aiAskSchema, b); return this.ai.ask(a.userId, null, v.text, v.mode); }
+  @Get('info') info() { return this.ai.info(); }
+  @Post('chats') @HttpCode(200) async start(@Auth() a: AuthCtx, @Body() b: unknown) { await this.slow(a); const v = parse(aiAskSchema, b); if (v.editOf) throw AppError.validation('Change a picture inside its own conversation.'); return this.ai.ask(a.userId, null, v.text, v.mode); }
   @Get('chats/:id') get(@Auth() a: AuthCtx, @Param('id') id: string) { return this.ai.get(a.userId, id); }
-  @Post('chats/:id/messages') @HttpCode(200) async ask(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) { await this.slow(a); const v = parse(aiAskSchema, b); return this.ai.ask(a.userId, id, v.text, v.mode); }
+  @Post('chats/:id/messages') @HttpCode(200) async ask(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) { await this.slow(a); const v = parse(aiAskSchema, b); return this.ai.ask(a.userId, id, v.text, v.mode, v.editOf); }
+  @Post('messages/:id/share') @HttpCode(200)
+  async share(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) { await this.limiter.hit(`aishare:${a.userId}`, 30, 60); return this.ai.share(a.userId, id, parse(aiShareSchema, b)); }
   @Patch('chats/:id') patch(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) { return this.ai.patch(a.userId, id, parse(aiChatPatchSchema, b)); }
   @Delete('chats/:id') @HttpCode(204) async remove(@Auth() a: AuthCtx, @Param('id') id: string) { await this.ai.remove(a.userId, id); }
   @Get('quota') quota(@Auth() a: AuthCtx) { return this.ai.quota(a.userId); }

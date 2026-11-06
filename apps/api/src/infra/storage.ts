@@ -18,6 +18,10 @@ export interface Storage {
   downloadUrl(key: string, opts?: DownloadOpts): Promise<string>;
   /** Removes a stored file; quietly does nothing if it isn't there. */
   remove(key: string): Promise<void>;
+  /** Stores a file the server made itself (for example a picture from Jack's AI). */
+  put(key: string, data: Buffer, contentType: string): Promise<void>;
+  /** Reads a stored file, or null if it isn't there. */
+  get(key: string): Promise<{ data: Buffer; contentType: string } | null>;
 }
 export interface DownloadOpts { /** Save with this file name instead of showing inline. */ filename?: string }
 
@@ -54,6 +58,13 @@ export class S3Storage implements Storage {
     return getSignedUrl(this.s3, cmd, { expiresIn: 7200, signingDate: new Date(hourStart()) });
   }
   async remove(key: string) { await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })); }
+  async put(key: string, data: Buffer, contentType: string) { await this.s3.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: data, ContentType: contentType })); }
+  async get(key: string) {
+    try {
+      const r = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+      return { data: Buffer.from(await r.Body!.transformToByteArray()), contentType: r.ContentType ?? 'application/octet-stream' };
+    } catch (e) { if ((e as { name?: string }).name === 'NoSuchKey') return null; throw e; }
+  }
 }
 
 /**
@@ -107,10 +118,13 @@ export class LocalStorage implements Storage {
   }
   async downloadUrl(key: string, opts: DownloadOpts = {}) {
     return `${this.publicUrl}/v1/media/local/${this.sign({ op: 'get', key, exp: hourStart() + 2 * HOUR, ...(opts.filename ? { fn: opts.filename } : {}) })}`;
-  }  async remove(key: string) {
+  }
+  async remove(key: string) {
     const f = this.file(key);
     await Promise.all([fs.rm(f, { force: true }), fs.rm(f + '.meta', { force: true })]);
   }
+  put(key: string, data: Buffer, contentType: string) { return this.write(key, data, contentType); }
+  async get(key: string) { try { return await this.read(key); } catch { return null; } }
 
 }
 
