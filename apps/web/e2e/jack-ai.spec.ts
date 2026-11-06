@@ -63,6 +63,11 @@ test.describe('Jack’s AI: pictures, documents, the full Jack’s AI', () => {
     await s.page.getByRole('button', { name: 'Send', exact: true }).click();
     const panel = s.page.getByRole('complementary', { name: 'Document preview' });
     await expect(panel.getByRole('heading', { name: 'Menu for Sunday lunch' }).first()).toBeVisible();
+    // The panel closes, and the document chip in the reply opens it again.
+    await panel.getByRole('button', { name: 'Close document' }).click();
+    await expect(panel).toBeHidden();
+    await s.page.getByRole('button', { name: /Menu for Sunday lunch/ }).click();
+    await expect(panel).toBeVisible();
     await panel.getByRole('button', { name: 'Send to chat' }).click();
     await s.page.getByRole('radio', { name: 'Ali' }).check({ force: true });
     await s.page.getByRole('dialog').getByRole('button', { name: 'Send', exact: true }).click();

@@ -40,6 +40,7 @@ function Ai() {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [buying, setBuying] = useState(false);
+  const [closedPanel, setClosedPanel] = useState<string | null>(null);
   /** "Change this picture": the next message edits it. */
   const [editing, setEditing] = useState<{ messageId: string; n: number; url: string } | null>(null);
   /** What "Send to chat" is sending: a picture (n) or the document of a reply. */
@@ -103,7 +104,11 @@ function Ai() {
   const lastSources = [...(chat?.messages ?? [])].reverse().find((m) => m.role === 'assistant')?.sources;
   const doc = chat?.document ?? null;
   const docMessage = [...(chat?.messages ?? [])].reverse().find((m) => m.role === 'assistant' && m.document);
-  const side = doc ? 'doc' : lastSources?.length ? 'sources' : null;
+  // The side panel can be closed; a new document version (or new sources) opens it again, and so do the chips in the replies.
+  const panelKey = !chat ? null : doc ? `doc:${chat.id}:${doc.version}` : lastSources?.length ? `src:${chat.id}:${chat.messages.length}` : null;
+  const side = panelKey && closedPanel !== panelKey ? (doc ? 'doc' : 'sources') : null;
+  const closePanel = () => setClosedPanel(panelKey);
+  const openPanel = () => setClosedPanel(null);
 
   return (
     <AppShell me={me} bare>
@@ -144,7 +149,7 @@ function Ai() {
                 <div className="chips">{SUGGEST.map((s) => <button key={s} type="button" className="chip p2-chip" onClick={() => { if (/proposal/i.test(s)) setMode('document'); void send(s); }}>{s}</button>)}</div>
               </div>
             )}
-            {chat?.messages.map((m) => <Bubble key={m.id} m={m} onEdit={(img) => { setEditing({ messageId: m.id, n: img.n, url: img.url }); input.current?.focus(); }} onShare={(n) => setSharing(n === undefined ? { messageId: m.id, label: m.document?.title ?? 'Document' } : { messageId: m.id, n, label: `Picture ${n}` })} />)}
+            {chat?.messages.map((m) => <Bubble key={m.id} m={m} onOpenPanel={openPanel} onEdit={(img) => { setEditing({ messageId: m.id, n: img.n, url: img.url }); input.current?.focus(); }} onShare={(n) => setSharing(n === undefined ? { messageId: m.id, label: m.document?.title ?? 'Document' } : { messageId: m.id, n, label: `Picture ${n}` })} />)}
             {pending && (<><div className="ys-bubble ys-bubble--me p2-ai__me">{pending}</div><div className="p2-ai__bot"><img src="/brand/jack.png" alt="" /><div className="p2-ai__working"><span className="ys-spin" aria-hidden />{editing ? 'Changing the picture… about 15 seconds' : mode === 'image' ? 'Making the picture… about 15 seconds' : mode === 'document' ? (doc ? 'Updating the document…' : 'Writing the document…') : mode === 'search' ? 'Searching the web…' : 'Thinking…'}</div></div></>)}
           </div>
           <div className="p2-ai__foot">
@@ -180,11 +185,11 @@ function Ai() {
           </div>
         </main>
 
-        {side === 'doc' && doc && <DocPanel doc={doc} onShare={docMessage ? () => setSharing({ messageId: docMessage.id, label: doc.title }) : undefined} />}
+        {side === 'doc' && doc && <DocPanel doc={doc} onClose={closePanel} onShare={docMessage ? () => setSharing({ messageId: docMessage.id, label: doc.title }) : undefined} />}
         {sharing && <ShareDialog what={sharing} onClose={() => setSharing(null)} onSent={(c) => { setSharing(null); router.push(`/chats?c=${c}`); }} />}
         {side === 'sources' && lastSources && (
           <aside className="p2-ai__side" aria-label="Sources">
-            <h2>Sources</h2>
+            <div className="p2-ai__sidehead"><h2>Sources</h2><button type="button" className="p2-ai__close" aria-label="Close sources" title="Close" onClick={closePanel}><Icon name="close" size={18} /></button></div>
             {lastSources.map((s) => (
               <a key={s.n} href={s.url} target="_blank" rel="noopener noreferrer" className="p2-source">
                 <span className="p2-source__top"><b>{s.n}</b><span>{s.domain}</span><Icon name="external" size={14} /></span>
@@ -199,7 +204,7 @@ function Ai() {
   );
 }
 
-function Bubble({ m, onEdit, onShare }: { m: AiMessage; onEdit: (img: AiImage) => void; onShare: (n?: number) => void }) {
+function Bubble({ m, onEdit, onShare, onOpenPanel }: { m: AiMessage; onEdit: (img: AiImage) => void; onShare: (n?: number) => void; onOpenPanel: () => void }) {
   const [copied, setCopied] = useState(false);
   if (m.role === 'user') return <div className="ys-bubble ys-bubble--me p2-ai__me">{m.editOf && <span className="p2-ai__edittag"><Icon name="edit" size={12} /> Change to picture {m.editOf.n}</span>}{m.text}</div>;
   const copy = async () => { try { await navigator.clipboard.writeText(m.document ? m.document.markdown : m.text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ } };
@@ -207,7 +212,7 @@ function Bubble({ m, onEdit, onShare }: { m: AiMessage; onEdit: (img: AiImage) =
     <div className="p2-ai__bot">
       <img src="/brand/jack.png" alt="Jack’s AI" />
       <div className="p2-ai__answer">
-        {m.mode === 'search' && m.sources?.length ? <span className="p2-ai__searched"><Icon name="globe" size={14} />Searched the web · used {m.sources.length} source{m.sources.length === 1 ? '' : 's'}</span> : null}
+        {m.mode === 'search' && m.sources?.length ? <button type="button" className="p2-ai__searched" title="Show the sources" onClick={onOpenPanel}><Icon name="globe" size={14} />Searched the web · used {m.sources.length} source{m.sources.length === 1 ? '' : 's'}</button> : null}
         <div className="p2-md" dangerouslySetInnerHTML={{ __html: mdToHtml(m.text, m.sources) }} />
         {m.images?.length ? (
           <div className="p2-ai__pics" data-count={m.images.length}>
@@ -231,7 +236,7 @@ function Bubble({ m, onEdit, onShare }: { m: AiMessage; onEdit: (img: AiImage) =
             <Icon name="external" size={18} />
           </a>
         )}
-        {m.document && <div className="p2-ai__docchip"><span className="p2-ai__doctype">DOC</span><span className="p2-col"><strong>{m.document.title}</strong><span className="muted p2-xs">Version {m.document.version}</span></span></div>}
+        {m.document && <button type="button" className="p2-ai__docchip" title="Open the document" onClick={onOpenPanel}><span className="p2-ai__doctype">DOC</span><span className="p2-col"><strong>{m.document.title}</strong><span className="muted p2-xs">Version {m.document.version}</span></span></button>}
         {m.mode === 'search' && <span className="p2-ai__note"><Icon name="info" size={14} />Answers about current events can change. Check the sources.</span>}
         <div className="p2-ai__tools"><button type="button" aria-label={copied ? 'Copied' : 'Copy'} title={copied ? 'Copied' : 'Copy'} onClick={() => void copy()}><Icon name={copied ? 'check' : 'copy'} size={16} /></button></div>
       </div>
@@ -290,13 +295,14 @@ function ShareDialog({ what, onClose, onSent }: { what: { messageId: string; n?:
   );
 }
 
-function DocPanel({ doc, onShare }: { doc: AiDocument; onShare?: () => void }) {
+function DocPanel({ doc, onShare, onClose }: { doc: AiDocument; onShare?: () => void; onClose: () => void }) {
   const [blocked, setBlocked] = useState(false);
   return (
     <aside className="p2-ai__side p2-ai__side--doc" aria-label="Document preview">
       <div className="p2-ai__dochead">
         <span className="p2-ai__doctype">DOC</span>
         <span className="p2-col" style={{ flex: 1, minWidth: 0 }}><strong>{doc.title}</strong><span className="muted p2-xs">Version {doc.version}</span></span>
+        <button type="button" className="p2-ai__close" aria-label="Close document" title="Close" onClick={onClose}><Icon name="close" size={18} /></button>
       </div>
       <div className="row" style={{ gap: 18, padding: '0 18px 12px' }}>
         <OvalButton icon="download" label="Word" size="sm" variant="soft" onClick={() => downloadWord(doc.title, doc.markdown)} />

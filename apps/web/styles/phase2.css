@@ -401,3 +401,14 @@ a.p2-product:hover { transform: translateY(-2px); }
 .p2-ai__editing button { appearance: none; border: 0; background: none; padding: 6px; display: flex; color: var(--ink-soft); cursor: pointer; border-radius: 50%; }
 .p2-ai__editing button:hover { background: var(--surface); }
 .p2-ai__edittag { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; opacity: .85; margin-bottom: 2px; }
+
+/* Closing the document or sources panel; the chips in the replies open it again. */
+.p2-ai__sidehead { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 14px 0 20px; }
+.p2-ai__sidehead h2 { margin: 0; font: 800 18px var(--font-display); }
+.p2-ai__close { appearance: none; border: 0; background: var(--surface); color: var(--ink-soft); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; flex: none; }
+.p2-ai__close:hover { background: var(--ember-wash); color: var(--ember-ink); }
+.p2-ai__close:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+button.p2-ai__docchip { appearance: none; border: 0; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.p2-ai__docchip:hover { box-shadow: inset 0 0 0 1.5px var(--ember); }
+button.p2-ai__searched { appearance: none; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; cursor: pointer; align-self: flex-start; }
+button.p2-ai__searched:hover { color: var(--ember-ink); text-decoration: underline; }
