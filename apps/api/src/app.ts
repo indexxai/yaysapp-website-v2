@@ -19,7 +19,7 @@ import { CHAT, type ChatService } from './chat/chat.service';
 import { RateLimiter } from './infra/rate-limit';
 import { C } from './infra/mongo';
 import { Realtime } from './realtime/realtime';
-import { PUSH, type PushService } from './push/push.service';
+import { PUSH, PushService } from './push/push.service';
 import { CALLS, type CallsService } from './calls/calls.service';
 
 export async function createApp(env: Record<string, string | undefined> = process.env) {
@@ -32,7 +32,7 @@ export async function createApp(env: Record<string, string | undefined> = proces
   const redis = connectRedis(config.REDIS_URL);
   const storage = createStorage(config);
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule.register({ config, log, mongo, db, redis, storage }), { logger: config.LOG_LEVEL === 'silent' ? false : ['error', 'warn'], bodyParser: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule.register({ config, log, mongo, db, redis, storage, ...(config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY ? {} : { vapidDev: await PushService.devKeys(redis) }) }), { logger: config.LOG_LEVEL === 'silent' ? false : ['error', 'warn'], bodyParser: false });
   app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));

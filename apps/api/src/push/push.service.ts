@@ -76,15 +76,30 @@ export class PushService {
   private readonly users: Collection<UserDoc>;
   private readonly sender: Sender;
   readonly publicKey: string;
+  /** webpush: the server delivers notifications itself; dev: it only records them, so an open tab shows its own. */
+  readonly delivery: 'webpush' | 'dev';
 
-  constructor(db: Db, private readonly redis: Redis, c: Config, private readonly log: Logger) {
+  constructor(db: Db, private readonly redis: Redis, c: Config, private readonly log: Logger, keys?: { publicKey: string; privateKey: string }) {
     this.subs = db.collection(C.pushSubs);
     this.prefs = db.collection(C.chatPrefs);
     this.users = db.collection(C.users);
     let pub = c.VAPID_PUBLIC_KEY, priv = c.VAPID_PRIVATE_KEY;
-    if (!pub || !priv) { const k = webpush.generateVAPIDKeys(); pub = k.publicKey; priv = k.privateKey; } // dev only (config refuses this in production)
+    if (!pub || !priv) { const k = keys ?? webpush.generateVAPIDKeys(); pub = k.publicKey; priv = k.privateKey; } // dev only (config refuses this in production)
     this.publicKey = pub;
+    this.delivery = c.PUSH_DRIVER;
     this.sender = c.PUSH_DRIVER === 'webpush' ? new WebPushSender({ publicKey: pub, privateKey: priv, subject: c.VAPID_SUBJECT, ...(c.PUSH_INSECURE_TLS ? { agent: new https.Agent({ rejectUnauthorized: false }) } : {}) }) : new DevSender(redis);
+  }
+
+  /**
+   * Development without VAPID keys in .env: one pair kept in Redis, so browsers that subscribed keep working
+   * after the API restarts (a new pair each start would break their subscriptions).
+   */
+  static async devKeys(redis: Redis) {
+    const saved = await redis.get('push:vapid:dev');
+    if (saved) { try { return JSON.parse(saved) as { publicKey: string; privateKey: string }; } catch { /* make a new pair */ } }
+    const k = webpush.generateVAPIDKeys();
+    await redis.set('push:vapid:dev', JSON.stringify(k));
+    return k;
   }
 
   async subscribe(userId: ObjectId, sid: string, s: { endpoint: string; keys: { p256dh: string; auth: string } }, userAgent?: string) {

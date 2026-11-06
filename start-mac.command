@@ -44,6 +44,15 @@ pnpm install
 pnpm --filter @yays/tokens build
 pnpm --filter @yays/shared build
 
+# ---- browser notifications (made once) ----
+# Real Web Push with this Mac's own keys, so notifications arrive even with every YaysApp tab closed.
+if ! grep -q '^VAPID_PUBLIC_KEY=.' apps/api/.env; then
+  step "Turning on browser notifications"
+  keys=$(cd apps/api && node -e "const k=require('web-push').generateVAPIDKeys();process.stdout.write(k.publicKey+' '+k.privateKey)")
+  sed -i '' -e '/^#* *VAPID_PUBLIC_KEY=/d' -e '/^#* *VAPID_PRIVATE_KEY=/d' -e 's/^PUSH_DRIVER=dev$/PUSH_DRIVER=webpush/' apps/api/.env
+  printf "VAPID_PUBLIC_KEY=%s\nVAPID_PRIVATE_KEY=%s\n" "${keys%% *}" "${keys#* }" >> apps/api/.env
+fi
+
 # ---- start ----
 step "Starting MongoDB and Redis"
 pnpm infra:up

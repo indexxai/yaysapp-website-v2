@@ -13,7 +13,7 @@ export class PushController {
   constructor(@Inject(PUSH) private push: PushService, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
 
   /** The public key browsers need to subscribe. */
-  @Get('config') config() { return { vapidPublicKey: this.push.publicKey }; }
+  @Get('config') config() { return { vapidPublicKey: this.push.publicKey, delivery: this.push.delivery }; }
 
   @Post('subscriptions') @HttpCode(204) @UseGuards(AuthGuard)
   async subscribe(@Auth() a: AuthCtx, @Body() b: unknown, @Req() r: Request) {

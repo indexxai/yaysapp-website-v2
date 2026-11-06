@@ -30,7 +30,14 @@ describe('Notifications', () => {
   afterAll(async () => { await t.close(); });
 
   it('gives browsers the public key and checks subscriptions', async () => {
-    expect((await t.http.get('/v1/push/config').expect(200)).body.vapidPublicKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
+    const cfg = (await t.http.get('/v1/push/config').expect(200)).body;
+    expect(cfg.vapidPublicKey).toMatch(/^[A-Za-z0-9_-]{80,}$/);
+    expect(cfg.delivery).toBe('dev');
+    // Without keys in .env, one development key pair is kept, so browsers that subscribed keep working after the API restarts.
+    const { PushService } = await import('../src/push/push.service');
+    await t.redis.del('push:vapid:dev');
+    const first = await PushService.devKeys(t.redis);
+    expect(await PushService.devKeys(t.redis)).toEqual(first);
     for (const bad of [{}, { endpoint: 'not a url', keys: fakeSub('x').keys }, { endpoint: 'http://evil.example/x', keys: fakeSub('x').keys }, { endpoint: 'https://push.example/1', keys: { p256dh: 'x', auth: 'y' } }]) {
       expect((await t.http.post('/v1/push/subscriptions').set(ali.auth).send(bad)).status).toBe(400);
     }

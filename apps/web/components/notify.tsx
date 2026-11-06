@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { messagePreview, systemText, type ChatMessage, type ConversationSummary } from '@yays/shared';
 import { Icon } from '@/lib/icons';
 import { useChatState, useEngine } from '@/lib/chat';
-import { bannerDismissed, dismissBanner, enablePush, pushState, refreshPush, type PushState } from '@/lib/push';
+import { bannerDismissed, dismissBanner, enablePush, notifyFromTab, pushState, refreshPush, serverDelivers, type PushState } from '@/lib/push';
 import { Avatar, OvalButton } from './ui';
 
 /** "Turn on notifications" under the chat list header, until turned on or dismissed. */
@@ -63,7 +63,15 @@ export function Attention() {
       body: c.kind === 'group' && m.type !== 'system' ? `${sender.split(' ')[0]}: ${preview}` : preview, photo: c.group?.photoUrl ?? c.peer?.photoUrl ?? null,
     };
     setToasts((x) => [...x.filter((y) => y.conversationId !== c.id), t].slice(-3));
-    if (getPrefs().sound && document.visibilityState === 'visible') chime();
+    // Looking elsewhere (another tab or another window): a browser notification too. When the tab is hidden the
+    // server sends one itself if it can; otherwise (local development, or a visible tab behind another window) this tab does.
+    const hidden = document.visibilityState !== 'visible';
+    const away = hidden || !document.hasFocus();
+    void (async () => {
+      const shown = away && pushState() === 'on' && (!hidden || !(await serverDelivers())) ? await notifyFromTab({ conversationId: c.id, title: t.title, body: t.body }) : false;
+      // The sound: always while I'm here; while away only if no browser notification (it has its own sound).
+      if (getPrefs().sound && !(away && (shown || (hidden && pushState() === 'on')))) chime();
+    })();
     setTimeout(() => setToasts((x) => x.filter((y) => y.id !== t.id)), 5000);
   }), [engine]);
   // "(3) YaysApp": chats with something unread.

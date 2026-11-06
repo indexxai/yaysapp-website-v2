@@ -14,7 +14,82 @@ async function allowAndFakeSubscription(ctx: BrowserContext, endpoint: string) {
   }, endpoint);
 }
 
+/** Counts chimes (each one opens a short audio context) and browser notifications the tab shows itself. */
+async function watchSoundAndNotifications(ctx: BrowserContext) {
+  await ctx.addInitScript(() => {
+    const w = window as unknown as { __chimes: number; __shown: Array<[string, string, string]>; AudioContext: typeof AudioContext };
+    w.__chimes = 0; w.__shown = [];
+    const Real = w.AudioContext;
+    w.AudioContext = class extends Real { constructor(o?: AudioContextOptions) { super(o); w.__chimes++; } } as typeof AudioContext;
+    ServiceWorkerRegistration.prototype.showNotification = async function (title: string, o?: NotificationOptions) { w.__shown.push([title, o?.body ?? '', o?.tag ?? '']); };
+  });
+}
+/** Pretends the tab went to the background (or the window lost focus to another app). */
+const away = (p: Page, how: 'hidden' | 'unfocused') => p.evaluate((h) => {
+  if (h === 'hidden') { Object.defineProperty(document, 'visibilityState', { get: () => 'hidden', configurable: true }); Object.defineProperty(document, 'hidden', { get: () => true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); }
+  document.hasFocus = () => false;
+}, how);
+const chimes = (p: Page) => p.evaluate(() => (window as unknown as { __chimes: number }).__chimes);
+const shownByTab = (p: Page) => p.evaluate(() => (window as unknown as { __shown: Array<[string, string, string]> }).__shown);
+
 test.describe('Notifications on the web', () => {
+  test('sound: a soft chime for a new message while the app is open; none once Sound is off', async ({ browser }) => {
+    const ali = await apiUser('Ali'), sara = await apiUser('Sara'), omar = await apiUser('Omar');
+    const withOmar = await apiCall('/v1/conversations/direct', { userId: omar.id }, ali.tokens.accessToken);
+    await say(omar, withOmar.id, 'hi');
+    const withSara = await apiCall('/v1/conversations/direct', { userId: ali.id }, sara.tokens.accessToken);
+    const a = await pageAs(browser, ali);
+    await watchSoundAndNotifications(a.ctx);
+    await a.page.goto(`/chats?c=${withOmar.id}`);
+    await expect(a.page.locator('.conn-notice')).toHaveCount(0);
+    await expect(a.page.locator('.msg--them')).toHaveCount(1);
+    await say(sara, withSara.id, 'Ping one');
+    await expect(a.page.getByTestId('toast')).toContainText('Ping one');
+    await expect.poll(() => chimes(a.page)).toBe(1);
+    expect(await shownByTab(a.page)).toEqual([]); // looking at the app: no browser notification
+    // Sound off in Settings → Notifications.
+    await a.page.goto('/settings/notifications');
+    await a.page.getByRole('switch', { name: 'Sound' }).click();
+    await expect(a.page.getByRole('switch', { name: 'Sound' })).toHaveAttribute('aria-checked', 'false');
+    await a.page.goto(`/chats?c=${withOmar.id}`);
+    await expect(a.page.locator('.msg--them')).toHaveCount(1);
+    await expect(a.page.locator('.conn-notice')).toHaveCount(0);
+    // The live connection is up once a message sent now shows in the open chat.
+    await say(omar, withOmar.id, 'still there?');
+    await expect(a.page.locator('.msg--them')).toHaveCount(2);
+    const before = await chimes(a.page);
+    await say(sara, withSara.id, 'Ping two');
+    await expect(a.page.getByTestId('toast')).toContainText('Ping two');
+    await a.page.waitForTimeout(400);
+    expect(await chimes(a.page)).toBe(before);
+    await a.ctx.close();
+  });
+
+  test('tab in the background, or the window behind another one: a browser notification (the tab shows it when the server can’t)', async ({ browser }) => {
+    const ali = await apiUser('Ali'), sara = await apiUser('Sara'), omar = await apiUser('Omar');
+    const withSara = await apiCall('/v1/conversations/direct', { userId: ali.id }, sara.tokens.accessToken);
+    const withOmar = await apiCall('/v1/conversations/direct', { userId: ali.id }, omar.tokens.accessToken);
+    const a = await pageAs(browser, ali);
+    await allowAndFakeSubscription(a.ctx, `https://push.example/bg-${ali.id}`);
+    await watchSoundAndNotifications(a.ctx);
+    await a.page.goto('/chats');
+    await expect(a.page.locator('.conn-notice')).toHaveCount(0);
+    // This test server only records pushes (like local development), so the tab shows the notification itself.
+    expect((await (await fetch(`${API}/v1/push/config`)).json()).delivery).toBe('dev');
+    await away(a.page, 'hidden');
+    await say(sara, withSara.id, 'Dinner at 8?');
+    await expect(a.page.getByTestId('toast')).toContainText('Dinner at 8?');
+    await expect.poll(() => shownByTab(a.page)).toEqual([['Sara', 'Dinner at 8?', `c:${withSara.id}`]]);
+    expect(await chimes(a.page)).toBe(0); // the notification has its own sound
+    // A visible window behind another app: the server thinks you're looking, so the tab notifies.
+    await a.page.reload();
+    await expect(a.page.locator('.conn-notice')).toHaveCount(0);
+    await away(a.page, 'unfocused');
+    await say(omar, withOmar.id, 'Call me');
+    await expect.poll(() => shownByTab(a.page)).toEqual([['Omar', 'Call me', `c:${withOmar.id}`]]);
+    await a.ctx.close();
+  });
+
   test('the "Turn on notifications" banner: not now, and blocked', async ({ browser }) => {
     const ali = await apiUser('Ali');
     const a = await pageAs(browser, ali, undefined, { askForPermissions: true });

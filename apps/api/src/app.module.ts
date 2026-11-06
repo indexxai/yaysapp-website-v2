@@ -54,7 +54,7 @@ import { FacebookController } from './auth/facebook.controller';
 import { createFacebook, FACEBOOK, FacebookService } from './auth/facebook';
 import { AiController, IndexxController, SOCIALS_VIEW, mySocials, RewardsController, SiteController, SocialsController, SupportDeskController } from './phase2.controllers';
 
-export interface Infra { config: Config; log: Logger; mongo: MongoClient; db: Db; redis: Redis; storage: Storage }
+export interface Infra { config: Config; log: Logger; mongo: MongoClient; db: Db; redis: Redis; storage: Storage; vapidDev?: { publicKey: string; privateKey: string } }
 
 @Module({})
 export class AppModule {
@@ -71,7 +71,7 @@ export class AppModule {
     const chat = new ChatService(i.mongo, db, storage);
     const groups = new GroupsService(chat, db);
     const messages = new MessagesService(chat);
-    const push = new PushService(db, redis, c, log);
+    const push = new PushService(db, redis, c, log, i.vapidDev);
     const search = new SearchService(chat);
     const chatPrefs = new ChatPrefsService(chat);
     const safety = new SafetyService(chat);

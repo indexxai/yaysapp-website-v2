@@ -26,12 +26,21 @@ async function registration() {
   return navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(() => navigator.serviceWorker.ready);
 }
 
+let config: Promise<{ vapidPublicKey: string; delivery?: 'webpush' | 'dev' }> | null = null;
+const pushConfig = () => (config ??= api().request<{ vapidPublicKey: string; delivery?: 'webpush' | 'dev' }>('GET', '/v1/push/config', undefined, { auth: false }).catch((e) => { config = null; throw e; }));
+/** Whether the server sends notifications itself, even with every tab closed (false in local development). */
+export async function serverDelivers() { try { return (await pushConfig()).delivery !== 'dev'; } catch { return false; } }
+
+const sameKey = (a: ArrayBuffer | null | undefined, b: Uint8Array) => !!a && a.byteLength === b.length && new Uint8Array(a).every((x, i) => x === b[i]);
+
 /** Subscribes this browser and tells the server. Safe to call on every visit (the server keeps one per browser). */
 async function subscribe() {
   const reg = await registration();
-  const { vapidPublicKey } = await api().request<{ vapidPublicKey: string }>('GET', '/v1/push/config', undefined, { auth: false });
+  const key = b64ToBytes((await pushConfig()).vapidPublicKey);
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(vapidPublicKey) });
+  // Made with an older server key (for example before the keys were set): replace it, or it never receives anything.
+  if (sub && !sameKey(sub.options.applicationServerKey, key)) { await sub.unsubscribe().catch(() => undefined); sub = null; }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
   const j = sub.toJSON() as { endpoint: string; keys: { p256dh: string; auth: string } };
   await api().request('POST', '/v1/push/subscriptions', { endpoint: j.endpoint, keys: j.keys });
 }
@@ -49,6 +58,20 @@ export async function enablePush(): Promise<PushState> {
 /** Keeps the subscription fresh when permission was already given (the browser can rotate it). */
 export async function refreshPush() {
   if (pushState() === 'on') await subscribe().catch(() => undefined);
+}
+
+/**
+ * A notification from the open tab itself, for a new message while you're looking elsewhere. Used when the server
+ * can't send one (local development) or would not (the tab is showing but another window is in front).
+ * Same tag as the server's, so one chat never shows twice.
+ */
+export async function notifyFromTab(n: { conversationId: string; title: string; body: string }) {
+  if (pushState() !== 'on') return false;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration() ?? await registration();
+    await reg.showNotification(n.title, { body: n.body, tag: `c:${n.conversationId}`, renotify: true, icon: '/icon.png', badge: '/icon.png', data: { url: `/chats?c=${n.conversationId}`, conversationId: n.conversationId } } as NotificationOptions);
+    return true;
+  } catch { return false; }
 }
 
 /** On sign-out: this browser stops getting this account's notifications. */
