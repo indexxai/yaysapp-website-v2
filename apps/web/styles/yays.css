@@ -15,6 +15,8 @@ body { background: var(--ground); color: var(--ink); font-family: var(--font-bod
 
 /* The brand oval: one ellipse, tilted -38.3deg, scaled, never stretched. */
 .ys-oval { position: relative; isolation: isolate; display: inline-grid; place-items: center; flex: none; aspect-ratio: var(--oval-aspect); color: var(--ys-oval-ink, var(--on-ember)); }
+/* A logo in an oval sits inside it with some breathing room, whatever its own size (other rules can still size it). */
+:where(.ys-oval) > img { width: 62%; height: 62%; object-fit: contain; }
 .ys-oval::before { content: ''; position: absolute; inset: 0; z-index: -1; background: var(--ys-oval-fill, var(--ember));
   -webkit-mask: var(--ys-oval-mask) center / 100% 100% no-repeat; mask: var(--ys-oval-mask) center / 100% 100% no-repeat; }
 .ys-oval > * { position: relative; z-index: 1; }
