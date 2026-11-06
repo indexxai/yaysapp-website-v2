@@ -67,7 +67,7 @@ const schema = z.object({
   AI_IMAGE_OPTIONS: z.coerce.number().int().min(1).max(4).default(2),
   AI_IMAGES_PER_DAY: z.coerce.number().int().min(0).max(200).default(10),
   /** Where "open the full Jack's AI" sends people for specialised work (browsing, files, video, code). */
-  JACK_AI_URL: z.string().url().default('https://jack.indexx.ai'),
+  JACK_AI_URL: z.string().url().default('https://jackai.si'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
   /** Indexx accounts (BTCY, Indexx Pay, EMMM). dev: a stand-in kept in this database. off: linking isn't offered. */
