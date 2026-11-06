@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, AppPreferences, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
-import type { AiChat, AiChatSummary, AiInfo, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PaymentView, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
+import type { AiChat, AiChatSummary, AiInfo, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
 import type { CircleComment, CircleDiscover, CircleEvent, CircleFeed, CircleMemberRow, CirclePost, CirclePostInput, CircleReview, CircleView, CreateCircleInput, CreateEventInput, MyCircles, PostReportReason, RsvpStatus, UpdateCircleInput, UpdateEventInput } from './circles';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
@@ -334,18 +334,12 @@ export class YaysClient {
   linkIndexx(email: string) { return this.request<IndexxLink>('POST', '/v1/indexx/link', { email }); }
   unlinkIndexx() { return this.request<IndexxLink>('DELETE', '/v1/indexx/link'); }
   wallet() { return this.request<WalletView>('GET', '/v1/wallet'); }
-  walletActivity(filter: 'all' | 'pay' | 'points' = 'all') { return this.request<WalletTx[]>('GET', `/v1/wallet/activity?filter=${filter}`); }
+  walletActivity() { return this.request<WalletTx[]>('GET', '/v1/wallet/activity'); }
   convertPoints(points: number) { return this.request<WalletView>('POST', '/v1/wallet/convert', { points }); }
   btcy() { return this.request<BtcyView>('GET', '/v1/btcy'); }
   keepMining() { return this.request<BtcyView>('POST', '/v1/btcy/mine', {}); }
   products() { return this.request<ProductsView>('GET', '/v1/products'); }
 
-  // ---- pay in chat ----
-  setPayPin(pin: string, currentPin?: string) { return this.request<{ hasPayPin: true }>('PUT', '/v1/pay/pin', { pin, ...(currentPin ? { currentPin } : {}) }); }
-  requestMoney(v: { conversationId: string; amountCents: number; note: string; clientId: string }) { return this.request<PaymentView>('POST', '/v1/pay/requests', v); }
-  sendMoney(v: { conversationId: string; amountCents: number; note: string; clientId: string; pin: string }) { return this.request<PaymentView>('POST', '/v1/pay/send', v); }
-  payRequest(id: string, pin: string) { return this.request<PaymentView>('POST', `/v1/pay/${encodeURIComponent(id)}/pay`, { pin }); }
-  declineRequest(id: string) { return this.request<PaymentView>('POST', `/v1/pay/${encodeURIComponent(id)}/decline`, {}); }
 
   // ---- Jack's AI ----
   aiChats() { return this.request<AiChatSummary[]>('GET', '/v1/ai/chats'); }

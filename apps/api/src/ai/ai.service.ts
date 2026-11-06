@@ -45,7 +45,6 @@ const SUPPORT = `You are YaysApp Support's first answer. Answer the person's pro
 - INEX for activity stops at 200 a day. Referral INEX stays pending until the friend verifies their phone number and sends a first message.
 - One tick: sent; two ticks: delivered; orange ticks: read. Notifications: Settings › Notifications and the browser's own site settings.
 - Two-step PIN forgotten: choose Forgot PIN on the PIN screen; a code goes to the other address.
-- Payments use USDXX in a linked Indexx account; payments can't be cancelled once sent.
 If you can't solve it, say a person from the team can look at it.`;
 
 /** Jack's AI: private conversations, documents, web answers, chat summaries, and the first answer at Support. */
@@ -268,7 +267,7 @@ export class AiService {
   async summarize(me: ObjectId, convId: string): Promise<AiSummary> {
     const { c, fromSeq: from, untilSeq } = await this.chat.access(convId, me);
     if (!(await this.consent.findOne({ _id: `${me.toHexString()}:${c._id.toHexString()}` }))) throw AppError.forbidden('Allow Jack’s AI to read this chat first.');
-    const rows = (await this.chat.msgs.find({ convId: c._id, type: 'text', deletedAt: { $exists: false }, seq: { $gt: from, $lte: untilSeq }, payment: { $exists: false } }).sort({ seq: -1 }).limit(200).toArray())
+    const rows = (await this.chat.msgs.find({ convId: c._id, type: 'text', deletedAt: { $exists: false }, seq: { $gt: from, $lte: untilSeq } }).sort({ seq: -1 }).limit(200).toArray())
       .filter((m) => !has(m.hiddenFor, me)).reverse();
     if (!rows.length) throw AppError.validation('There’s nothing to summarise yet.');
     const people = new Map((await this.users.find({ _id: { $in: [...new Set(rows.map((r) => r.senderId.toHexString()))].map((x) => new ObjectId(x)) } }).toArray()).map((u) => [u._id.toHexString(), u._id.equals(me) ? 'Me' : displayNameOf(u).split(/\s+/)[0]!]));

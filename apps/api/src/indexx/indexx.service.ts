@@ -5,7 +5,6 @@ import { AppError } from '../common/app-error';
 import { C } from '../infra/mongo';
 import type { UserDoc } from '../users/users.repo';
 import type { RewardsService } from '../rewards/rewards.service';
-import type { PaymentsService } from '../pay/payments.service';
 import { dayKey } from '../rewards/days';
 import { NUGGET_UNIT, type IndexxProvider } from './indexx.provider';
 
@@ -14,12 +13,11 @@ interface LinkFields { indexx?: { account: string; email: string; linkedAt: Date
 /** The person's Indexx account (BTCY, Indexx Pay, Exchange, EMMM): linking it, and what YaysApp shows from it. */
 export class IndexxService {
   readonly users: Collection<UserDoc>;
-  payments?: PaymentsService;
   constructor(readonly provider: IndexxProvider, private readonly db: Db, private readonly rewards: RewardsService) {
     this.users = db.collection(C.users);
   }
 
-  private async link(me: ObjectId) { return ((await this.users.findOne({ _id: me }, { projection: { 'yc.indexx': 1, 'yc.payPin': 1 } }))?.yc as LinkFields | undefined)?.indexx ?? null; }
+  private async link(me: ObjectId) { return ((await this.users.findOne({ _id: me }, { projection: { 'yc.indexx': 1 } }))?.yc as LinkFields | undefined)?.indexx ?? null; }
   async accountOf(me: ObjectId) { return (await this.link(me))?.account ?? null; }
   private async need(me: ObjectId) {
     const a = await this.accountOf(me);
@@ -47,17 +45,13 @@ export class IndexxService {
 
   async wallet(me: ObjectId, tzSent: string | null): Promise<WalletView> {
     const tz = await this.rewards.tz(me, tzSent);
-    const [points, account, usedToday, u] = await Promise.all([
-      this.rewards.balance(me), this.accountOf(me), this.convertedToday(me, tz),
-      this.users.findOne({ _id: me }, { projection: { 'yc.payPin': 1 } }),
-    ]);
+    const [points, account, usedToday] = await Promise.all([this.rewards.balance(me), this.accountOf(me), this.convertedToday(me, tz)]);
     const b = account ? await this.provider.balances(account) : null;
     return {
       points, linked: !!account,
       nuggets: b ? b.nuggetUnits / NUGGET_UNIT : null, usdxxCents: b?.usdxxCents ?? null, exchangeUsdCents: b?.exchangeUsdCents ?? null,
       syncedAt: b?.syncedAt.toISOString() ?? null,
       convert: { pointsPerNugget: CONVERT.pointsPerNugget, min: CONVERT.min, dailyMax: CONVERT.dailyMax, usedToday },
-      hasPayPin: !!(u?.yc as { payPin?: unknown } | undefined)?.payPin,
     };
   }
 
@@ -85,14 +79,10 @@ export class IndexxService {
     return this.wallet(me, tz);
   }
 
-  async activity(me: ObjectId, filter: 'all' | 'pay' | 'points'): Promise<WalletTx[]> {
-    const out: WalletTx[] = [];
-    if (filter !== 'pay') {
-      const conv = await this.rewards.ledger.find({ userId: me, kind: 'convert' }).sort({ _id: -1 }).limit(30).toArray();
-      for (const c of conv) out.push({ id: c._id.toHexString(), kind: 'convert', direction: 'in', title: 'Converted INEX', sub: c.sub, at: c.at.toISOString(), status: 'done', amount: (-c.amount / CONVERT.pointsPerNugget) * NUGGET_UNIT, unit: 'NUGGET' });
-    }
-    if (filter !== 'points' && this.payments) out.push(...(await this.payments.activity(me)));
-    return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 50);
+  /** Wallet activity: INEX converted to BTCY Nuggets, newest first. */
+  async activity(me: ObjectId): Promise<WalletTx[]> {
+    const conv = await this.rewards.ledger.find({ userId: me, kind: 'convert' }).sort({ _id: -1 }).limit(50).toArray();
+    return conv.map((c): WalletTx => ({ id: c._id.toHexString(), kind: 'convert', direction: 'in', title: 'Converted INEX', sub: c.sub, at: c.at.toISOString(), status: 'done', amount: (-c.amount / CONVERT.pointsPerNugget) * NUGGET_UNIT, unit: 'NUGGET' }));
   }
 
   async btcy(me: ObjectId, tzSent: string | null): Promise<BtcyView> {

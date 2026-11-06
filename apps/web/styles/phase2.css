@@ -189,15 +189,6 @@ a.p2-product:hover { transform: translateY(-2px); }
 .p2-bonus__foot a { font: 700 13px var(--font-display); color: var(--ember-ink); }
 @media (max-width: 560px) { .p2-bonus__card { padding: 48px 18px 18px; border-radius: 32px; } .p2-bonus__head h2 { font-size: 28px; line-height: 34px; } .p2-bonus--jack .p2-bonus__art { top: -96px; width: 128px; margin-left: -64px; } }
 
-/* Pay in chat */
-.p2-pay { display: flex; flex-direction: column; min-width: 230px; padding: 4px 2px; }
-.p2-pay__eyebrow { display: flex; align-items: center; gap: 8px; font: 700 12px var(--font-display); color: var(--ink-soft); }
-.p2-pay--mine .p2-pay__eyebrow, .ys-bubble--me .p2-pay__eyebrow { color: inherit; opacity: .9; }
-.p2-pay__amt { margin: 6px 0 2px; font: 800 30px var(--font-display); }
-.p2-pay__sub { font-size: 13px; opacity: .85; }
-.p2-pay__err { margin-top: 6px; font-size: 12px; color: var(--danger-ink); }
-.p2-pay__dollar { font: 800 22px var(--font-display); }
-.p2-pay__input { font: 800 22px var(--font-display) !important; }
 .p2-summary { position: relative; z-index: 2; display: flex; align-items: flex-start; gap: 12px; margin: 8px 16px 0; padding: 14px 16px; border-radius: 20px; background: var(--ember-wash); font-size: 14px; line-height: 20px; }
 .p2-summary > img { width: 26px; height: 30px; object-fit: contain; }
 .p2-support-answer { padding: 12px 14px; border-radius: 16px; background: var(--surface); }

@@ -184,7 +184,7 @@ describe('Jack’s AI, the Jack bonus and pop-ups', () => {
   });
 });
 
-describe('Indexx account, wallet, BTCY and pay in chat', () => {
+describe('Indexx account, wallet and BTCY', () => {
   let t: TestApp; let sara: TUser; let amara: TUser; let lena: TUser; let conv: string;
   const { ObjectId } = require('mongodb') as typeof import('mongodb');
   beforeAll(async () => {
@@ -200,7 +200,7 @@ describe('Indexx account, wallet, BTCY and pay in chat', () => {
     expect((await t.http.post('/v1/indexx/link').set(lena.auth).send({ email: 'sara@indexx.io' })).status).toBe(409);
     await t.http.post('/v1/indexx/link').set(amara.auth).send({ email: 'amara@indexx.io' }).expect(200);
     const w = (await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body as WalletView;
-    expect(w).toMatchObject({ linked: true, nuggets: 10, usdxxCents: 4250, points: 0, hasPayPin: false });
+    expect(w).toMatchObject({ linked: true, nuggets: 10, usdxxCents: 4250, points: 0 });
   });
 
   it('converts points to Nuggets within the limits', async () => {
@@ -234,46 +234,14 @@ describe('Indexx account, wallet, BTCY and pay in chat', () => {
     expect((await points(t, sara)).balance).toBe(before + 70); // paid once
   });
 
-  it('requests and payments in a chat, with a payment PIN', async () => {
-    expect((await t.http.put('/v1/pay/pin').set(amara.auth).send({ pin: '123456' })).status).toBe(400);
-    await t.http.put('/v1/pay/pin').set(amara.auth).send({ pin: '482916' }).expect(200);
-    const req = (await t.http.post('/v1/pay/requests').set(sara.auth).send({ conversationId: conv, amountCents: 1200, note: 'Dinner', clientId: cid() }).expect(200)).body;
-    expect(req).toMatchObject({ kind: 'request', status: 'waiting', amountCents: 1200, fromId: amara.id, toId: sara.id });
-    const msgs = (await t.http.get(`/v1/conversations/${conv}/messages`).set(amara.auth).expect(200)).body.items as ChatMessage[];
-    const card = msgs.find((m) => m.payment)!;
-    expect(card.text).toBe('Payment request: $12.00 USDXX · Dinner');
-    expect(card.payment).toMatchObject({ id: req.id, status: 'waiting' });
-    expect((await t.http.post(`/v1/pay/${req.id}/pay`).set(sara.auth).send({ pin: '482916' })).status).toBe(403);
-    expect((await t.http.post(`/v1/pay/${req.id}/pay`).set(amara.auth).send({ pin: '000999' })).body.error.message).toBe('Wrong payment PIN.');
-    expect((await t.http.post(`/v1/pay/${req.id}/pay`).set(amara.auth).send({ pin: '482916' }).expect(200)).body.status).toBe('paid');
-    expect((await t.http.post(`/v1/pay/${req.id}/pay`).set(amara.auth).send({ pin: '482916' })).status).toBe(409);
-    expect((await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body.usdxxCents).toBe(4250 + 1200);
-    expect((await t.http.get('/v1/wallet').set(amara.auth).expect(200)).body.usdxxCents).toBe(4250 - 1200);
-    const after = (await t.http.get(`/v1/conversations/${conv}/messages`).set(sara.auth).expect(200)).body.items as ChatMessage[];
-    expect(after.find((m) => m.payment)!.payment!.status).toBe('paid');
-    // Edits and deleting for everyone don't apply to payments.
-    expect((await t.http.patch(`/v1/conversations/${conv}/messages/${card.id}`).set(sara.auth).send({ text: 'x' })).status).toBe(400);
-    // Sending: needs a PIN; a retry with the same clientId pays once.
-    const clientId = cid();
-    const noPin = await t.http.post('/v1/pay/send').set(sara.auth).send({ conversationId: conv, amountCents: 500, note: 'Movie', clientId, pin: '111222' });
-    expect(noPin.body.error.details).toMatchObject({ needPin: true });
-    await t.http.put('/v1/pay/pin').set(sara.auth).send({ pin: '730184' }).expect(200);
-    await resetLimits(t);
-    await t.http.post('/v1/pay/send').set(sara.auth).send({ conversationId: conv, amountCents: 500, note: 'Movie', clientId, pin: '730184' }).expect(200);
-    await t.http.post('/v1/pay/send').set(sara.auth).send({ conversationId: conv, amountCents: 500, note: 'Movie', clientId, pin: '730184' }).expect(200);
-    expect((await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body.usdxxCents).toBe(4250 + 1200 - 500);
-    const tx = (await t.http.get('/v1/wallet/activity?filter=pay').set(sara.auth).expect(200)).body;
-    expect(tx.map((x: { title: string; status: string }) => `${x.title}:${x.status}`)).toEqual(['Sent to Amara:sent', 'Amara paid you:received']);
-  });
-
-  it('declines, and refuses groups and people without an Indexx account', async () => {
-    const r = (await t.http.post('/v1/pay/requests').set(amara.auth).send({ conversationId: conv, amountCents: 800, note: 'Tickets', clientId: cid() }).expect(200)).body;
-    expect((await t.http.post(`/v1/pay/${r.id}/decline`).set(sara.auth).expect(200)).body.status).toBe('declined');
-    const toLena = await direct(t, sara, lena);
-    const e = await t.http.post('/v1/pay/send').set(sara.auth).send({ conversationId: toLena, amountCents: 500, note: '', clientId: cid(), pin: '730184' });
-    expect(e.body.error.message).toContain('Lena hasn’t linked an Indexx account');
-    const g = (await t.http.post('/v1/groups').set(sara.auth).send({ name: 'Crew', memberIds: [amara.id] }).expect(200)).body.id;
-    expect((await t.http.post('/v1/pay/requests').set(sara.auth).send({ conversationId: g, amountCents: 500, note: '', clientId: cid() })).body.error.message).toBe('Payments work in one-to-one chats.');
+  it('pay in chat is gone: no payment routes, no payment PIN; the wallet lists conversions only', async () => {
+    for (const [method, path] of [['put', '/v1/pay/pin'], ['post', '/v1/pay/requests'], ['post', '/v1/pay/send'], ['post', '/v1/pay/0123456789abcdef01234567/pay'], ['post', '/v1/pay/0123456789abcdef01234567/decline']] as const) {
+      expect((await t.http[method](path).set(sara.auth).send({ conversationId: conv, amountCents: 500, note: '', clientId: cid(), pin: '482916' })).status).toBe(404);
+    }
+    const w = (await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body;
+    expect(w).not.toHaveProperty('hasPayPin');
+    const tx = (await t.http.get('/v1/wallet/activity').set(sara.auth).expect(200)).body as Array<{ kind: string }>;
+    expect(tx.every((x) => x.kind === 'convert')).toBe(true);
   });
 
   it('socials: shown to others unless hidden', async () => {

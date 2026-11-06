@@ -1,4 +1,4 @@
-// Phase 2 in the browser: website, pop-ups, Explore, Earn, Wallet, BTCY, Jack's AI, pay in chat, support, socials.
+// Phase 2 in the browser: website, pop-ups, Explore, Earn, Wallet, BTCY, Jack's AI, chat catch-up, support, socials.
 // Screenshots of each screen go to test-results/phase2 (or PHASE2_OUT).
 import { mkdirSync } from 'fs';
 import path from 'path';
@@ -187,32 +187,18 @@ test('Jack’s AI: answers, documents, and the daily limit', async ({ browser })
   await a.ctx.close();
 });
 
-test('pay in chat, and Jack’s catch-up summary with consent', async ({ browser }) => {
+test('no money in chats; Jack’s catch-up summary with consent', async ({ browser }) => {
   const sara = await apiUser('Sara Ahmed'), amara = await apiUser('Amara Okafor');
   await link(sara, 'sara.p@indexx.io'); await link(amara, 'amara.p@indexx.io');
   const conv = (await apiCall('/v1/conversations/direct', { userId: amara.id }, sara.tokens.accessToken)).id as string;
   await apiCall(`/v1/conversations/${conv}/messages`, { clientId: crypto.randomUUID(), text: 'That dinner was great! Splitting the bill' }, amara.tokens.accessToken);
-  const s = await pageAs(browser, sara, VP);
-  await s.page.goto(`/chats?c=${conv}`);
-  await s.page.getByRole('button', { name: 'Attach' }).click();
-  await s.page.getByRole('menuitem', { name: 'Send or request money' }).click();
-  const money = s.page.getByRole('dialog', { name: 'Money' });
-  await money.getByLabel('Amount (USDXX)').fill('12');
-  await money.getByLabel('What’s it for?').fill('Dinner at Café Aylanto');
-  await money.getByRole('button', { name: 'Request $12.00' }).click();
-  await expect(s.page.getByTestId('payment').getByText('Waiting for Amara')).toBeVisible();
   const m = await pageAs(browser, amara, VP);
   await m.page.goto(`/chats?c=${conv}`);
-  const card = m.page.getByTestId('payment');
-  await card.getByRole('button', { name: 'Pay $12.00' }).click();
-  const pin = m.page.getByRole('dialog', { name: 'Pay Sara $12.00' });
-  await pin.getByLabel('Payment PIN').fill('482916');
-  await pin.getByRole('button', { name: 'Pay' }).click();
-  await expect(pin.getByLabel('New payment PIN')).toBeVisible(); // first payment: choose a PIN
-  await pin.getByRole('button', { name: 'Set PIN and pay' }).click();
-  await expect(card.getByText('Paid')).toBeVisible();
-  await expect(s.page.getByTestId('payment').getByText('Paid')).toBeVisible();
-  await shot(m.page, 'w05-pay-chat');
+  // Pay in chat was removed: the attach menu has no money option.
+  await m.page.getByRole('button', { name: 'Attach' }).click();
+  await expect(m.page.getByRole('menuitem').first()).toBeVisible();
+  await expect(m.page.getByRole('menuitem', { name: /money/i })).toHaveCount(0);
+  await m.page.keyboard.press('Escape');
   // Catch up: asks first, then summarises.
   await m.page.getByRole('button', { name: 'Catch up' }).click();
   const ask = m.page.getByRole('dialog', { name: 'Let Jack’s AI read this chat?' });
@@ -221,16 +207,14 @@ test('pay in chat, and Jack’s catch-up summary with consent', async ({ browser
   await ask.getByRole('button', { name: 'Allow and summarise' }).click();
   await expect(m.page.getByText(/Summary of \d+ messages?/)).toBeVisible();
   await shot(m.page, 'p04-ai-summary');
-  await s.ctx.close(); await m.ctx.close();
-  const w = await apiCall('/v1/wallet', undefined, amara.tokens.accessToken);
-  expect(w.usdxxCents).toBe(4250 - 1200);
+  await m.ctx.close();
 });
 
 test('support desk and socials', async ({ browser }) => {
   const sara = await apiUser('Sara Ahmed'), amara = await apiUser('Amara Okafor');
   const a = await pageAs(browser, sara, VP);
   await a.page.goto('/settings/help');
-  await a.page.getByLabel('Describe the problem').fill('My daily check-in didn’t add points yesterday');
+  await a.page.getByLabel('Describe the problem').fill('My daily check-in didn’t add INEX yesterday');
   await a.page.getByRole('button', { name: 'Get an answer' }).click();
   await expect(a.page.getByRole('button', { name: 'Talk to a person' })).toBeVisible();
   await shot(a.page, 'p05-support');

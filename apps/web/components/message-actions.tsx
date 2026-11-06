@@ -6,8 +6,8 @@ import { useChatState, useEngine } from '@/lib/chat';
 import { Avatar, Banner, OvalButton } from './ui';
 
 const minutesSince = (iso: string) => (Date.now() - Date.parse(iso)) / 60000;
-export const canEdit = (m: ThreadItem) => m.mine && !!m.id && m.type === 'text' && !m.deleted && !m.forwarded && !m.payment && minutesSince(m.createdAt) <= EDIT_WINDOW_MINUTES;
-export const canDeleteForEveryone = (m: ThreadItem, c: ConversationSummary) => !!m.id && !m.deleted && m.type !== 'system' && !m.payment && c.canSend !== undefined &&
+export const canEdit = (m: ThreadItem) => m.mine && !!m.id && m.type === 'text' && !m.deleted && !m.forwarded && minutesSince(m.createdAt) <= EDIT_WINDOW_MINUTES;
+export const canDeleteForEveryone = (m: ThreadItem, c: ConversationSummary) => !!m.id && !m.deleted && m.type !== 'system' && c.canSend !== undefined &&
   ((m.mine && minutesSince(m.createdAt) <= DELETE_FOR_EVERYONE_MINUTES) || (!m.mine && c.group?.role === 'admin'));
 
 /** What the conversation is doing with a message: replying, editing, forwarding, deleting, or showing info. */
@@ -55,7 +55,7 @@ export function ActionBar({ m, c }: { m: ThreadItem; c: ConversationSummary }) {
   const run = (fn: () => Promise<unknown>, f: string) => { setOpen(null); void fn().catch((e) => act.error(errText(e, f))); };
   const items: Array<[IconName, string, () => void, boolean?]> = [
     ...(member && c.canSend ? [['reply', 'Reply', () => { setOpen(null); act.reply(m); }] as [IconName, string, () => void]] : []),
-    ...(m.type !== 'poll' && !m.payment ? [['forward', 'Forward', () => { setOpen(null); act.forward(m); }] as [IconName, string, () => void]] : []),
+    ...(m.type !== 'poll' ? [['forward', 'Forward', () => { setOpen(null); act.forward(m); }] as [IconName, string, () => void]] : []),
     ...(m.text ? [['copy', 'Copy', () => { void navigator.clipboard?.writeText(m.text).catch(() => undefined); setOpen(null); }] as [IconName, string, () => void]] : []),
     ...(m.attachment?.url ? [['download', 'Download', () => { setOpen(null); const l = document.createElement('a'); l.href = m.attachment!.url; l.download = m.attachment!.name; l.click(); }] as [IconName, string, () => void]] : []),
     ...(canEdit(m) ? [['edit', 'Edit', () => { setOpen(null); act.edit(m); }] as [IconName, string, () => void]] : []),

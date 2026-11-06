@@ -102,21 +102,21 @@ export interface WalletView {
   exchangeUsdCents: number | null;
   syncedAt: string | null;
   convert: { pointsPerNugget: number; min: number; dailyMax: number; usedToday: number };
-  hasPayPin: boolean;
 }
 
-export type WalletTxStatus = 'received' | 'done' | 'waiting' | 'failed' | 'sent' | 'declined' | 'expired';
+export type WalletTxStatus = 'done' | 'failed';
+/** Wallet activity: INEX converted to BTCY Nuggets. */
 export interface WalletTx {
   id: string;
-  kind: 'payment' | 'request' | 'convert';
+  kind: 'convert';
   direction: 'in' | 'out';
   title: string;
   sub: string;
   at: string;
   status: WalletTxStatus;
-  /** Cents for USDXX, 1/10000 for Nuggets. */
+  /** In 1/10000 of a Nugget. */
   amount: number;
-  unit: 'USDXX' | 'NUGGET';
+  unit: 'NUGGET';
 }
 
 export interface BtcyView {
@@ -134,25 +134,6 @@ export interface ProductsView {
 
 export const convertSchema = z.object({ points: z.number().int().positive() });
 export const linkIndexxSchema = z.object({ email: z.string().trim().email('Enter the email of your Indexx account.') });
-
-/* ------------------------------------------------------------------ pay in chat */
-
-export interface PaymentView {
-  id: string;
-  kind: 'request' | 'payment';
-  fromId: string;
-  toId: string;
-  amountCents: number;
-  note: string;
-  status: 'waiting' | 'paid' | 'declined' | 'expired' | 'sent';
-  ref: string;
-  expiresAt: string | null;
-}
-export const PAY_LIMITS = { minCents: 100, maxCents: 100_000, noteMax: 80, requestDays: 7 } as const;
-const amount = z.number().int().min(PAY_LIMITS.minCents, 'The smallest amount is $1.00.').max(PAY_LIMITS.maxCents, 'The most you can send at once is $1,000.');
-export const payRequestSchema = z.object({ conversationId: z.string().min(1), amountCents: amount, note: z.string().trim().max(PAY_LIMITS.noteMax).default(''), clientId: z.string().min(8).max(64) });
-export const paySendSchema = payRequestSchema.extend({ pin: z.string().regex(/^\d{6}$/, 'Enter your 6-digit payment PIN.') });
-export const payPinSchema = z.object({ pin: z.string().regex(/^\d{6}$/, 'The PIN has 6 digits.'), currentPin: z.string().optional() });
 
 /* ------------------------------------------------------------------ Jack's AI */
 

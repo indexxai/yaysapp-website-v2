@@ -1,7 +1,7 @@
 // Fills a LOCAL YaysApp with demo data: Sara Ahmed and her friends, chats with photos, a voice note,
 // a PDF, replies, reactions and a poll, groups, circles with posts and events, calls, and a few unread messages;
 // and Phase 2: INEX and a check-in streak, invites, a linked Indexx account with BTCY mining,
-// payments in chats, and Jack's AI conversations.
+// and Jack's AI conversations.
 // Everything goes through the API (so it behaves like real use); afterwards the times are spread
 // over the last week so the lists read naturally. Ends by printing a link that signs you in as Sara.
 //
@@ -153,6 +153,7 @@ async function reset() {
     del('yc_checkins', { userId: { $in: ids } }),
     del('yc_referrals', { $or: [{ _id: { $in: ids } }, { inviterId: { $in: ids } }] }),
     del('yc_popups', { userId: { $in: ids } }),
+    // Left from the removed pay-in-chat feature.
     del('yc_payments', { $or: [{ fromId: { $in: ids } }, { toId: { $in: ids } }] }),
     del('yc_ai_chats', { userId: { $in: ids } }),
     del('yc_ai_messages', { userId: { $in: ids } }),
@@ -464,8 +465,8 @@ await call(`/v1/circle-events/${night.id}/cancel`, { note: 'Sorry, the park is c
 // Sara has seen most of the feeds.
 await db.collection('yc_community_members').updateMany({ userId: new ObjectId(sara.id) }, { $set: { seenAt: new Date(now - 3 * HOURS) } });
 
-// ---------------- Phase 2: points, Indexx account, BTCY, pay in chat, Jack's AI ----------------
-console.log('\n▶ Points, Indexx accounts, BTCY, payments and Jack’s AI');
+// ---------------- Phase 2: points, Indexx account, BTCY, Jack's AI ----------------
+console.log('\n▶ Points, Indexx accounts, BTCY and Jack’s AI');
 const dayOf = (d) => d.toLocaleDateString('en-CA', { timeZone: TZ });
 const daysAgo = (n) => new Date(now - n * 86400_000);
 const weekOf = (d) => { const k = dayOf(d); const x = new Date(`${k}T12:00:00Z`); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10); };
@@ -518,13 +519,9 @@ await call('/v1/me/socials/x', { handle: 'sara_ahmed' }, sara.token, 'PUT');
 // Facebook linked through the development stand-in: "Continue with Facebook" as "Sara Ahmed" signs her in.
 await db.collection('users').updateOne({ _id: oid(sara) }, { $set: { 'yc.facebook': { id: `dev-${Buffer.from('sara ahmed').toString('hex').slice(0, 24)}`, name: 'Sara Ahmed', photoUrl: null, login: true, linkedAt: daysAgo(10) } } });
 
-// Money in chats: Sara paid Amara back yesterday; tonight Amara asks for her share of dinner; Sara waits on Omar.
-const payMsg = async (p, ago) => { const m = await db.collection('yc_messages').findOne({ 'payment.id': new ObjectId(p.id) }); if (m) { stamps.set(String(m._id), when(ago)); lastSaid.set(String(m.convId), String(m._id)); } };
-await call('/v1/pay/pin', { pin: '482916' }, sara.token, 'PUT');
-await payMsg(await call('/v1/pay/send', { conversationId: cAmara, amountCents: 500, note: 'Movie tickets', clientId: randomUUID(), pin: '482916' }, sara.token), [1, '22:10']);
-await payMsg(await call('/v1/pay/requests', { conversationId: cOmar, amountCents: 800, note: 'Movie tickets', clientId: randomUUID() }, sara.token), [1, '22:14']);
+// Dinner talk with Amara.
 await say(amara, cAmara, 'That dinner was great! Splitting the bill', 2);
-await payMsg(await call('/v1/pay/requests', { conversationId: cAmara, amountCents: 1200, note: 'Dinner at Café Aylanto', clientId: randomUUID() }, amara.token), 1);
+await say(sara, cAmara, 'Haha deal, I’ll get the next one', 1);
 
 // Jack's AI: a few conversations, one with a document.
 const aiChats = db.collection('yc_ai_chats'), aiMsgs = db.collection('yc_ai_messages');

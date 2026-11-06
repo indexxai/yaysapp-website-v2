@@ -9,24 +9,20 @@ import { api } from '@/lib/api';
 import { Icon } from '@/lib/icons';
 import { errText, fmtNuggets, fmtPoints, fmtUsd, setBalance, useLoad, when } from '@/lib/phase2';
 
-const FILTERS = [['all', 'All'], ['pay', 'Payments'], ['points', 'INEX']] as const;
-type Filter = (typeof FILTERS)[number][0];
-const TAG: Record<WalletTx['status'], string> = { received: 'success', done: 'neutral', waiting: 'warning', failed: 'danger', sent: 'neutral', declined: 'neutral', expired: 'neutral' };
-const STATUS: Record<WalletTx['status'], string> = { received: 'Received', done: 'Done', waiting: 'Waiting', failed: 'Failed', sent: 'Sent', declined: 'Declined', expired: 'Expired' };
+const TAG: Record<WalletTx['status'], string> = { done: 'neutral', failed: 'danger' };
+const STATUS: Record<WalletTx['status'], string> = { done: 'Done', failed: 'Failed' };
 
 function amountOf(t: WalletTx) {
-  const v = t.unit === 'USDXX' ? fmtUsd(t.amount) : `${fmtNuggets(t.amount / 10000)} N`;
-  if (t.status === 'waiting' || t.status === 'declined' || t.status === 'expired') return { text: v, cls: 'muted' };
+  const v = `${fmtNuggets(t.amount / 10000)} N`;
   if (t.status === 'failed') return { text: v, cls: 'muted strike' };
-  return t.direction === 'in' ? { text: `+${v}`, cls: t.unit === 'USDXX' ? 'p2-pos' : '' } : { text: `−${v}`, cls: '' };
+  return { text: `${t.direction === 'in' ? '+' : '−'}${v}`, cls: '' };
 }
 
 /** W4: balances, activity, and converting points to BTCY Nuggets (p10). */
 export default function WalletPage() {
   const { me } = useMe();
   const wallet = useLoad(() => api().wallet());
-  const [filter, setFilter] = useState<Filter>('all');
-  const activity = useLoad(() => api().walletActivity(filter), [filter]);
+  const activity = useLoad(() => api().walletActivity());
   const w = wallet.data;
   return (
     <AppShell me={me}>
@@ -40,7 +36,7 @@ export default function WalletPage() {
         {w && !w.linked && (
           <div className="p2-card p2-card--pad p2-link-cta">
             <span className="ys-oval" style={{ width: 52, ['--ys-oval-fill' as string]: '#ffffff' }}><img src="/brand/products/indexx.png" alt="" /></span>
-            <span className="p2-col" style={{ flex: 1 }}><strong>Link your Indexx account</strong><span className="muted">See BTCY Nuggets, USDXX and Exchange balances here, convert INEX and pay in chats.</span></span>
+            <span className="p2-col" style={{ flex: 1 }}><strong>Link your Indexx account</strong><span className="muted">See BTCY Nuggets, USDXX and Exchange balances here, and convert INEX to Nuggets.</span></span>
             <OvalButton icon="link" label="Link account" size="sm" href="/settings/indexx" />
           </div>
         )}
@@ -53,11 +49,9 @@ export default function WalletPage() {
               <Asset name="Indexx Exchange" amount={w?.exchangeUsdCents != null ? fmtUsd(w.exchangeUsdCents) : '—'} sub={w?.linked ? 'Read-only' : 'Not linked'} logo="/brand/products/exchange.png" />
             </div>
             <section className="p2-card" aria-labelledby="tx">
-              <div className="p2-card__head p2-card__head--pad"><h2 id="tx">Activity</h2>
-                <div className="ys-tabs" role="tablist" aria-label="Filter activity">{FILTERS.map(([f, l]) => <button key={f} type="button" role="tab" className="ys-tab" aria-selected={filter === f} onClick={() => setFilter(f)}>{l}</button>)}</div>
-              </div>
+              <div className="p2-card__head p2-card__head--pad"><h2 id="tx">Activity</h2></div>
               {activity.error && <div style={{ padding: '0 18px 18px' }}><Banner>{activity.error}</Banner></div>}
-              {activity.data && !activity.data.length && <p className="muted" style={{ margin: '4px 20px 20px' }}>Nothing yet. Payments in chats and conversions show here.</p>}
+              {activity.data && !activity.data.length && <p className="muted" style={{ margin: '4px 20px 20px' }}>Nothing yet. INEX you convert to Nuggets shows here.</p>}
               {!!activity.data?.length && (
                 <div style={{ overflowX: 'auto' }}>
                   <table className="p2-table">

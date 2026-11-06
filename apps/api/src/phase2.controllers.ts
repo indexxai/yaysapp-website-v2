@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Ip, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ObjectId, type Collection } from 'mongodb';
 import {
-  aiAskSchema, aiShareSchema, aiChatPatchSchema, convertSchema, dismissPopupSchema, leadSchema, linkIndexxSchema, payPinSchema, payRequestSchema, paySendSchema, referralCodeSchema,
+  aiAskSchema, aiShareSchema, aiChatPatchSchema, convertSchema, dismissPopupSchema, leadSchema, linkIndexxSchema, referralCodeSchema,
   siteAskSchema, socialSchema, socialUrl, socialVisibilitySchema, supportAskSchema, supportTicketSchema, SOCIAL_NETWORKS,
   type SocialNetwork, type SocialsView,
 } from '@yays/shared';
@@ -16,7 +16,6 @@ import { CHAT, type ChatService } from './chat/chat.service';
 import { REWARDS, type RewardsService } from './rewards/rewards.service';
 import { Tz } from './rewards/days';
 import { INDEXX_SERVICE, type IndexxService } from './indexx/indexx.service';
-import { PAYMENTS, type PaymentsService } from './pay/payments.service';
 import { AI, type AiService } from './ai/ai.service';
 import type { FacebookFields } from './auth/facebook';
 
@@ -55,7 +54,7 @@ export class IndexxController {
   }
   @Delete('indexx/link') unlink(@Auth() a: AuthCtx) { return this.x.unlink(a.userId); }
   @Get('wallet') wallet(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.x.wallet(a.userId, tz); }
-  @Get('wallet/activity') activity(@Auth() a: AuthCtx, @Query('filter') f?: string) { return this.x.activity(a.userId, filterOf(f, ['all', 'pay', 'points'] as const, 'all')); }
+  @Get('wallet/activity') activity(@Auth() a: AuthCtx) { return this.x.activity(a.userId); }
   @Post('wallet/convert') @HttpCode(200)
   async convert(@Auth() a: AuthCtx, @Tz() tz: string | null, @Body() b: unknown) {
     await this.limiter.hit(`convert:${a.userId}`, 10, 3600);
@@ -64,17 +63,6 @@ export class IndexxController {
   @Get('btcy') btcy(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.x.btcy(a.userId, tz); }
   @Post('btcy/mine') @HttpCode(200) mine(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.x.mine(a.userId, tz); }
   @Get('products') products(@Auth() a: AuthCtx) { return this.x.products(a.userId); }
-}
-
-@Controller('v1/pay')
-@UseGuards(AuthGuard)
-export class PayController {
-  constructor(@Inject(PAYMENTS) private p: PaymentsService) {}
-  @Put('pin') pin(@Auth() a: AuthCtx, @Body() b: unknown) { const v = parse(payPinSchema, b); return this.p.setPin(a.userId, v.pin, v.currentPin); }
-  @Post('requests') @HttpCode(200) request(@Auth() a: AuthCtx, @Body() b: unknown) { return this.p.request(a.userId, parse(payRequestSchema, b)); }
-  @Post('send') @HttpCode(200) send(@Auth() a: AuthCtx, @Body() b: unknown) { return this.p.send(a.userId, parse(paySendSchema, b)); }
-  @Post(':id/pay') @HttpCode(200) pay(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) { return this.p.pay(a.userId, id, parse(z.object({ pin: z.string() }), b).pin); }
-  @Post(':id/decline') @HttpCode(200) decline(@Auth() a: AuthCtx, @Param('id') id: string) { return this.p.decline(a.userId, id); }
 }
 
 @Controller('v1/ai')

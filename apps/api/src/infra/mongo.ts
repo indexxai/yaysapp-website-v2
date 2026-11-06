@@ -38,7 +38,6 @@ export const C = {
   checkins: 'yc_checkins',
   referrals: 'yc_referrals',
   popups: 'yc_popups',
-  payments: 'yc_payments',
   aiChats: 'yc_ai_chats',
   aiMessages: 'yc_ai_messages',
   aiConsent: 'yc_ai_consent',
@@ -101,10 +100,6 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { userId: 1, week: 1 }, name: 'user_week' },
   ]);
   await db.collection(C.referrals).createIndexes([{ key: { inviterId: 1, at: -1 }, name: 'inviter' }]);
-  await db.collection(C.payments).createIndexes([
-    { key: { fromId: 1, _id: -1 }, name: 'from' }, { key: { toId: 1, _id: -1 }, name: 'to' },
-    { key: { fromId: 1, clientId: 1 }, name: 'from_client' }, { key: { toId: 1, clientId: 1 }, name: 'to_client' },
-  ]);
   await db.collection(C.aiChats).createIndexes([{ key: { userId: 1, updatedAt: -1 }, name: 'user_recent' }]);
   await db.collection(C.aiMessages).createIndexes([{ key: { chatId: 1, _id: 1 }, name: 'chat' }]);
   await db.collection(C.supportTickets).createIndexes([{ key: { number: 1 }, name: 'number', unique: true }, { key: { userId: 1, at: -1 }, name: 'user' }]);

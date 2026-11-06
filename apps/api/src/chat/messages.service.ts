@@ -42,7 +42,6 @@ export class MessagesService {
     if (!m.senderId.equals(me)) throw AppError.forbidden('You can only edit your own messages.');
     if (m.type !== 'text' || m.deletedAt) throw AppError.validation(m.type === 'media' ? 'Photos, videos and files can’t be edited. Delete and send again.' : 'That message can’t be edited.');
     if (m.forwarded) throw AppError.validation('Forwarded messages can’t be edited.');
-    if (m.payment) throw AppError.validation('Payments can’t be edited.');
     if (minutesSince(m.createdAt) > EDIT_WINDOW_MINUTES) throw AppError.conflict(`Messages can be edited for ${EDIT_WINDOW_MINUTES} minutes after sending.`);
     const mentions = this.chat.cleanMentions(c, me, text, mentionIds ?? m.mentions?.map((x) => x.toHexString()));
     if (text === m.text && mentions.length === (m.mentions?.length ?? 0)) return this.mine(me, m._id);
@@ -56,7 +55,6 @@ export class MessagesService {
   async deleteForEveryone(me: ObjectId, convId: string, msgId: string): Promise<ChatMessage> {
     const { c, m } = await this.visible(me, convId, msgId);
     if (m.type === 'system') throw AppError.validation('That can’t be deleted.');
-    if (m.payment) throw AppError.validation('Payments stay in the chat as a record. You can delete them for yourself.');
     if (m.deletedAt) return this.mine(me, m._id);
     const own = m.senderId.equals(me);
     const asAdmin = c.kind === 'group' && this.chat.isAdmin(c, me) && !own;
@@ -168,7 +166,7 @@ export class MessagesService {
   /** Copies a message's text into up to 5 chats, each marked forwarded, with an optional note after it. */
   async forward(me: ObjectId, convId: string, msgId: string, v: { targets: Array<{ conversationId: string; clientId: string; commentClientId?: string }>; comment?: string }): Promise<ForwardResult> {
     const { m } = await this.visible(me, convId, msgId, false);
-    if ((m.type !== 'text' && m.type !== 'media') || m.deletedAt || m.payment) throw AppError.validation('That message can’t be forwarded.');
+    if ((m.type !== 'text' && m.type !== 'media') || m.deletedAt) throw AppError.validation('That message can’t be forwarded.');
     const seen = new Set<string>();
     const out: ForwardResult = [];
     for (const t of v.targets) {

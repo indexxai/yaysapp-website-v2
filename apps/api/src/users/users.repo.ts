@@ -26,10 +26,11 @@ export interface YcFields {
   privacy?: Partial<PrivacySettings>;
   notify?: Partial<NotificationSettings>;
   prefs?: Partial<AppPreferences>;
-  /** Phase 2: Facebook link, typed-in socials, payment PIN, linked Indexx account. */
+  /** Phase 2: Facebook link, typed-in socials, linked Indexx account. */
   facebook?: unknown;
-  socials?: unknown;
+  /** Left by the removed pay-in-chat feature on older accounts; cleared when an account is deleted. */
   payPin?: unknown;
+  socials?: unknown;
   indexx?: unknown;
 }
 /** Only the legacy fields v2 reads. Everything else on the document is left alone. */

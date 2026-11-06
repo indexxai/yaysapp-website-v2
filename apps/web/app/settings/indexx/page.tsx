@@ -9,7 +9,7 @@ import { errText, useLoad } from '@/lib/phase2';
 
 export default function IndexxPage() { return <SettingsFrame>{(me) => <Indexx email={me.email} />}</SettingsFrame>; }
 
-/** p15: link the Indexx account (BTCY, Indexx Pay, Exchange, EMMM). */
+/** p15: link the Indexx account (BTCY, Exchange, EMMM, and the USDXX balance). */
 function Indexx({ email }: { email: string | null }) {
   const s = useLoad(() => api().indexx());
   const saved = useSaved();
@@ -30,7 +30,6 @@ function Indexx({ email }: { email: string | null }) {
         <ul className="p2-perms">
           <li><Icon name="eye" size={18} />Read your balances and activity (read-only)</li>
           <li><Icon name="person-add" size={18} />Use your Indexx referral code for invites</li>
-          <li><Icon name="lock" size={18} />Never move money without your payment PIN</li>
         </ul>
         {s.error && <Banner>{s.error}</Banner>}
         {d && !d.available && <Banner tone="info">Linking Indexx accounts isn’t available yet.</Banner>}
@@ -50,8 +49,7 @@ function Indexx({ email }: { email: string | null }) {
         )}
       </section>
       <Card label="What linking shows">
-        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Wallet</span><span className="ys-row-item__sub">BTCY Nuggets, USDXX and Exchange balances; convert points</span></span></div>
-        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Pay in chat</span><span className="ys-row-item__sub">Send and request USDXX in one-to-one chats</span></span></div>
+        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Wallet</span><span className="ys-row-item__sub">BTCY Nuggets, USDXX and Exchange balances; convert INEX</span></span></div>
         <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">BTCY bonus</span><span className="ys-row-item__sub">Invites, mining days and Alchemy count toward INEX</span></span></div>
       </Card>
     </>

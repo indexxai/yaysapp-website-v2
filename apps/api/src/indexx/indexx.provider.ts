@@ -25,8 +25,6 @@ export interface IndexxProvider {
   find(email: string): Promise<string>;
   balances(account: string): Promise<IndexxBalances>;
   creditNuggets(account: string, units: number, ref: string): Promise<void>;
-  /** Moves USDXX between two Indexx Pay accounts. Throws when there isn't enough. Same ref twice moves once. */
-  transfer(from: string, to: string, cents: number, ref: string): Promise<void>;
   btcy(account: string, tz: string): Promise<BtcyActivity>;
   startMining(account: string, tz: string): Promise<void>;
   emmm(account: string): Promise<EmmmActivity | null>;
@@ -38,7 +36,6 @@ export const offIndexx: IndexxProvider = {
   find: async () => { throw AppError.validation('Linking Indexx accounts isn’t available yet.'); },
   balances: async () => { throw AppError.validation('Indexx isn’t connected.'); },
   creditNuggets: async () => { throw AppError.validation('Indexx isn’t connected.'); },
-  transfer: async () => { throw AppError.validation('Indexx Pay isn’t connected.'); },
   btcy: async () => { throw AppError.validation('Indexx isn’t connected.'); },
   startMining: async () => { throw AppError.validation('Indexx isn’t connected.'); },
   emmm: async () => null,
@@ -90,18 +87,6 @@ export class DevIndexx implements IndexxProvider {
 
   async creditNuggets(id: string, units: number, ref: string) {
     await this.col.updateOne({ _id: id, transfers: { $ne: ref } }, { $inc: { nuggetUnits: units }, $push: { transfers: ref } });
-  }
-
-  async transfer(from: string, to: string, cents: number, ref: string) {
-    if (from === to) throw AppError.validation('You can’t pay yourself.');
-    await this.get(to);
-    const r = await this.col.updateOne({ _id: from, usdxxCents: { $gte: cents }, transfers: { $ne: ref } }, { $inc: { usdxxCents: -cents }, $push: { transfers: ref } });
-    if (!r.modifiedCount) {
-      const a = await this.get(from);
-      if (a.transfers.includes(ref)) return;
-      throw AppError.validation(`Not enough USDXX. You have $${(a.usdxxCents / 100).toFixed(2)}.`);
-    }
-    await this.col.updateOne({ _id: to }, { $inc: { usdxxCents: cents } });
   }
 
   async btcy(id: string, tz: string): Promise<BtcyActivity> {

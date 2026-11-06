@@ -12,7 +12,7 @@ import { Avatar, Banner, LineArt, OvalButton, artFor } from './ui';
 import { InChatSearch } from './search';
 import { BlockReportDialog, isMuted, MUTE_CHOICES } from './contact';
 import { MessageText, PollContent, PollDialog } from './poll';
-import { JackSummary, MoneyDialog, PaymentCard } from './chat-phase2';
+import { JackSummary } from './chat-phase2';
 import { getPrefs } from '@/lib/prefs';
 import { useRouter } from 'next/navigation';
 
@@ -333,14 +333,13 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
   const [dragging, setDragging] = useState(false);
   const [searching, setSearching] = useState(false);
   const [summary, setSummary] = useState(false);
-  const [money, setMoney] = useState(false);
   const jump = useRef<(seq: number) => void>(() => undefined);
   const jumped = useRef<string | null>(null);
   const actions = useMemo<Actions>(() => ({
     reply: (m) => { setEditing(null); setReplyTo(m); }, edit: (m) => { setReplyTo(null); setEditing(m); },
     forward: setForwarding, remove: setDeleting, info: setInfoOf, report: setReportOf, jumpTo: (seq) => jump.current(seq), error: setActionError,
   }), []);
-  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setNotice(null); setReportOf(null); setAttachFiles(null); setViewerAt(null); setSearching(false); setSummary(false); setMoney(false); }, [id]);
+  useEffect(() => { setReplyTo(null); setEditing(null); setForwarding(null); setDeleting(null); setInfoOf(null); setActionError(null); setNotice(null); setReportOf(null); setAttachFiles(null); setViewerAt(null); setSearching(false); setSummary(false); }, [id]);
   useEffect(() => {
     setError(null);
     setNotFound(false);
@@ -411,10 +410,9 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
       {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
       {notice && <div className="convo__error"><Banner tone="success">{notice}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon name="close" size={16} /></button></div>}
       <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />
-      {c.canSend ? <Composer id={id} replyTo={replyTo} editing={editing} onDone={() => { setReplyTo(null); setEditing(null); }} onFiles={setAttachFiles} onMoney={c.kind === 'direct' ? () => setMoney(true) : undefined} /> : <LockedComposer c={c} onGone={onBack} />}
+      {c.canSend ? <Composer id={id} replyTo={replyTo} editing={editing} onDone={() => { setReplyTo(null); setEditing(null); }} onFiles={setAttachFiles} /> : <LockedComposer c={c} onGone={onBack} />}
       {dragging && <div className="drop-hint" aria-hidden><Icon name="upload" size={32} /> Drop files to send them to {name}</div>}
     </section>
-    {money && <MoneyDialog c={c} onClose={() => setMoney(false)} />}
     {attachFiles && <AttachDialog files={attachFiles} name={name} replyToId={replyTo?.id ?? undefined} onClose={() => setAttachFiles(null)} onAdded={() => setReplyTo(null)} />}
     {viewerAt && <MediaViewer items={items} start={viewerAt} onClose={() => setViewerAt(null)} />}
     {forwarding && <ForwardDialog m={forwarding} from={id} onClose={() => setForwarding(null)} />}
@@ -520,8 +518,7 @@ function Bubble({ m, mine, sender, c, onOpenMedia, face }: { m: ThreadItem; mine
         {m.forwarded && !m.deleted && <span className="msg__fwd"><Icon name="forward" size={12} /> Forwarded</span>}
         {m.replyTo && !m.deleted && <Quote r={m.replyTo} onClick={() => act.jumpTo(m.replyTo!.seq)} />}
         {m.attachment && !m.deleted && <MediaContent m={m} onOpen={() => onOpenMedia(m.key)} />}
-        {m.payment && !m.deleted ? <PaymentCard p={m.payment} me={engine.me} peerName={chatName(c)} />
-          : m.poll && !m.deleted ? <PollContent m={m} convId={c.id} canVote={c.kind === 'direct' ? !c.blocked : c.group?.role !== 'former'} />
+        {m.poll && !m.deleted ? <PollContent m={m} convId={c.id} canVote={c.kind === 'direct' ? !c.blocked : c.group?.role !== 'former'} />
           : (m.deleted || m.text) && <span className="msg__text">{m.deleted ? <em><Icon name="slash" size={14} /> {mine ? 'You deleted this message' : 'This message was deleted'}</em> : <MessageText m={m} me={engine.me} nameOf={(u) => engine.getState().groups[c.id]?.members.find((x) => x.id === u)?.displayName ?? engine.nameOf(u)} />}</span>}
         <span className="ys-bubble__meta">
           {m.starred && <Icon name="star" size={12} title="Starred" />}
@@ -577,7 +574,7 @@ function useMentionables(id: string) {
   return useMemo(() => (g ? g.members.filter((m) => m.id !== engine.me).map((m) => ({ id: m.id, name: m.displayName, photoUrl: m.photoUrl })) : []), [g, engine.me]);
 }
 
-function Composer({ id, replyTo, editing, onDone, onFiles, onMoney }: { id: string; replyTo: ThreadItem | null; editing: ThreadItem | null; onDone: () => void; onFiles: (f: File[]) => void; onMoney?: () => void }) {
+function Composer({ id, replyTo, editing, onDone, onFiles }: { id: string; replyTo: ThreadItem | null; editing: ThreadItem | null; onDone: () => void; onFiles: (f: File[]) => void }) {
   const engine = useEngine();
   const s = useChatState();
   const group = s.conversations[id]?.kind === 'group';
@@ -690,7 +687,6 @@ function Composer({ id, replyTo, editing, onDone, onFiles, onMoney }: { id: stri
               <span className="menu menu--attach" role="menu" onMouseLeave={() => setAttachMenu(false)}>
                 <button type="button" role="menuitem" onClick={() => { setAttachMenu(false); fileInput.current?.click(); }}><Icon name="image" size={16} />Photos, videos and files</button>
                 <button type="button" role="menuitem" onClick={() => { setAttachMenu(false); setPolling(true); }}><Icon name="stats" size={16} />Poll</button>
-                {onMoney && <button type="button" role="menuitem" onClick={() => { setAttachMenu(false); onMoney(); }}><Icon name="wallet" size={16} />Send or request money</button>}
               </span>
             )}
           </span>
