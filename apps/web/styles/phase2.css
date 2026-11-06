@@ -385,3 +385,19 @@ a.p2-product:hover { transform: translateY(-2px); }
 .p2-gets > div { padding: 14px; border-radius: 18px; background: var(--surface); }
 .p2-gets > div:first-child { background: var(--success-wash); }
 @media (max-width: 560px) { .p2-gets { grid-template-columns: 1fr; } }
+
+/* Jack's AI pictures (W10), the full Jack's AI card, and changing a picture */
+.p2-ai__pics { display: flex; flex-direction: column; gap: 8px; }
+.p2-ai__pic { margin: 0; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+.p2-ai__pic img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; border-radius: 18px; background: var(--sunken); }
+.p2-ai__pictools { display: flex; flex-wrap: wrap; gap: 18px; }
+.p2-ai__handoff { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; background: var(--ember-wash); color: var(--ink); text-decoration: none; border: 1.5px solid transparent; }
+.p2-ai__handoff:hover { border-color: var(--ember); }
+.p2-ai__handoff img { width: 36px; height: 36px; object-fit: contain; flex: none; }
+.p2-ai__handoff .p2-col { flex: 1; min-width: 0; }
+.p2-ai__editing { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 8px; border-radius: 16px; background: var(--ember-wash); font-size: 13px; }
+.p2-ai__editing img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex: none; }
+.p2-ai__editing span { flex: 1; }
+.p2-ai__editing button { appearance: none; border: 0; background: none; padding: 6px; display: flex; color: var(--ink-soft); cursor: pointer; border-radius: 50%; }
+.p2-ai__editing button:hover { background: var(--surface); }
+.p2-ai__edittag { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; opacity: .85; margin-bottom: 2px; }

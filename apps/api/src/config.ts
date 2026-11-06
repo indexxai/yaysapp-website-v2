@@ -64,8 +64,8 @@ const schema = z.object({
   AI_IMAGE_DRIVER: z.enum(['auto', 'dev', 'openai', 'off']).default('auto'),
   AI_IMAGE_MODEL: z.string().default('gpt-image-1'),
   /** How many pictures each image request makes (each counts toward the daily image limit). */
-  AI_IMAGE_OPTIONS: z.coerce.number().int().min(1).max(4).default(2),
-  AI_IMAGES_PER_DAY: z.coerce.number().int().min(0).max(200).default(10),
+  AI_IMAGE_OPTIONS: z.coerce.number().int().min(1).max(4).default(1),
+  AI_IMAGES_PER_DAY: z.coerce.number().int().min(0).max(200).default(5),
   /** Where "open the full Jack's AI" sends people for specialised work (browsing, files, video, code). */
   JACK_AI_URL: z.string().url().default('https://jackai.si'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),

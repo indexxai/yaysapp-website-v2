@@ -195,3 +195,15 @@ describe('Jack’s AI in the app (sample mode)', () => {
     await fetchFile(kept).expect(200);
   });
 });
+
+describe('Jack’s AI picture defaults', () => {
+  let t: TestApp; let sara: TUser;
+  beforeAll(async () => { t = await startApp(); sara = await makeUser(t, 'Sara'); });
+  afterAll(async () => { await t.close(); });
+  it('one picture per request, five a day', async () => {
+    const r = (await t.http.post('/v1/ai/chats').set(sara.auth).set(TZ).send({ text: 'A kite over Lahore', mode: 'image' }).expect(200)).body as AiReply;
+    expect(r.assistant.images).toHaveLength(1);
+    expect(r.assistant.text).toBe('Here it is.');
+    expect(r.quota.images).toEqual({ used: 1, limit: 5, perRequest: 1 });
+  });
+});
