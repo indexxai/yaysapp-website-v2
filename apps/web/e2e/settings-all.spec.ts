@@ -114,7 +114,7 @@ test.describe('Settings: every section end to end', () => {
     await a.ctx.close(); await b.ctx.close();
   });
 
-  test('socials: add a username, choose who sees them, remove it; Indexx account links and unlinks', async ({ browser }) => {
+  test('socials: add a username, choose who sees them, remove it; signing in to Indexx and out', async ({ browser }) => {
     const ali = await apiUser('Ali');
     const a = await pageAs(browser, ali);
     await a.page.goto('/settings/socials');
@@ -128,14 +128,16 @@ test.describe('Settings: every section end to end', () => {
     await expect.poll(async () => (await get(ali, '/v1/me/socials')).links.length).toBe(0);
 
     await a.page.goto('/settings/indexx');
-    await a.page.getByLabel('Indexx account email').fill('ali@indexx.io');
-    await a.page.getByRole('button', { name: 'Link Indexx account' }).click();
-    await expect(a.page.getByText('ali@indexx.io · since')).toBeVisible();
+    const ix = `ali.${ali.id.slice(-8)}@indexx.io`;
+    await a.page.getByLabel('Indexx email').fill(ix);
+    await a.page.getByLabel('Indexx password').fill('pass-1234');
+    await a.page.getByRole('button', { name: 'Sign in to Indexx' }).click();
+    await expect(a.page.getByText(`${ix} · since`)).toBeVisible();
     await a.page.reload();
-    await expect(a.page.getByText('ali@indexx.io · since')).toBeVisible();
-    await a.page.getByRole('button', { name: 'Unlink' }).click();
-    await expect(a.page.getByText('Unlinked.')).toBeVisible();
-    await expect(a.page.getByLabel('Indexx account email')).toBeVisible();
+    await expect(a.page.getByText(`${ix} · since`)).toBeVisible();
+    await a.page.getByRole('button', { name: 'Sign out of Indexx' }).click();
+    await expect(a.page.getByText('Signed out of Indexx.')).toBeVisible();
+    await expect(a.page.getByLabel('Indexx email')).toBeVisible();
     await a.ctx.close();
   });
 

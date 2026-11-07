@@ -93,7 +93,7 @@ export function Landing() {
         <div className="lp-cards lp-cards--4">{FEATURES.map(([i, t, d]) => <div key={t} className="ys-card lp-card"><span className="ys-oval ys-oval--ember" style={{ width: 48 }}><Icon name={i} size={22} /></span><strong>{t}</strong><span>{d}</span></div>)}</div>
       </Section>
 
-      <Section id="earn" label="e" eyebrow="INEX" title="Earn INEX for the things you already do" lead="INEX, the Indexx coin, adds up in your wallet. Convert it to BTCY Nuggets, or use it across Indexx products." art={<><LineArt name="coins" height={260} opacity={0.22} className="lp-art lp-art--l" /><LineArt name="pay" height={240} opacity={0.2} className="lp-art lp-art--c" /></>}>
+      <Section id="earn" label="e" eyebrow="INEX" title="Earn INEX for the things you already do" lead="INEX, the Indexx coin, adds up in your wallet. Withdraw it to your Indexx Exchange wallet, or use it across Indexx products." art={<><LineArt name="coins" height={260} opacity={0.22} className="lp-art lp-art--l" /><LineArt name="pay" height={240} opacity={0.2} className="lp-art lp-art--c" /></>}>
         <div className="lp-earn">
           <ul className="lp-ways">{WAYS.map(([i, t, d, p]) => <li key={t}><span className="ys-oval ys-oval--wash" style={{ width: 44 }}><Icon name={i} size={20} /></span><span className="p2-col" style={{ flex: 1 }}><strong>{t}</strong><span className="muted">{d}</span></span><b>{p}</b></li>)}</ul>
           <div className="lp-example">

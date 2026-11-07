@@ -21,7 +21,7 @@ export const SECTIONS: Array<{ key: string; href: string; label: string; sub: st
   { key: 'starred', href: '/settings/starred', label: 'Starred messages', sub: 'Messages you saved', icon: 'star' },
   { key: 'storage', href: '/settings/storage', label: 'Storage and data', sub: 'What chats take up, this browser’s copy', icon: 'database' },
   { key: 'devices', href: '/settings/devices', label: 'Linked devices', sub: 'Browsers and phones signed in', icon: 'devices' },
-  { key: 'indexx', href: '/settings/indexx', label: 'Indexx account', sub: 'BTCY, wallet balances, pay in chat', icon: 'link' },
+  { key: 'indexx', href: '/settings/indexx', label: 'Indexx account', sub: 'BTCY, products, wallet and withdrawals', icon: 'link' },
   { key: 'socials', href: '/settings/socials', label: 'Social accounts', sub: 'Show your socials on your profile', icon: 'globe' },
   { key: 'help', href: '/settings/help', label: 'Help and support', sub: 'Questions, contact us', icon: 'help' },
 ];

@@ -403,3 +403,15 @@ button.p2-ai__docchip { appearance: none; border: 0; width: 100%; text-align: le
 button.p2-ai__docchip:hover { box-shadow: inset 0 0 0 1.5px var(--ember); }
 button.p2-ai__searched { appearance: none; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; cursor: pointer; align-self: flex-start; }
 button.p2-ai__searched:hover { color: var(--ember-ink); text-decoration: underline; }
+
+/* Indexx sign-in card (Explore, Wallet, products, Settings) */
+.p2-ixsign { gap: 14px; }
+.p2-ixsign h2 { font-size: 18px; }
+.p2-ixsign__form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.p2-ixsign__form .ys-ovalbtn { margin-bottom: 2px; }
+.p2-ixsign .ys-oval img { width: 62%; height: 62%; object-fit: contain; }
+@media (max-width: 720px) { .p2-ixsign__form { grid-template-columns: 1fr; } .p2-ixsign__form .ys-ovalbtn { justify-self: center; } }
+/* Raised of goal (Wall Street listings) */
+.p2-meter { display: block; height: 6px; border-radius: 6px; background: var(--surface); overflow: hidden; max-width: 260px; }
+.p2-meter > span { display: block; height: 100%; border-radius: 6px; background: var(--ember); }
+.p2-ixsign p a { color: var(--ink); font-weight: 700; }

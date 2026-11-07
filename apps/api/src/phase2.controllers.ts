@@ -1,9 +1,9 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Ip, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ObjectId, type Collection } from 'mongodb';
 import {
-  aiAskSchema, aiShareSchema, aiChatPatchSchema, convertSchema, dismissPopupSchema, leadSchema, linkIndexxSchema, referralCodeSchema,
+  aiAskSchema, aiShareSchema, aiChatPatchSchema, dismissPopupSchema, leadSchema, indexxSignInSchema, withdrawSchema, referralCodeSchema,
   siteAskSchema, socialSchema, socialUrl, socialVisibilitySchema, supportAskSchema, supportTicketSchema, SOCIAL_NETWORKS,
-  type SocialNetwork, type SocialsView,
+  type ExploreProduct, type SocialNetwork, type SocialsView,
 } from '@yays/shared';
 import { z } from 'zod';
 import { parse } from './common/zod';
@@ -47,22 +47,27 @@ export class RewardsController {
 export class IndexxController {
   constructor(@Inject(INDEXX_SERVICE) private x: IndexxService, @Inject(RATE_LIMITER) private limiter: RateLimiter) {}
   @Get('indexx') status(@Auth() a: AuthCtx) { return this.x.status(a.userId); }
-  @Post('indexx/link') @HttpCode(200)
-  async link(@Auth() a: AuthCtx, @Body() b: unknown) {
+  @Post('indexx/sign-in') @HttpCode(200)
+  async signIn(@Auth() a: AuthCtx, @Body() b: unknown) {
     await this.limiter.hit(`indexx:${a.userId}`, 10, 3600, 'Too many tries. Try again later.');
-    return this.x.linkAccount(a.userId, parse(linkIndexxSchema, b).email);
+    const v = parse(indexxSignInSchema, b);
+    return this.x.signIn(a.userId, v.email, v.password);
   }
-  @Delete('indexx/link') unlink(@Auth() a: AuthCtx) { return this.x.unlink(a.userId); }
-  @Get('wallet') wallet(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.x.wallet(a.userId, tz); }
-  @Get('wallet/activity') activity(@Auth() a: AuthCtx) { return this.x.activity(a.userId); }
-  @Post('wallet/convert') @HttpCode(200)
-  async convert(@Auth() a: AuthCtx, @Tz() tz: string | null, @Body() b: unknown) {
-    await this.limiter.hit(`convert:${a.userId}`, 10, 3600);
-    return this.x.convert(a.userId, tz, parse(convertSchema, b).points);
+  @Delete('indexx/link') signOut(@Auth() a: AuthCtx) { return this.x.signOut(a.userId); }
+  @Get('explore') explore(@Auth() a: AuthCtx) { return this.x.explore(a.userId); }
+  @Get('explore/:product') product(@Auth() a: AuthCtx, @Param('product') p: string) {
+    if (!['btcy', 'emmm', 'shoperpal', 'wallstreet'].includes(p)) throw AppError.notFound();
+    return this.x.product(a.userId, p as ExploreProduct);
   }
-  @Get('btcy') btcy(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.x.btcy(a.userId, tz); }
-  @Post('btcy/mine') @HttpCode(200) mine(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.x.mine(a.userId, tz); }
-  @Get('products') products(@Auth() a: AuthCtx) { return this.x.products(a.userId); }
+  @Get('wallet') wallet(@Auth() a: AuthCtx) { return this.x.wallet(a.userId); }
+  @Get('wallet/withdraw/quote') quote(@Auth() a: AuthCtx, @Query('amount') amount?: string) { return this.x.quote(a.userId, Number(amount ?? 0)); }
+  @Post('wallet/withdraw') @HttpCode(200)
+  async withdraw(@Auth() a: AuthCtx, @Body() b: unknown) {
+    await this.limiter.hit(`withdraw:${a.userId}`, 10, 3600);
+    const v = parse(withdrawSchema, b);
+    return this.x.withdraw(a.userId, v.amount, v.idempotencyKey);
+  }
+  @Get('wallet/withdrawals') withdrawals(@Auth() a: AuthCtx, @Query('skip') skip?: string) { return this.x.withdrawals(a.userId, Number(skip ?? 0)); }
 }
 
 @Controller('v1/ai')

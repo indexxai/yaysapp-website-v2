@@ -15,6 +15,8 @@ export const ErrorCode = {
   ACCOUNT_DISABLED: 'account_disabled',
   SESSION_REVOKED: 'session_revoked',
   PROVIDER_UNAVAILABLE: 'provider_unavailable',
+  /** The Indexx sign-in ended (or was never made): sign in to Indexx again. */
+  INDEXX_SIGN_IN: 'indexx_sign_in',
   INTERNAL: 'internal_error',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

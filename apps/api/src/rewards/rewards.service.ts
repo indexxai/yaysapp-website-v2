@@ -41,6 +41,8 @@ const BTCY_TASKS = [
 /** INEX (stored as points): what people earn in YaysApp, kept as a ledger. Every award has a key, so nothing is paid twice. */
 export class RewardsService {
   readonly ledger: Collection<LedgerDoc>;
+  /** BTCY team size at the start of each week, to count friends invited this week. */
+  private readonly teamWeeks: Collection<{ _id: string; start: number; at: Date }>;
   readonly balances: Collection<Balance>;
   readonly activity: Collection<ActivityDoc>;
   readonly checkins: Collection<CheckinDoc>;
@@ -51,6 +53,7 @@ export class RewardsService {
 
   constructor(private readonly client: MongoClient, private readonly db: Db) {
     this.ledger = db.collection(C.pointsLedger);
+    this.teamWeeks = db.collection('yc_btcy_team_weeks');
     this.balances = db.collection(C.points);
     this.activity = db.collection(C.activity);
     this.checkins = db.collection(C.checkins);
@@ -313,10 +316,17 @@ export class RewardsService {
     const now = new Date(), week = weekKey(now, tz);
     const total = BTCY_TASKS.reduce((n, t) => n + t.points, 0);
     const base = { id: 'btcy-weekly' as const, product: 'btcy' as const, eyebrow: 'BTCY bonus · This week', points: total, allRequired: false, endsAt: endOfWeek(now, tz).toISOString() };
-    const link = await this.indexx?.accountOf(me);
-    if (!link || !this.indexx) return { ...base, tasks: BTCY_TASKS.map((t) => ({ id: t.id, title: t.title, icon: t.icon, done: 0, of: t.of, points: t.points, completed: false })), paid: 0, complete: false, needsLink: true };
-    const w = (await this.indexx.provider.btcy(link, tz)).week;
-    const done = { invites: w.invites, mining: w.miningDays, alchemy: w.alchemyConversions };
+    if (!this.indexx || !(await this.indexx.linked(me))) return { ...base, tasks: BTCY_TASKS.map((t) => ({ id: t.id, title: t.title, icon: t.icon, done: 0, of: t.of, points: t.points, completed: false })), paid: 0, complete: false, needsLink: true };
+    // From Indexx: the mining streak, and team size (friends invited this week = growth since we first saw it this week).
+    // Indexx doesn't report Alchemy conversions, so that task can't be counted yet.
+    const b = await this.indexx.btcyFor(me);
+    const members = b?.team.members ?? null;
+    let invites = 0;
+    if (members != null) {
+      const start = await this.teamWeeks.findOneAndUpdate({ _id: `${me.toHexString()}:${week}` }, { $setOnInsert: { start: members, at: now } }, { upsert: true, returnDocument: 'after' });
+      invites = Math.max(0, members - (start?.start ?? members));
+    }
+    const done = { invites, mining: b?.mining.streakDays ?? 0, alchemy: 0 };
     const tasks = BTCY_TASKS.map((t) => { const d = Math.min(done[t.id], t.of); return { id: t.id, title: t.title, icon: t.icon, done: d, of: t.of, points: t.points, completed: d >= t.of }; });
     let paid = 0;
     for (const t of tasks) {

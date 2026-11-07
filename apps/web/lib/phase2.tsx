@@ -30,6 +30,11 @@ export const errText = (e: unknown, fallback = 'Something went wrong. Try again.
 export const fmtPoints = (n: number) => n.toLocaleString('en-US');
 export const fmtUsd = (cents: number) => `$${(Math.abs(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export const fmtNuggets = (n: number, dp = 2) => n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: 4 });
+/** Dollars from Indexx; a dash when Indexx couldn't read it (null). */
+export const money = (n: number | null | undefined) => (n == null ? '—' : `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+/** A number from Indexx; a dash when it's null. */
+export const num = (n: number | null | undefined, dp = 0) => (n == null ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: Math.max(dp, 4) }));
+export const shortDate = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : '—');
 export const pct = (done: number, of: number) => `${Math.round((Math.min(done, of) / Math.max(of, 1)) * 100)}%`;
 
 /** "7h 12m", "4d 6h" or "12m" until a moment. */

@@ -71,8 +71,15 @@ const schema = z.object({
   JACK_AI_URL: z.string().url().default('https://jackai.si'),
   OPENROUTER_BASE_URL: z.string().url().default('https://openrouter.ai/api/v1'),
   OPENAI_BASE_URL: z.string().url().default('https://api.openai.com/v1'),
-  /** Indexx accounts (BTCY, Indexx Pay, EMMM). dev: a stand-in kept in this database. off: linking isn't offered. */
-  INDEXX_DRIVER: z.enum(['dev', 'off']).default('dev'),
+  /**
+   * Indexx sign-in, Explore cards and the wallet. live: the Indexx API at INDEXX_API_URL. dev: a stand-in that answers
+   * like it, kept in this database. off: signing in to Indexx isn't offered.
+   */
+  INDEXX_DRIVER: z.enum(['live', 'dev', 'off']).default('dev'),
+  /** Test: https://test.api.v1.indexx.ai/api/v1 · production: https://api.v1.indexx.ai/api/v1 */
+  INDEXX_API_URL: z.string().url().default('https://test.api.v1.indexx.ai/api/v1'),
+  /** Encrypts the Indexx login tokens kept for each person. Defaults to one made from JWT_SECRET. */
+  INDEXX_TOKEN_SECRET: z.string().min(32).optional(),
   /** Facebook link and sign-in. dev: a stand-in page served by this API. facebook: real Facebook Login. off: not offered. */
   FACEBOOK_DRIVER: z.enum(['dev', 'facebook', 'off']).default('dev'),
   FACEBOOK_APP_ID: z.string().optional(),
@@ -103,7 +110,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (c.PUSH_INSECURE_TLS) problems.push('PUSH_INSECURE_TLS must be off in production');
     if (c.FACEBOOK_DRIVER === 'dev') problems.push('FACEBOOK_DRIVER=dev is not allowed in production (use facebook, or off)');
     if (c.AI_DRIVER === 'dev') problems.push('AI_DRIVER=dev is not allowed in production (use openrouter, openai or anthropic)');
-    if (c.INDEXX_DRIVER === 'dev') problems.push('INDEXX_DRIVER=dev is not allowed in production (use off until the Indexx API is connected)');
+    if (c.INDEXX_DRIVER === 'dev') problems.push('INDEXX_DRIVER=dev is not allowed in production (use live, or off)');
   }
   if (c.SMS_DRIVER === 'twilio' && !(c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN && c.TWILIO_VERIFY_SID)) problems.push('SMS_DRIVER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SID');
   if (c.EMAIL_DRIVER === 'ses' && !(c.SES_REGION && c.SES_FROM)) problems.push('EMAIL_DRIVER=ses needs SES_REGION and SES_FROM');

@@ -40,7 +40,7 @@ export default function EarnPage() {
             <div className="p2-hero__num" data-testid="points-balance">{p ? fmtPoints(p.balance) : '—'}</div>
             <span>{p ? `+${fmtPoints(p.earnedThisWeek)} this week${p.pending ? ` · ${fmtPoints(p.pending)} pending` : ''}` : ' '}</span>
             <div className="row" style={{ gap: 26, marginTop: 18 }}>
-              <OvalButton icon="swap" label="Convert" size="md" variant="secondary" href="/wallet" />
+              <OvalButton icon="upload" label="Withdraw" size="md" variant="secondary" href="/wallet" />
               <OvalButton icon="clock" label="History" size="md" variant="secondary" href="/earn/history" />
             </div>
           </div>

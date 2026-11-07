@@ -1,6 +1,6 @@
 // Fills a LOCAL YaysApp with demo data: Sara Ahmed and her friends, chats with photos, a voice note,
 // a PDF, replies, reactions and a poll, groups, circles with posts and events, calls, and a few unread messages;
-// and Phase 2: INEX and a check-in streak, invites, a linked Indexx account with BTCY mining,
+// and Phase 2: INEX and a check-in streak, invites, an Indexx sign-in (BTCY, EMMM, ShoperPal, Wall Street, wallet),
 // and Jack's AI conversations.
 // Everything goes through the API (so it behaves like real use); afterwards the times are spread
 // over the last week so the lists read naturally. Ends by printing a link that signs you in as Sara.
@@ -159,7 +159,7 @@ async function reset() {
     del('yc_ai_messages', { userId: { $in: ids } }),
     del('yc_ai_consent', { userId: { $in: ids } }),
     del('yc_support_tickets', { userId: { $in: ids } }),
-    del('yc_indexx_dev', { _id: { $regex: '@indexx\\.demo$' } }),
+    del('yc_indexx_stub', { _id: { $regex: '@indexx\\.demo$' } }),
   ]);
   await del('yc_communities', { _id: { $in: commIds } });
   await del('yc_conversations', { _id: { $in: cids } });
@@ -473,28 +473,41 @@ const weekOf = (d) => { const k = dayOf(d); const x = new Date(`${k}T12:00:00Z`)
 const oid = (x) => new ObjectId(x.id);
 for (const who of [sara, amara, omar, lena, hamza, hana]) await db.collection('users').updateOne({ _id: oid(who) }, { $set: { 'yc.tz': TZ } });
 
-// Indexx accounts (the stand-in Indexx kept in this database while the real one isn't connected).
-for (const who of [sara, amara, omar, lena]) await call('/v1/indexx/link', { email: `${who.key}@indexx.demo` }, who.token);
-const NU = 10_000;
-const last7 = [0.26, 0.28, 0.22, 0.30, 0.24, 0.31, 0.25];
-await db.collection('yc_indexx_dev').updateOne({ _id: 'sara@indexx.demo' }, { $set: {
-  nuggetUnits: Math.round(10.2481 * NU), usdxxCents: 4250, exchangeUsdCents: 31820, btcyTokens: 1240, boostPct: 25,
-  mining: { endsAt: new Date(now + (3 * 60 + 12) * MIN), perHourUnits: 125, streak: 18, best: 31, lastDay: dayOf(new Date(now)), days: Object.fromEntries(last7.map((v, i) => [dayOf(daysAgo(6 - i)), Math.round(v * NU)])) },
-  team: [
-    { name: 'Hana Yusuf', joinedAt: daysAgo(19), lastMinedAt: new Date(now - 2 * 3600_000) },
-    { name: 'Hamza Tariq', joinedAt: daysAgo(25), lastMinedAt: daysAgo(2) },
-    { name: 'Bilal Khan', joinedAt: daysAgo(29), lastMinedAt: new Date(now - 5 * 3600_000) },
-    { name: 'Zainab K', joinedAt: daysAgo(3), lastMinedAt: null },
+// Indexx sign-ins (the stand-in Indexx kept in this database answers like the real Indexx API; any password works).
+for (const who of [sara, amara, omar, lena]) await call('/v1/indexx/sign-in', { email: `${who.key}@indexx.demo`, password: 'demo-pass' }, who.token);
+const utcDay = (n) => new Date(now - n * 86400_000).toISOString().slice(0, 10);
+const last7 = [6.2, 6.7, 5.3, 7.2, 5.8, 7.4, 0];
+await db.collection('yc_indexx_stub').updateOne({ _id: 'sara@indexx.demo' }, { $set: {
+  inex: 120, nuggets: 248.31, usdxx: 42.5,
+  exchange: [
+    { symbol: 'INEX', network: 'Binance Smart Chain', balance: 25.33, price: 5.25, usd: null },
+    { symbol: 'BTCY', network: 'Stellar', balance: 2400, price: 0.076, usd: null },
+    { symbol: 'USDT', network: 'Ethereum', balance: 118.4, price: 1, usd: null },
   ],
-  [`weeks.${weekOf(new Date(now))}`]: { invites: 4, miningDays: 3, alchemyConversions: 0 },
-  emmm: { handle: '@sara', open: 4, settledThisMonth: 7, markets: [
-    { question: 'Will BTC close above $100k this year?', closes: 'Closes 31 Dec', side: 'yes' },
-    { question: 'Pakistan to win the T20 series?', closes: 'Closes 3 Nov', side: 'no' },
-    { question: 'Will the Fed cut rates in December?', closes: 'Settling · result pending', side: 'pending' },
+  btcy: { plan: 'Pro', speed: 2, endsAt: new Date(now + (3 * 60 + 12) * MIN), streakDays: 18, minedByDay: Object.fromEntries(last7.map((v, i) => [utcDay(6 - i), v])), members: 6, miningNow: 4, tokens: 1240, totalMined: 412.7 },
+  'emmm.openPositions': 2, 'emmm.settledThisMonth': { count: 3, payoutUsd: 41.2 },
+  'emmm.markets': [
+    { marketSlug: 'btc-100k-2026', title: 'Will BTC close above $100k this year?', outcome: 'Yes', status: 'open', shares: 40, currentValue: 23.6, stakeUsd: 20, payoutUsd: null, settledAt: null },
+    { marketSlug: 'fed-cut-dec', title: 'Will the Fed cut rates in December?', outcome: 'No', status: 'open', shares: 25, currentValue: 9.5, stakeUsd: 12, payoutUsd: null, settledAt: null },
+    { marketSlug: 'pak-t20-series', title: 'Pakistan to win the T20 series?', outcome: 'Pakistan', status: 'won', shares: 30, currentValue: 0, stakeUsd: 15, payoutUsd: 28.5, settledAt: daysAgo(4).toISOString() },
+    { marketSlug: 'eth-5k-oct', title: 'ETH above $5k by end of October?', outcome: 'Yes', status: 'lost', shares: 10, currentValue: 0, stakeUsd: 6, payoutUsd: 0, settledAt: daysAgo(7).toISOString() },
+  ],
+  'wallstreet.holdings': { count: 2, totalInvested: 750, items: [
+    { campaignId: 'acme', tokenSymbol: 'ACME', tokenName: 'Acme Corp', amountInvested: 500, tokensReceived: 1000, purchases: 2, lastPurchasedAt: daysAgo(6).toISOString() },
+    { campaignId: 'grnl', tokenSymbol: 'GRNL', tokenName: 'Green Leaf Foods', amountInvested: 250, tokensReceived: 400, purchases: 1, lastPurchasedAt: daysAgo(12).toISOString() },
   ] },
+  'wallstreet.listings': { count: 1, items: [
+    { campaignId: 'sara-co', companyName: 'Sara Creates Studio', tokenSymbol: 'SCS', logo: null, status: 'submitted', verificationStatus: 'verified', fundingGoal: 50000, raised: 12500, investors: 18, deadline: new Date(now + 54 * 86400_000).toISOString() },
+  ] },
+  withdrawals: [{ id: 'demo-wd-1', key: 'demo-wd-1', status: 'completed', amount: 25, balance: 120, network: 'BSC', createdAt: daysAgo(2).toISOString(), duplicate: false }],
 } });
+// Amara sells on ShoperPal, so her ShoperPal tab shows the seller view.
+await db.collection('yc_indexx_stub').updateOne({ _id: 'amara@indexx.demo' }, { $set: { shoperpal: { role: 'seller', buyer: null, supplier: {
+  plan: 'Starter', productsListed: 12, productsLimit: 50, ordersToday: 3, pendingOrders: 5, commission: '8.0%',
+  aiCredits: { used: 4, total: 20, resetsInDays: 11 }, earnings: { grossEarned: 420, totalEarned: 386.4, pendingAmount: 40, available: 120 }, boosts: { active: 0, daysRemaining: 0 },
+} } } });
 
-// Sara's points: a 5-day check-in streak (today is day 6), last week's activity, a conversion and invites.
+// Sara's points: a 5-day check-in streak (today is day 6), last week's activity and invites.
 await db.collection('users').updateOne({ _id: oid(sara) }, { $set: { 'yc.refCode': 'SARA-7K2' } });
 const ledger = db.collection('yc_points_ledger');
 const entry = (who, key, kind, title, sub, amount, at, status = 'done', capped = false) => ledger.updateOne({ userId: oid(who), key }, { $setOnInsert: { _id: new ObjectId(), kind, title, sub, amount, status, at, day: dayOf(at), week: weekOf(at), ...(capped ? { capped: true } : {}) } }, { upsert: true });
@@ -507,7 +520,6 @@ for (let i = 0; i < 5; i++) {
 await entry(sara, 'seed:post', 'activity', 'Posted in Bitcoin YAY Circle', 'Circle post', 15, when([1, '18:15']), 'done', true);
 await entry(sara, 'seed:messages', 'activity', 'Sent 10 messages', 'Daily activity', 10, when([1, '16:02']), 'done', true);
 await entry(sara, 'seed:spam', 'reversal', 'Spam post removed', 'Points taken back by a moderator', -15, when([1, '19:40']));
-await entry(sara, 'seed:convert', 'convert', 'Converted to BTCY Nuggets', '1,000 INEX → 10 Nuggets', -1000, when(TODAY(520)));
 await entry(sara, `ref:${hana.id}`, 'referral', 'Invited Hana', 'Joined, verified and said hi', 100, daysAgo(19));
 await entry(sara, `ref:${hamza.id}`, 'referral', 'Invited Hamza', 'Waiting for him to verify and say hi', 100, when(TODAY(480)), 'pending');
 await db.collection('yc_referrals').updateOne({ _id: oid(hana) }, { $set: { inviterId: oid(sara), code: 'SARA-7K2', status: 'rewarded', at: daysAgo(19), rewardedAt: daysAgo(19) } }, { upsert: true });
@@ -532,7 +544,7 @@ async function aiChat(title, at, turns, o = {}) {
   await aiMsgs.insertMany(turns.map((t, i) => ({ _id: new ObjectId(), chatId: id, userId: oid(sara), role: i % 2 ? 'assistant' : 'user', text: t.text ?? t, mode: o.mode ?? 'chat', at: new Date(at.getTime() - (turns.length - i) * 20_000), ...(t.document ? { document: t.document } : {}) })));
 }
 await aiChat('Birthday message for Nani', daysAgo(4), ['Write a short birthday message for my Nani, warm and simple', 'Happy birthday, Nani! Thank you for every story, every cup of chai and every prayer. We love you more than words can say. 🎂']);
-await aiChat('INEX to Nuggets: how it works', daysAgo(2), ['How do I turn INEX into BTCY Nuggets?', 'Open **Wallet**, enter how much INEX to convert and confirm.\n\n- 100 INEX = 1 Nugget\n- At least 500 INEX, up to 5,000 a day\n- Nuggets arrive in your BTCY balance straight away\n\nConversions can’t be undone.'], { saved: true });
+await aiChat('Withdrawing INEX: how it works', daysAgo(2), ['How do I move my INEX to Indexx Exchange?', 'Open **Wallet**, enter how much INEX to withdraw and confirm.\n\n- 1 INEX in YaysApp = 1 INEX in your Indexx Exchange INEX wallet\n- At least 25 INEX, up to 5,000 a day\n- No fee, and no KYC needed\n\nWithdrawals can’t be undone. If the exchange can’t take it, your INEX comes back.'], { saved: true });
 await aiChat('Lahore Runners – Sponsorship Proposal', when([1, '20:30']), [
   'Write a one-page sponsorship proposal for our Lahore running community. Word file please.',
   { text: 'Done. It’s open on the right. I added a tiers table and a short “why sponsor us” section.', document: { title: 'Sponsor Lahore Runners', version: 1, markdown: '# Sponsor Lahore Runners\n\nProposal for the 2027 season\n\n## Who we are\n\nA community of 2,400 runners who meet every weekend for group runs across Lahore, plus four races a year.\n\n## Sponsor tiers\n\n| Tier | What you get | Price |\n|---|---|---|\n| Gold | Logo on race shirts, 4 posts | [PRICE] |\n| Silver | Logo on banners, 2 posts | [PRICE] |\n| Community | Thank-you post | [PRICE] |\n\n## Next step\n\nReply by 15 November to lock your tier.' } },

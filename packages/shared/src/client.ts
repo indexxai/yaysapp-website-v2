@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, AppPreferences, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
-import type { AiChat, AiChatSummary, AiInfo, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, BtcyView, CheckinStatus, EarnToday, IndexxLink, PointsHistoryPage, PointsSummary, PopupNow, ProductsView, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletTx, WalletView } from './phase2';
+import type { AiChat, AiChatSummary, AiInfo, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, CheckinStatus, EarnToday, ExploreProduct, ExploreView, IndexxLink, IndexxLinks, PointsHistoryPage, PointsSummary, PopupNow, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletView, WithdrawQuote, Withdrawal, WithdrawalsPage } from './phase2';
 import type { CircleComment, CircleDiscover, CircleEvent, CircleFeed, CircleMemberRow, CirclePost, CirclePostInput, CircleReview, CircleView, CreateCircleInput, CreateEventInput, MyCircles, PostReportReason, RsvpStatus, UpdateCircleInput, UpdateEventInput } from './circles';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
@@ -331,14 +331,15 @@ export class YaysClient {
 
   // ---- Indexx account, wallet, BTCY, products ----
   indexx() { return this.request<IndexxLink>('GET', '/v1/indexx'); }
-  linkIndexx(email: string) { return this.request<IndexxLink>('POST', '/v1/indexx/link', { email }); }
+  signInIndexx(email: string, password: string) { return this.request<IndexxLink>('POST', '/v1/indexx/sign-in', { email, password }); }
   unlinkIndexx() { return this.request<IndexxLink>('DELETE', '/v1/indexx/link'); }
+  explore() { return this.request<ExploreView>('GET', '/v1/explore'); }
+  /** One product's card, for refreshing it alone. */
+  exploreProduct<P extends ExploreProduct>(p: P) { return this.request<{ linked: boolean; links: IndexxLinks; data: ExploreView[P] }>('GET', `/v1/explore/${p}`); }
   wallet() { return this.request<WalletView>('GET', '/v1/wallet'); }
-  walletActivity() { return this.request<WalletTx[]>('GET', '/v1/wallet/activity'); }
-  convertPoints(points: number) { return this.request<WalletView>('POST', '/v1/wallet/convert', { points }); }
-  btcy() { return this.request<BtcyView>('GET', '/v1/btcy'); }
-  keepMining() { return this.request<BtcyView>('POST', '/v1/btcy/mine', {}); }
-  products() { return this.request<ProductsView>('GET', '/v1/products'); }
+  withdrawQuote(amount = 0) { return this.request<WithdrawQuote>('GET', `/v1/wallet/withdraw/quote?amount=${encodeURIComponent(String(amount))}`); }
+  withdraw(amount: number, idempotencyKey: string) { return this.request<Withdrawal>('POST', '/v1/wallet/withdraw', { amount, idempotencyKey }); }
+  withdrawals(skip = 0) { return this.request<WithdrawalsPage>('GET', `/v1/wallet/withdrawals?skip=${skip}`); }
 
 
   // ---- Jack's AI ----

@@ -1,4 +1,4 @@
-import type { AiReply, BonusCampaign, CheckinStatus, ChatMessage, PointsSummary, PopupNow, WalletView } from '@yays/shared';
+import type { AiReply, BonusCampaign, CheckinStatus, ChatMessage, ExploreView, PointsSummary, PopupNow, WalletView, Withdrawal, WithdrawalsPage, WithdrawQuote } from '@yays/shared';
 import { startApp, type TestApp } from './helpers';
 import { cid, makeUser, sleep, type TUser } from './chat-helpers';
 
@@ -193,55 +193,107 @@ describe('Indexx account, wallet and BTCY', () => {
   });
   afterAll(async () => { await t.close(); });
 
-  it('links an Indexx account once; the wallet shows its balances', async () => {
-    expect((await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body).toMatchObject({ linked: false, nuggets: null });
-    expect((await t.http.post('/v1/indexx/link').set(sara.auth).send({ email: 'nope' })).status).toBe(400);
-    expect((await t.http.post('/v1/indexx/link').set(sara.auth).send({ email: 'Sara@Indexx.io' }).expect(200)).body).toMatchObject({ linked: true, email: 'sara@indexx.io' });
-    expect((await t.http.post('/v1/indexx/link').set(lena.auth).send({ email: 'sara@indexx.io' })).status).toBe(409);
-    await t.http.post('/v1/indexx/link').set(amara.auth).send({ email: 'amara@indexx.io' }).expect(200);
+  const stub = () => t.db.collection('yc_indexx_stub');
+  const signIn = (u: TUser, email: string, password = 'secret-pass') => t.http.post('/v1/indexx/sign-in').set(u.auth).send({ email, password });
+
+  it('signs in to Indexx with email and password; keeps only the token, encrypted; one YaysApp account per Indexx account', async () => {
+    expect((await t.http.get('/v1/indexx').set(sara.auth).expect(200)).body).toMatchObject({ linked: false, available: true });
+    expect((await t.http.get('/v1/explore').set(sara.auth).expect(200)).body).toMatchObject({ linked: false, btcy: null, links: { btcy: 'https://bitcoinyay.com', rehuman: 'https://rehumansystem.com' } });
+    expect((await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body).toEqual({ linked: false, inex: null, nuggets: null, usdxx: null, exchange: null });
+    expect((await t.http.get('/v1/wallet/withdraw/quote').set(sara.auth)).body.error.code).toBe('indexx_sign_in');
+    expect((await signIn(sara, 'nope')).status).toBe(400);
+    const wrong = await signIn(sara, 'sara@indexx.io', 'wrong-password');
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error.message).toBe('Indexx said: Invalid email or password');
+    expect((await signIn(sara, 'Sara@Indexx.io').expect(200)).body).toMatchObject({ linked: true, email: 'sara@indexx.io' });
+    const kept = (await t.db.collection('users').findOne({ _id: new ObjectId(sara.id) }))!.yc.indexx;
+    expect(kept).toMatchObject({ email: 'sara@indexx.io', token: expect.any(String) });
+    expect(JSON.stringify(kept)).not.toContain('secret-pass');
+    expect(kept.token.split('.')).toHaveLength(3);
+    expect(Buffer.from(kept.token.split('.')[2], 'base64url').toString()).not.toContain('sara@indexx.io'); // not readable
+    expect((await signIn(lena, 'sara@indexx.io')).status).toBe(409);
+    await signIn(amara, 'amara@indexx.io').expect(200);
+  });
+
+  it('Explore: every product in one call, as Indexx sends it; a product Indexx can’t read is null, the rest still load', async () => {
+    const e = (await t.http.get('/v1/explore').set(sara.auth).expect(200)).body as ExploreView;
+    expect(e.linked).toBe(true);
+    expect(e.btcy).toMatchObject({ mining: { plan: 'Free', streakDays: 2, bestStreakDays: null }, team: { members: 4, miningNow: 2 }, boost: { percent: 10 }, portfolio: { nuggets: 10, tokens: 1240 } });
+    expect(e.btcy!.last7Days.days).toHaveLength(7);
+    expect(e.btcy!.last7Days.days[6]!.label).toBe('Today');
+    expect(e.emmm).toMatchObject({ openPositions: 1, settledThisMonth: { count: 1, payoutUsd: 14.5 } });
+    expect(e.emmm!.markets.map((m) => m.status)).toEqual(['open', 'won']);
+    expect(e.shoperpal).toMatchObject({ role: 'buyer', supplier: null, buyer: { orderCount: 2 } });
+    expect(e.wallstreet).toMatchObject({ holdings: { count: 1 }, listings: { count: 0 } });
+    await stub().updateOne({ _id: 'sara@indexx.io' as never }, { $set: { down: ['emmm'] } });
+    const d = (await t.http.get('/v1/explore').set(sara.auth).expect(200)).body as ExploreView;
+    expect(d.emmm).toBeNull();
+    expect(d.btcy).not.toBeNull();
+    expect((await t.http.get('/v1/explore/emmm').set(sara.auth).expect(200)).body).toMatchObject({ linked: true, data: null });
+    expect((await t.http.get('/v1/explore/wallstreet').set(sara.auth).expect(200)).body.data.holdings.items[0]).toMatchObject({ tokenSymbol: 'ACME' });
+    expect((await t.http.get('/v1/explore/nothing').set(sara.auth)).status).toBe(404);
+    await stub().updateOne({ _id: 'sara@indexx.io' as never }, { $set: { down: [] } });
+  });
+
+  it('wallet: the four cards; withdraw checks limits, pays once per key, and the INEX moves to the exchange', async () => {
     const w = (await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body as WalletView;
-    expect(w).toMatchObject({ linked: true, nuggets: 10, usdxxCents: 4250, points: 0 });
+    expect(w).toMatchObject({ linked: true, inex: { balance: 60 }, nuggets: { balance: 10 }, usdxx: { usd: 47.5 }, exchange: { totalUsd: 1.73, partial: true } });
+    expect(w.exchange!.assets.map((a) => a.symbol)).toEqual(['INEX', 'XYZ']);
+    const q = async (n: number) => (await t.http.get(`/v1/wallet/withdraw/quote?amount=${n}`).set(sara.auth).expect(200)).body as WithdrawQuote;
+    expect(await q(0)).toMatchObject({ eligible: false, reason: 'Enter how much INEX to withdraw.', minimum: 25, dailyMax: 5000, balance: 60 });
+    expect((await q(10)).reason).toBe('The minimum withdrawal is 25 INEX.');
+    expect((await q(1000)).reason).toBe('You have 60 INEX.');
+    expect(await q(25)).toMatchObject({ eligible: true, reason: null });
+    const key = cid();
+    const send = (amount: number, k = key) => t.http.post('/v1/wallet/withdraw').set(sara.auth).send({ amount, idempotencyKey: k });
+    expect((await send(10)).body.error.message).toBe('The minimum withdrawal is 25 INEX.');
+    expect((await send(2.5)).status).toBe(400);
+    const r = (await send(25).expect(200)).body as Withdrawal;
+    expect(r).toMatchObject({ status: 'completed', amount: 25, balance: 35, network: 'BSC', duplicate: false });
+    expect((await send(25).expect(200)).body).toMatchObject({ id: r.id, duplicate: true }); // same key: paid once
+    const after = (await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body as WalletView;
+    expect(after.inex!.balance).toBe(35);
+    expect(after.exchange!.assets.find((a) => a.symbol === 'INEX')!.balance).toBe(25.33);
+    // The exchange can't take it: nothing spent, and it shows as failed.
+    await stub().updateOne({ _id: 'sara@indexx.io' as never }, { $set: { failNext: 'unavailable' } });
+    const down = await send(25, cid());
+    expect(down.status).toBe(503);
+    expect(down.body.error.message).toContain('balance is unchanged');
+    await stub().updateOne({ _id: 'sara@indexx.io' as never }, { $set: { failNext: 'in_progress' } });
+    expect((await send(25, cid())).status).toBe(409);
+    const h = (await t.http.get('/v1/wallet/withdrawals').set(sara.auth).expect(200)).body as WithdrawalsPage;
+    expect(h.items.map((x) => x.status)).toEqual(['failed', 'completed']);
+    expect(h.hasMore).toBe(false);
   });
 
-  it('converts points to Nuggets within the limits', async () => {
-    await t.db.collection('yc_points').updateOne({ _id: new ObjectId(sara.id) as never }, { $set: { balance: 2450, pending: 0 } }, { upsert: true });
-    const bad = async (points: number) => (await t.http.post('/v1/wallet/convert').set(sara.auth).set(TZ).send({ points })).body.error.message as string;
-    expect(await bad(300)).toContain('smallest');
-    expect(await bad(550)).toContain('steps of 100');
-    expect(await bad(3000)).toContain('isn’t enough');
-    const w = (await t.http.post('/v1/wallet/convert').set(sara.auth).set(TZ).send({ points: 1000 }).expect(200)).body as WalletView;
-    expect(w).toMatchObject({ points: 1450, nuggets: 20, convert: { usedToday: 1000 } });
-    const act = (await t.http.get('/v1/wallet/activity?filter=points').set(sara.auth).expect(200)).body;
-    expect(act[0]).toMatchObject({ kind: 'convert', title: 'Converted INEX', amount: 10 * 10000, unit: 'NUGGET' });
+  it('when Indexx stops accepting the token, YaysApp drops it and asks to sign in again', async () => {
+    await stub().updateOne({ _id: 'amara@indexx.io' as never }, { $set: { revokedBefore: new Date(Date.now() + 60_000) } });
+    expect((await t.http.get('/v1/explore').set(amara.auth).expect(200)).body.linked).toBe(false);
+    expect((await t.http.get('/v1/indexx').set(amara.auth).expect(200)).body).toMatchObject({ linked: false, email: 'amara@indexx.io' });
+    expect((await t.http.post('/v1/wallet/withdraw').set(amara.auth).send({ amount: 25, idempotencyKey: cid() })).body.error.code).toBe('indexx_sign_in');
+    await stub().updateOne({ _id: 'amara@indexx.io' as never }, { $set: { revokedBefore: null } });
+    await signIn(amara, 'amara@indexx.io').expect(200);
+    expect((await t.http.get('/v1/wallet').set(amara.auth).expect(200)).body.linked).toBe(true);
+    expect((await t.http.delete('/v1/indexx/link').set(amara.auth).expect(200)).body).toMatchObject({ linked: false, email: null });
   });
 
-  it('BTCY: mining, and the weekly bonus pays each finished task', async () => {
-    let b = (await t.http.get('/v1/btcy').set(sara.auth).set(TZ).expect(200)).body;
-    expect(b).toMatchObject({ linked: true, mining: { active: false } });
-    b = (await t.http.post('/v1/btcy/mine').set(sara.auth).set(TZ).expect(200)).body;
-    expect(b.mining).toMatchObject({ active: true, streak: 1 });
-    expect((await t.http.post('/v1/btcy/mine').set(sara.auth).set(TZ)).status).toBe(409);
+  it('BTCY bonus: the mining streak and friends who joined the team this week count; paid once', async () => {
     const before = (await points(t, sara)).balance;
-    const wk = (await t.db.collection('yc_indexx_dev').findOne({ _id: 'sara@indexx.io' as never }))!.weeks as Record<string, unknown>;
-    const key = Object.keys(wk)[0]!;
-    await t.db.collection('yc_indexx_dev').updateOne({ _id: 'sara@indexx.io' as never }, { $set: { [`weeks.${key}.invites`]: 10, [`weeks.${key}.alchemyConversions`]: 1 } });
-    const all = (await t.http.get('/v1/rewards/bonuses').set(sara.auth).set(TZ).expect(200)).body as BonusCampaign[];
-    const btcy = all.find((x) => x.id === 'btcy-weekly')!;
-    expect(btcy).toMatchObject({ needsLink: false, paid: 70, complete: false });
-    expect(btcy.tasks.map((x) => x.done)).toEqual([10, 1, 1]);
-    expect((await points(t, sara)).balance).toBe(before + 70);
+    let b = ((await t.http.get('/v1/rewards/bonuses').set(sara.auth).set(TZ).expect(200)).body as BonusCampaign[]).find((x) => x.id === 'btcy-weekly')!;
+    expect(b).toMatchObject({ needsLink: false, paid: 0 });
+    expect(b.tasks.map((x) => x.done)).toEqual([0, 2, 0]);
+    await stub().updateOne({ _id: 'sara@indexx.io' as never }, { $set: { 'btcy.members': 14, 'btcy.streakDays': 8 } });
+    b = ((await t.http.get('/v1/rewards/bonuses').set(sara.auth).set(TZ).expect(200)).body as BonusCampaign[]).find((x) => x.id === 'btcy-weekly')!;
+    expect(b.tasks.map((x) => x.done)).toEqual([10, 7, 0]);
+    expect(b).toMatchObject({ paid: 70, complete: false });
     await t.http.get('/v1/rewards/bonuses').set(sara.auth).set(TZ).expect(200);
-    expect((await points(t, sara)).balance).toBe(before + 70); // paid once
+    expect((await points(t, sara)).balance).toBe(before + 70);
   });
 
-  it('pay in chat is gone: no payment routes, no payment PIN; the wallet lists conversions only', async () => {
-    for (const [method, path] of [['put', '/v1/pay/pin'], ['post', '/v1/pay/requests'], ['post', '/v1/pay/send'], ['post', '/v1/pay/0123456789abcdef01234567/pay'], ['post', '/v1/pay/0123456789abcdef01234567/decline']] as const) {
-      expect((await t.http[method](path).set(sara.auth).send({ conversationId: conv, amountCents: 500, note: '', clientId: cid(), pin: '482916' })).status).toBe(404);
+  it('old routes are gone: pay in chat, convert to Nuggets, activity, start mining', async () => {
+    for (const [method, path] of [['put', '/v1/pay/pin'], ['post', '/v1/pay/send'], ['post', '/v1/wallet/convert'], ['get', '/v1/wallet/activity'], ['post', '/v1/btcy/mine'], ['get', '/v1/products'], ['post', '/v1/indexx/link']] as const) {
+      expect((await t.http[method](path).set(sara.auth).send({ conversationId: conv, points: 500, email: 'x@y.io' })).status).toBe(404);
     }
-    const w = (await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body;
-    expect(w).not.toHaveProperty('hasPayPin');
-    const tx = (await t.http.get('/v1/wallet/activity').set(sara.auth).expect(200)).body as Array<{ kind: string }>;
-    expect(tx.every((x) => x.kind === 'convert')).toBe(true);
   });
 
   it('socials: shown to others unless hidden', async () => {

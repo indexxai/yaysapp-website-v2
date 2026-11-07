@@ -8,8 +8,6 @@ export const CHECKIN_POINTS = [10, 10, 15, 15, 20, 20, 50] as const;
 export const DAILY_POINTS_CAP = 200;
 /** Inviter's reward when a friend joins with their code, verifies a phone number and sends a first message. */
 export const REFERRAL_POINTS = 100;
-/** Points → BTCY Nuggets. */
-export const CONVERT = { pointsPerNugget: 100, min: 500, dailyMax: 5000 } as const;
 
 export interface PointsSummary {
   balance: number;
@@ -90,50 +88,104 @@ export const dismissPopupSchema = z.object({
 
 /* ------------------------------------------------------------------ Indexx account, wallet, BTCY */
 
+/**
+ * The person's Indexx sign-in. YaysApp keeps the Indexx login token on its server (never the password) and reads
+ * BTCY, EMMM, ShoperPal, Wall Street and the wallet with it. `email` stays after a sign-in ends, to fill the form.
+ */
 export interface IndexxLink { linked: boolean; email: string | null; linkedAt: string | null; available: boolean }
+export const indexxSignInSchema = z.object({
+  email: z.string().trim().email('Enter the email of your Indexx account.'),
+  password: z.string().min(1, 'Enter your Indexx password.').max(200),
+});
 
+/* The objects below are what the Indexx API returns (YaysApp Explore and Wallet APIs, 7 Nov 2026), passed on as
+   they are. null means Indexx couldn't read that value right now: show a dash, not 0. */
+
+export interface IndexxLinks { btcy: string; emmm: string; shoperpal: string; wallstreet: string; rehuman: string }
+export const INDEXX_LINKS: IndexxLinks = {
+  btcy: 'https://bitcoinyay.com', emmm: 'https://emmm.io', shoperpal: 'https://shoperpal.com',
+  wallstreet: 'https://wallstreet.blockchain.indexx.ai', rehuman: 'https://rehumansystem.com',
+};
+
+export interface IndexxBtcy {
+  mining: { active: boolean; speed: number | null; plan: string | null; endsInSeconds: number | null; streakDays: number | null; bestStreakDays: number | null };
+  last7Days: { days: Array<{ date: string; label: string; nuggets: number | null }>; total: number | null };
+  team: { members: number | null; miningNow: number | null };
+  boost: { percent: number | null; multiplier: number | null };
+  portfolio: { nuggets: number | null; tokens: number | null; totalMined: number | null };
+  alchemy?: { currentUsd: number | null; targetUsd: number | null } | null;
+  referrals?: { active: number | null; target: number | null } | null;
+  station?: { unlocked: boolean } | null;
+  ambassador?: { tier: string | null; nextTierAt: number | null } | null;
+  watchEarn?: { watched: number | null; total: number | null; nuggetsToday: number | null } | null;
+}
+
+export type EmmmMarketStatus = 'open' | 'won' | 'lost';
+export interface IndexxEmmm {
+  openPositions: number | null;
+  settledThisMonth: { count: number | null; payoutUsd: number | null } | null;
+  markets: Array<{ marketSlug: string; title: string; outcome: string | null; status: EmmmMarketStatus; shares: number | null; currentValue: number | null; stakeUsd: number | null; payoutUsd: number | null; settledAt: string | null }>;
+  eligibility?: { eligible: boolean; nuggetBalance: number | null; totalMined: number | null; maxBetNuggets: number | null; reason: string | null } | null;
+  portfolio?: { value: number | null; cash: number | null; usdt: number | null } | null;
+}
+
+export interface ShoperPalPurchase { id: string; status: string; total: number | null; createdAt: string; items: Array<{ name: string; quantity: number; price: number | null }> }
+export interface IndexxShoperPal {
+  role: 'seller' | 'buyer';
+  supplier: {
+    plan: string | null; productsListed: number | null; productsLimit: number | null; ordersToday: number | null; pendingOrders: number | null; commission: string | null;
+    aiCredits: { used: number | null; total: number | null; resetsInDays: number | null } | null;
+    earnings: { grossEarned: number | null; totalEarned: number | null; pendingAmount: number | null; available: number | null } | null;
+    boosts: { active: number | null; daysRemaining: number | null } | null;
+  } | null;
+  buyer: {
+    monthSpend: number | null; orderCount: number | null; earnRate: string | null;
+    nuggets: { released: number | null; pending: number | null; wallet: number | null; lifetime: number | null } | null;
+    flash: { title: string; endsAt: string } | null;
+    recentPurchases: ShoperPalPurchase[];
+  } | null;
+}
+
+export interface IndexxWallStreet {
+  holdings: { count: number; totalInvested: number | null; items: Array<{ campaignId: string; tokenSymbol: string; tokenName: string; amountInvested: number | null; tokensReceived: number | null; purchases: number | null; lastPurchasedAt: string | null }> };
+  listings: { count: number; items: Array<{ campaignId: string; companyName: string; tokenSymbol: string; logo: string | null; status: string; verificationStatus: string | null; fundingGoal: number | null; raised: number | null; investors: number | null; deadline: string | null }> };
+}
+
+/** The Explore tab. Not signed in to Indexx: linked false, products null, links are the usual sites. */
+export interface ExploreView {
+  linked: boolean;
+  links: IndexxLinks;
+  btcy: IndexxBtcy | null;
+  emmm: IndexxEmmm | null;
+  shoperpal: IndexxShoperPal | null;
+  wallstreet: IndexxWallStreet | null;
+}
+export type ExploreProduct = 'btcy' | 'emmm' | 'shoperpal' | 'wallstreet';
+
+export interface ExchangeAsset { symbol: string; network: string | null; balance: number; price: number | null; usd: number | null }
+/** The four wallet cards. Dollars, not cents. */
 export interface WalletView {
-  points: number;
   linked: boolean;
-  /** Null when no Indexx account is linked. Nuggets have 4 decimals. */
-  nuggets: number | null;
-  /** USDXX in cents. */
-  usdxxCents: number | null;
-  exchangeUsdCents: number | null;
-  syncedAt: string | null;
-  convert: { pointsPerNugget: number; min: number; dailyMax: number; usedToday: number };
+  inex: { balance: number | null; source: string } | null;
+  nuggets: { balance: number | null; source: string } | null;
+  usdxx: { balance: number | null; usd: number | null; source: string } | null;
+  /** null: the exchange wallet couldn't be read. totalUsd 0: nothing held. */
+  exchange: { totalUsd: number | null; assets: ExchangeAsset[]; partial: boolean; readOnly: boolean } | null;
 }
 
-export type WalletTxStatus = 'done' | 'failed';
-/** Wallet activity: INEX converted to BTCY Nuggets. */
-export interface WalletTx {
-  id: string;
-  kind: 'convert';
-  direction: 'in' | 'out';
-  title: string;
-  sub: string;
-  at: string;
-  status: WalletTxStatus;
-  /** In 1/10000 of a Nugget. */
-  amount: number;
-  unit: 'NUGGET';
+export interface WithdrawQuote {
+  amount: number; balance: number; minimum: number;
+  /** null: no daily limit. */
+  dailyMax: number | null; usedToday: number; remainingToday: number | null;
+  destination: string; eligible: boolean; reason: string | null;
 }
-
-export interface BtcyView {
-  linked: boolean;
-  mining: { active: boolean; endsAt: string | null; nuggets: number; perHour: number; last7: Array<{ day: string; amount: number }>; streak: number; best: number };
-  tokens: number;
-  boostPct: number;
-  team: Array<{ name: string; joinedAt: string; mining: boolean; lastActiveAt: string | null }>;
-}
-
-export interface ProductsView {
-  linked: boolean;
-  emmm: { handle: string | null; open: number; settledThisMonth: number; markets: Array<{ question: string; closes: string; side: 'yes' | 'no' | 'pending' }>; trendingError: boolean } | null;
-}
-
-export const convertSchema = z.object({ points: z.number().int().positive() });
-export const linkIndexxSchema = z.object({ email: z.string().trim().email('Enter the email of your Indexx account.') });
+export type WithdrawStatus = 'completed' | 'failed' | 'processing';
+export interface Withdrawal { id: string; status: WithdrawStatus; amount: number; balance: number; network: string | null; createdAt: string; duplicate: boolean }
+export interface WithdrawalsPage { items: Withdrawal[]; hasMore: boolean }
+export const withdrawSchema = z.object({
+  amount: z.number().int('Enter a whole number of INEX.').positive('Enter how much INEX to withdraw.'),
+  idempotencyKey: z.string().min(8).max(100),
+});
 
 /* ------------------------------------------------------------------ Jack's AI */
 

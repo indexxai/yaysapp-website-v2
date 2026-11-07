@@ -9,7 +9,10 @@ import { apiCall, apiUser, db, pageAs, type ApiUser } from './helpers';
 const OUT = process.env.PHASE2_OUT ?? path.join(__dirname, '../test-results/phase2');
 const VP = { width: 1440, height: 900 };
 const shot = async (p: Page, name: string) => { await p.waitForTimeout(450); await p.screenshot({ path: path.join(OUT, `${name}.png`) }); };
-const link = (u: ApiUser, email: string) => apiCall('/v1/indexx/link', { email }, u.tokens.accessToken);
+/** A fresh Indexx email for this person (the stand-in Indexx keeps accounts between runs). */
+const ixEmail = (u: ApiUser, name: string) => `${name}.${u.id.slice(-8)}@indexx.io`;
+const signIn = (u: ApiUser, email: string) => apiCall('/v1/indexx/sign-in', { email, password: 'pass-1234' }, u.tokens.accessToken);
+const stub = (email: string, set: Record<string, unknown>) => db((d) => d.collection('yc_indexx_stub').updateOne({ _id: email as never }, { $set: set }));
 const give = (u: ApiUser, points: number) => db((d) => d.collection('yc_points').updateOne({ _id: new ObjectId(u.id) as never }, { $set: { balance: points, pending: 0 } }, { upsert: true }));
 
 test.beforeAll(() => mkdirSync(OUT, { recursive: true }));
@@ -68,7 +71,7 @@ test('pop-ups as the app opens: check-in, then the Jack’s AI bonus, then BTCY'
   const btcy = c.page.getByRole('dialog', { name: /Earn up to \+100 INEX/ });
   await expect(btcy.getByText('Convert nuggets to tokens with Alchemy')).toBeVisible();
   await shot(c.page, 'w14-btcy-bonus');
-  await btcy.getByRole('button', { name: 'Link Indexx account' }).click();
+  await btcy.getByRole('button', { name: 'Sign in to Indexx' }).click();
   await expect(c.page).toHaveURL(/\/settings\/indexx$/);
   await c.ctx.close();
   // Nothing more today.
@@ -113,36 +116,128 @@ test('Explore, Earn, history and invites', async ({ browser }) => {
   await a.ctx.close();
 });
 
-test('Indexx account, wallet conversion and BTCY', async ({ browser }) => {
+test('Indexx sign-in on Explore; BTCY, EMMM, ShoperPal and Wall Street from Indexx', async ({ browser }) => {
   const sara = await apiUser('Sara Ahmed');
-  await give(sara, 2450);
+  const email = ixEmail(sara, 'sara');
+  const a = await pageAs(browser, sara, VP);
+  await a.page.goto('/explore');
+  const card = a.page.getByRole('region', { name: 'Sign in to Indexx' });
+  await expect(card).toBeVisible();
+  await card.getByLabel('Indexx email').fill(email);
+  await shot(a.page, 'w01c-indexx-sign-in');
+  await card.getByLabel('Indexx password').fill('wrong-password');
+  await card.getByRole('button', { name: 'Sign in to Indexx' }).click();
+  await expect(card.getByText('Indexx said: Invalid email or password')).toBeVisible();
+  await card.getByLabel('Indexx password').fill('my-indexx-pass');
+  await card.getByRole('button', { name: 'Sign in to Indexx' }).click();
+  await expect(card).toBeHidden();
+  await expect(a.page.getByTestId('indexx-as')).toHaveText(`Signed in to Indexx as ${email}`);
+  await expect(a.page.getByTestId('live-btcy')).toHaveText('10.00 Nuggets · not mining');
+  await expect(a.page.getByTestId('live-emmm')).toHaveText('1 open · 1 settled this month');
+  await expect(a.page.getByTestId('live-shoperpal')).toHaveText('$64.98 this month · 2 orders');
+  await expect(a.page.getByTestId('live-wallstreet')).toHaveText('1 stock · $500.00 invested');
+  await expect(a.page.getByRole('link', { name: /ReHuman/ })).toHaveAttribute('href', 'https://rehumansystem.com');
+  await shot(a.page, 'w01b-explore-indexx');
+
+  await a.page.goto('/btcy');
+  await expect(a.page.getByTestId('btcy-nuggets')).toHaveText('10.00');
+  await expect(a.page.getByText('BTCY Nuggets · Free plan · 1× speed')).toBeVisible();
+  await expect(a.page.getByRole('link', { name: 'Keep mining' })).toHaveAttribute('href', 'https://bitcoinyay.com');
+  await expect(a.page.getByText('2 of 4')).toBeVisible();
+  await expect(a.page.getByText('+10%')).toBeVisible();
+  await expect(a.page.locator('.p2-bars > div')).toHaveCount(7);
+  await shot(a.page, 'w06-btcy');
+
+  await a.page.goto('/products?tab=emmm');
+  await expect(a.page.getByTestId('emmm-open')).toHaveText('1');
+  await expect(a.page.getByText('Lakers vs Celtics')).toBeVisible();
+  await expect(a.page.getByText('Won', { exact: true })).toBeVisible();
+  await expect(a.page.getByText(/Lakers · 15 shares · staked \$8\.00 · paid \$14\.50/)).toBeVisible();
+  await shot(a.page, 'p14-products');
+  await a.page.getByRole('tab', { name: 'ShoperPal' }).click();
+  await expect(a.page.getByTestId('shoperpal-buyer')).toContainText('$64.98');
+  await expect(a.page.getByText('Wireless Earbuds', { exact: true })).toBeVisible();
+  await expect(a.page.getByText('Shipped')).toBeVisible();
+  await expect(a.page.getByText('CeraVe Moisturizing Cream, Lip balm ×2')).toBeVisible();
+  await shot(a.page, 'p14b-shoperpal');
+  // A seller sees their store instead.
+  await stub(email, { shoperpal: { role: 'seller', buyer: null, supplier: { plan: 'Starter', productsListed: 12, productsLimit: 50, ordersToday: 3, pendingOrders: 5, commission: '8.0%', aiCredits: { used: 4, total: 20, resetsInDays: 11 }, earnings: { grossEarned: 420, totalEarned: 386.4, pendingAmount: 40, available: 120 }, boosts: null } } });
+  await a.page.reload();
+  await expect(a.page.getByTestId('shoperpal-seller')).toContainText('12 / 50');
+  await expect(a.page.getByText('Orders today')).toBeVisible();
+  await a.page.getByRole('tab', { name: 'Wall Street Indexx' }).click();
+  await expect(a.page.getByTestId('ws-stocks')).toHaveText('1');
+  await expect(a.page.getByText('Acme Corp')).toBeVisible();
+  await shot(a.page, 'p14c-wallstreet');
+  // EMMM can't be read: only that tab says so.
+  await stub(email, { down: ['emmm'] });
+  await a.page.getByRole('tab', { name: 'EMMM' }).click();
+  await expect(a.page.getByText('EMMM didn’t answer. Try again in a minute.')).toBeVisible();
+  await a.page.goto('/explore');
+  await expect(a.page.getByTestId('live-emmm')).toHaveText('Couldn’t load right now');
+  await expect(a.page.getByTestId('live-btcy')).toHaveText('10.00 Nuggets · not mining');
+  await a.ctx.close();
+});
+
+test('wallet: the four cards from Indexx; withdraw INEX to Indexx Exchange; a sign-in that ends asks again', async ({ browser }) => {
+  const sara = await apiUser('Sara Ahmed');
+  const email = ixEmail(sara, 'sara');
   const a = await pageAs(browser, sara, VP);
   await a.page.goto('/wallet');
-  await expect(a.page.getByText('Link your Indexx account', { exact: true })).toBeVisible();
-  await a.page.getByRole('link', { name: 'Link account' }).click();
-  await a.page.getByLabel('Indexx account email').fill('sara@indexx.io');
-  await a.page.getByRole('button', { name: 'Link Indexx account' }).click();
-  await expect(a.page.getByText('sara@indexx.io · since')).toBeVisible();
-  await shot(a.page, 'p15-indexx-account');
-  await a.page.goto('/wallet');
-  await expect(a.page.getByText('$42.50')).toBeVisible();
-  await a.page.getByLabel('INEX to convert').fill('3000');
-  await expect(a.page.getByText('You have 2,450 INEX. Enter 2,450 or less.')).toBeVisible();
+  await expect(a.page.getByRole('region', { name: 'Sign in to Indexx' })).toBeVisible();
+  await expect(a.page.getByTestId('card-inex')).toContainText('—');
+  await signIn(sara, email);
+  await a.page.reload();
+  await expect(a.page.getByTestId('card-inex')).toContainText('60');
+  await expect(a.page.getByTestId('card-exchange')).toContainText('$1.73');
+  await expect(a.page.getByText('$47.50')).toBeVisible();
+  await expect(a.page.getByText('Some coins have no price yet, so they aren’t in the total.')).toBeVisible();
+  await expect(a.page.getByText('Nothing yet. INEX you withdraw to Indexx Exchange shows here.')).toBeVisible();
+  await expect(a.page.getByText('You have 60 INEX.')).toBeVisible();
+  await a.page.getByLabel('INEX to withdraw').fill('10');
+  await expect(a.page.getByText('The minimum withdrawal is 25 INEX.')).toBeVisible();
+  await expect(a.page.getByRole('button', { name: 'Withdraw', exact: true })).toBeDisabled();
+  await a.page.getByLabel('INEX to withdraw').fill('100');
+  await expect(a.page.getByText('You have 60 INEX.', { exact: true }).last()).toBeVisible();
   await shot(a.page, 'w04-wallet');
-  await a.page.getByLabel('INEX to convert').fill('1000');
-  await a.page.getByRole('button', { name: 'Convert', exact: true }).click();
-  const dlg = a.page.getByRole('dialog', { name: 'Convert INEX?' });
-  await expect(dlg.getByText('10.00 BTCY Nuggets')).toBeVisible();
-  await dlg.getByRole('button', { name: 'Convert' }).click();
-  await expect(a.page.getByText('1,000 INEX became 10.00 BTCY Nuggets.')).toBeVisible();
-  await expect(a.page.getByRole('cell', { name: /Converted INEX/ })).toBeVisible();
-  await a.page.goto('/btcy');
-  await a.page.getByRole('button', { name: 'Keep mining' }).click();
-  await expect(a.page.getByText(/Mining active · .+ left/)).toBeVisible();
-  await shot(a.page, 'w06-btcy');
-  await a.page.goto('/products?tab=emmm');
-  await expect(a.page.getByText('Open positions')).toBeVisible();
-  await shot(a.page, 'p14-products');
+  await a.page.getByLabel('INEX to withdraw').fill('25');
+  await expect(a.page.getByRole('button', { name: 'Withdraw', exact: true })).toBeEnabled();
+  await a.page.getByRole('button', { name: 'Withdraw', exact: true }).click();
+  const dlg = a.page.getByRole('dialog', { name: 'Withdraw INEX?' });
+  await expect(dlg.getByText('25 INEX', { exact: true })).toBeVisible();
+  await expect(dlg.getByText('35 INEX')).toBeVisible();
+  await shot(a.page, 'w04b-withdraw-confirm');
+  await dlg.getByRole('button', { name: 'Withdraw' }).click();
+  await expect(a.page.getByText('25 INEX is on its way to your Indexx Exchange INEX wallet.')).toBeVisible();
+  await expect(a.page.getByTestId('card-inex')).toContainText('35');
+  await expect(a.page.getByRole('cell', { name: 'Completed' })).toBeVisible();
+  await expect(a.page.getByRole('row', { name: /^INEX Binance Smart Chain 25\.33/ })).toBeVisible();
+  // The exchange can't take it: the message shows in the dialog, and nothing is spent.
+  await stub(email, { failNext: 'unavailable' });
+  await a.page.getByLabel('INEX to withdraw').fill('30');
+  await a.page.getByRole('button', { name: 'Withdraw', exact: true }).click();
+  await dlg.getByRole('button', { name: 'Withdraw' }).click();
+  await expect(dlg.getByText(/balance is unchanged/)).toBeVisible();
+  await dlg.getByRole('button', { name: 'Cancel' }).click();
+  await expect(a.page.getByTestId('card-inex')).toContainText('35');
+
+  // Settings: signed in, then signing out shows the sign-in again.
+  await a.page.goto('/settings/indexx');
+  await expect(a.page.getByText(`${email} · since`)).toBeVisible();
+  await shot(a.page, 'p15-indexx-account');
+  await a.page.getByRole('button', { name: 'Sign out of Indexx' }).click();
+  await expect(a.page.getByText('Signed out of Indexx.')).toBeVisible();
+  await expect(a.page.getByLabel('Indexx password')).toBeVisible();
+  await a.page.getByLabel('Indexx email').fill(email);
+  await a.page.getByLabel('Indexx password').fill('pass-again');
+  await a.page.getByRole('button', { name: 'Sign in to Indexx' }).click();
+  await expect(a.page.getByText(`${email} · since`)).toBeVisible();
+
+  // Indexx stops accepting the token: Explore asks to sign in again, with the email filled in.
+  await stub(email, { revokedBefore: new Date(Date.now() + 60_000) });
+  await a.page.goto('/explore');
+  await expect(a.page.getByText('Your Indexx sign-in ended. Sign in again to see your products.')).toBeVisible();
+  await expect(a.page.getByLabel('Indexx email')).toHaveValue(email);
   await a.ctx.close();
 });
 
@@ -189,7 +284,7 @@ test('Jack’s AI: answers, documents, and the daily limit', async ({ browser })
 
 test('no money in chats; Jack’s catch-up summary with consent', async ({ browser }) => {
   const sara = await apiUser('Sara Ahmed'), amara = await apiUser('Amara Okafor');
-  await link(sara, 'sara.p@indexx.io'); await link(amara, 'amara.p@indexx.io');
+  await signIn(sara, ixEmail(sara, 'sara')); await signIn(amara, ixEmail(amara, 'amara'));
   const conv = (await apiCall('/v1/conversations/direct', { userId: amara.id }, sara.tokens.accessToken)).id as string;
   await apiCall(`/v1/conversations/${conv}/messages`, { clientId: crypto.randomUUID(), text: 'That dinner was great! Splitting the bill' }, amara.tokens.accessToken);
   const m = await pageAs(browser, amara, VP);

@@ -1,118 +1,141 @@
-import { randomUUID } from 'crypto';
-import { ObjectId, type Collection, type Db } from 'mongodb';
-import { CONVERT, type BtcyView, type IndexxLink, type ProductsView, type WalletTx, type WalletView } from '@yays/shared';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
+import type { Collection, Db, ObjectId } from 'mongodb';
+import {
+  ErrorCode, INDEXX_LINKS, type ExploreProduct, type ExploreView, type IndexxBtcy, type IndexxLink, type IndexxLinks,
+  type WalletView, type Withdrawal, type WithdrawalsPage, type WithdrawQuote,
+} from '@yays/shared';
 import { AppError } from '../common/app-error';
+import type { Logger } from '../common/logger';
 import { C } from '../infra/mongo';
 import type { UserDoc } from '../users/users.repo';
-import type { RewardsService } from '../rewards/rewards.service';
-import { dayKey } from '../rewards/days';
-import { NUGGET_UNIT, type IndexxProvider } from './indexx.provider';
+import { IndexxSignedOut, type IndexxClient } from './indexx.client';
 
-interface LinkFields { indexx?: { account: string; email: string; linkedAt: Date } }
+/** Kept on the YaysApp user (under yc): the Indexx email, and the login token encrypted. Never the password. */
+interface IndexxFields { indexx?: { email: string; token?: string; expiresAt?: Date | null; linkedAt: Date } }
 
-/** The person's Indexx account (BTCY, Indexx Pay, Exchange, EMMM): linking it, and what YaysApp shows from it. */
+const SIGNED_OUT = 'Your Indexx sign-in ended. Sign in to Indexx again.';
+
+/**
+ * The person's Indexx sign-in, and everything YaysApp shows from Indexx (Explore cards, wallet, withdraw).
+ * Their login token is used only from this server, so the web and mobile apps only ever talk to YaysApp.
+ */
 export class IndexxService {
   readonly users: Collection<UserDoc>;
-  constructor(readonly provider: IndexxProvider, private readonly db: Db, private readonly rewards: RewardsService) {
+  private readonly key: Buffer;
+  constructor(private readonly client: IndexxClient | null, db: Db, secret: string, private readonly log: Logger) {
     this.users = db.collection(C.users);
+    this.key = createHash('sha256').update(`yays-indexx-token:${secret}`).digest();
+  }
+  get available() { return !!this.client; }
+
+  private seal(token: string) {
+    const iv = randomBytes(12), c = createCipheriv('aes-256-gcm', this.key, iv);
+    const data = Buffer.concat([c.update(token, 'utf8'), c.final()]);
+    return [iv, c.getAuthTag(), data].map((b) => b.toString('base64url')).join('.');
+  }
+  private open(sealed: string): string | null {
+    try {
+      const [iv, tag, data] = sealed.split('.').map((x) => Buffer.from(x, 'base64url'));
+      const d = createDecipheriv('aes-256-gcm', this.key, iv!); d.setAuthTag(tag!);
+      return Buffer.concat([d.update(data!), d.final()]).toString('utf8');
+    } catch { return null; }
   }
 
-  private async link(me: ObjectId) { return ((await this.users.findOne({ _id: me }, { projection: { 'yc.indexx': 1 } }))?.yc as LinkFields | undefined)?.indexx ?? null; }
-  async accountOf(me: ObjectId) { return (await this.link(me))?.account ?? null; }
-  private async need(me: ObjectId) {
-    const a = await this.accountOf(me);
-    if (!a) throw AppError.validation('Link your Indexx account first, in Settings › Indexx account.');
-    return a;
+  private async fields(me: ObjectId) { return ((await this.users.findOne({ _id: me }, { projection: { 'yc.indexx': 1 } }))?.yc as IndexxFields | undefined)?.indexx ?? null; }
+  /** The working login token, or null when not signed in (or it ran out). */
+  private async token(me: ObjectId): Promise<string | null> {
+    const f = await this.fields(me);
+    if (!f?.token || (f.expiresAt && f.expiresAt.getTime() < Date.now())) return null;
+    return this.open(f.token);
   }
+  private async forget(me: ObjectId) { await this.users.updateOne({ _id: me }, { $unset: { 'yc.indexx.token': '', 'yc.indexx.expiresAt': '' } }); }
+
+  /** Calls Indexx with the person's token. If Indexx says the token is no longer good, it's dropped. */
+  private async call<T>(me: ObjectId, fn: (c: IndexxClient, token: string) => Promise<T>): Promise<T> {
+    const token = this.client ? await this.token(me) : null;
+    if (!token || !this.client) throw new AppError(409, ErrorCode.INDEXX_SIGN_IN, 'Sign in to Indexx first.');
+    try { return await fn(this.client, token); }
+    catch (e) {
+      if (e instanceof IndexxSignedOut) { await this.forget(me); throw new AppError(409, ErrorCode.INDEXX_SIGN_IN, SIGNED_OUT); }
+      throw e;
+    }
+  }
+  private static signInNeeded(e: unknown) { return e instanceof AppError && e.code === ErrorCode.INDEXX_SIGN_IN; }
 
   async status(me: ObjectId): Promise<IndexxLink> {
-    const l = await this.link(me);
-    return { linked: !!l, email: l?.email ?? null, linkedAt: l?.linkedAt.toISOString() ?? null, available: this.provider.available };
+    const f = await this.fields(me);
+    const linked = !!(this.client && (await this.token(me)));
+    return { linked, email: f?.email ?? null, linkedAt: linked && f ? f.linkedAt.toISOString() : null, available: this.available };
   }
+  async linked(me: ObjectId) { return !!(this.client && (await this.token(me))); }
 
-  async linkAccount(me: ObjectId, email: string): Promise<IndexxLink> {
-    const account = await this.provider.find(email);
-    const taken = await this.users.findOne({ 'yc.indexx.account': account, _id: { $ne: me } } as Record<string, unknown>, { projection: { _id: 1 } });
-    if (taken) throw AppError.conflict('That Indexx account is already linked to another YaysApp account.');
-    await this.users.updateOne({ _id: me }, { $set: { 'yc.indexx': { account, email: email.trim().toLowerCase(), linkedAt: new Date() } } });
+  async signIn(me: ObjectId, emailIn: string, password: string): Promise<IndexxLink> {
+    if (!this.client) throw AppError.validation('Signing in to Indexx isn’t available yet.');
+    const email = emailIn.trim().toLowerCase();
+    const taken = await this.users.findOne({ 'yc.indexx.email': email, 'yc.indexx.token': { $exists: true }, _id: { $ne: me } } as Record<string, unknown>, { projection: { _id: 1 } });
+    if (taken) throw AppError.conflict('That Indexx account is already signed in on another YaysApp account.');
+    const { token, expiresAt } = await this.client.login(email, password);
+    await this.users.updateOne({ _id: me }, { $set: { 'yc.indexx': { email, token: this.seal(token), expiresAt, linkedAt: new Date() } } });
+    this.log.info({ userId: me.toHexString() }, 'signed in to Indexx');
     return this.status(me);
   }
 
-  async unlink(me: ObjectId): Promise<IndexxLink> {
+  async signOut(me: ObjectId): Promise<IndexxLink> {
     await this.users.updateOne({ _id: me }, { $unset: { 'yc.indexx': '' } });
     return this.status(me);
   }
 
-  async wallet(me: ObjectId, tzSent: string | null): Promise<WalletView> {
-    const tz = await this.rewards.tz(me, tzSent);
-    const [points, account, usedToday] = await Promise.all([this.rewards.balance(me), this.accountOf(me), this.convertedToday(me, tz)]);
-    const b = account ? await this.provider.balances(account) : null;
-    return {
-      points, linked: !!account,
-      nuggets: b ? b.nuggetUnits / NUGGET_UNIT : null, usdxxCents: b?.usdxxCents ?? null, exchangeUsdCents: b?.exchangeUsdCents ?? null,
-      syncedAt: b?.syncedAt.toISOString() ?? null,
-      convert: { pointsPerNugget: CONVERT.pointsPerNugget, min: CONVERT.min, dailyMax: CONVERT.dailyMax, usedToday },
-    };
-  }
+  /* ------------------------------------------------------------ Explore */
 
-  private async convertedToday(me: ObjectId, tz: string) {
-    const r = await this.rewards.ledger.aggregate<{ n: number }>([{ $match: { userId: me, kind: 'convert', day: dayKey(new Date(), tz) } }, { $group: { _id: null, n: { $sum: '$amount' } } }]).toArray();
-    return -(r[0]?.n ?? 0);
-  }
+  private static links(l: Partial<IndexxLinks> | undefined | null): IndexxLinks { return { ...INDEXX_LINKS, ...(l ?? {}) }; }
 
-  /** Points become BTCY Nuggets in the linked Indexx account. If Indexx refuses, the points come back. */
-  async convert(me: ObjectId, tzSent: string | null, points: number): Promise<WalletView> {
-    const account = await this.need(me);
-    const tz = await this.rewards.tz(me, tzSent);
-    if (points < CONVERT.min) throw AppError.validation(`The smallest conversion is ${CONVERT.min.toLocaleString('en-US')} INEX.`);
-    if (points % CONVERT.pointsPerNugget) throw AppError.validation(`Convert in steps of ${CONVERT.pointsPerNugget} INEX.`);
-    const left = CONVERT.dailyMax - (await this.convertedToday(me, tz));
-    if (points > left) throw AppError.validation(left > 0 ? `You can convert ${left.toLocaleString('en-US')} more INEX today.` : 'You’ve converted the most allowed today. Try again tomorrow.');
-    const nuggets = points / CONVERT.pointsPerNugget, ref = randomUUID();
-    const debit = await this.rewards.award(me, tz, { key: `convert:${ref}`, kind: 'convert', title: 'Converted to BTCY Nuggets', sub: `${points.toLocaleString('en-US')} INEX → ${nuggets} Nuggets`, amount: -points });
-    if (!debit) throw AppError.validation('That didn’t go through. Try again.');
-    try { await this.provider.creditNuggets(account, nuggets * NUGGET_UNIT, `yays-convert-${ref}`); }
-    catch (e) {
-      await this.rewards.award(me, tz, { key: `convert-refund:${ref}`, kind: 'reversal', title: 'Conversion refunded', sub: 'Indexx didn’t accept it, so your INEX is back', amount: points });
-      throw e instanceof AppError ? e : AppError.validation('Indexx didn’t accept the conversion. Your INEX is back.');
-    }
-    return this.wallet(me, tz);
-  }
-
-  /** Wallet activity: INEX converted to BTCY Nuggets, newest first. */
-  async activity(me: ObjectId): Promise<WalletTx[]> {
-    const conv = await this.rewards.ledger.find({ userId: me, kind: 'convert' }).sort({ _id: -1 }).limit(50).toArray();
-    return conv.map((c): WalletTx => ({ id: c._id.toHexString(), kind: 'convert', direction: 'in', title: 'Converted INEX', sub: c.sub, at: c.at.toISOString(), status: 'done', amount: (-c.amount / CONVERT.pointsPerNugget) * NUGGET_UNIT, unit: 'NUGGET' }));
-  }
-
-  async btcy(me: ObjectId, tzSent: string | null): Promise<BtcyView> {
-    const account = await this.accountOf(me);
-    const empty: BtcyView = { linked: false, mining: { active: false, endsAt: null, nuggets: 0, perHour: 0, last7: [], streak: 0, best: 0 }, tokens: 0, boostPct: 0, team: [] };
-    if (!account) return empty;
-    const tz = await this.rewards.tz(me, tzSent);
-    const [b, a] = await Promise.all([this.provider.balances(account), this.provider.btcy(account, tz)]);
-    const now = Date.now();
-    return {
-      linked: true,
-      mining: { active: !!a.mining.endsAt, endsAt: a.mining.endsAt?.toISOString() ?? null, nuggets: b.nuggetUnits / NUGGET_UNIT, perHour: a.mining.perHourUnits / NUGGET_UNIT, last7: a.mining.last7.map((d) => ({ day: d.day, amount: d.units / NUGGET_UNIT })), streak: a.mining.streak, best: a.mining.best },
-      tokens: b.btcyTokens, boostPct: a.boostPct,
-      team: a.team.map((t) => ({ name: t.name, joinedAt: t.joinedAt.toISOString(), mining: !!t.lastMinedAt && now - t.lastMinedAt.getTime() < 24 * 3600_000, lastActiveAt: t.lastMinedAt?.toISOString() ?? null })),
-    };
-  }
-
-  async mine(me: ObjectId, tzSent: string | null) {
-    const tz = await this.rewards.tz(me, tzSent);
-    await this.provider.startMining(await this.need(me), tz);
-    return this.btcy(me, tz);
-  }
-
-  async products(me: ObjectId): Promise<ProductsView> {
-    const account = await this.accountOf(me);
-    if (!account) return { linked: false, emmm: null };
+  async explore(me: ObjectId): Promise<ExploreView> {
+    const none: ExploreView = { linked: false, links: INDEXX_LINKS, btcy: null, emmm: null, shoperpal: null, wallstreet: null };
     try {
-      const e = await this.provider.emmm(account);
-      return { linked: true, emmm: e ? { handle: e.handle, open: e.open, settledThisMonth: e.settledThisMonth, markets: e.markets, trendingError: false } : null };
-    } catch { return { linked: true, emmm: null }; }
+      const d = await this.call(me, (c, t) => c.get<Partial<ExploreView> & { links?: IndexxLinks }>(t, '/yays/ecosystem/explore', 30_000));
+      return { linked: true, links: IndexxService.links(d?.links), btcy: d?.btcy ?? null, emmm: d?.emmm ?? null, shoperpal: d?.shoperpal ?? null, wallstreet: d?.wallstreet ?? null };
+    } catch (e) { if (IndexxService.signInNeeded(e)) return none; throw e; }
+  }
+
+  /** One product, for its own page. A product Indexx can't read comes back as null, like on Explore. */
+  async product<P extends ExploreProduct>(me: ObjectId, p: P): Promise<{ linked: boolean; links: IndexxLinks; data: ExploreView[P] }> {
+    try {
+      const data = await this.call(me, (c, t) => c.get<ExploreView[P]>(t, `/yays/ecosystem/${p}`, 20_000)).catch((e) => {
+        if (IndexxService.signInNeeded(e)) throw e;
+        return null as ExploreView[P];
+      });
+      return { linked: true, links: INDEXX_LINKS, data };
+    } catch { return { linked: false, links: INDEXX_LINKS, data: null as ExploreView[P] }; }
+  }
+
+  /** For the BTCY bonus: this person's BTCY numbers, or null when not signed in or Indexx didn't answer. */
+  async btcyFor(me: ObjectId): Promise<IndexxBtcy | null> { return (await this.product(me, 'btcy').catch(() => null))?.data ?? null; }
+
+  /* ------------------------------------------------------------ Wallet */
+
+  async wallet(me: ObjectId): Promise<WalletView> {
+    try {
+      const d = await this.call(me, (c, t) => c.get<Omit<WalletView, 'linked'>>(t, '/yays/wallet/summary'));
+      return { linked: true, inex: d?.inex ?? null, nuggets: d?.nuggets ?? null, usdxx: d?.usdxx ?? null, exchange: d?.exchange ?? null };
+    } catch (e) {
+      if (IndexxService.signInNeeded(e)) return { linked: false, inex: null, nuggets: null, usdxx: null, exchange: null };
+      throw e;
+    }
+  }
+
+  quote(me: ObjectId, amount: number): Promise<WithdrawQuote> {
+    const n = Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 0;
+    return this.call(me, (c, t) => c.get<WithdrawQuote>(t, `/yays/wallet/withdraw/quote${n ? `?amount=${n}` : ''}`));
+  }
+
+  /** INEX 1:1 to the person's Indexx Exchange INEX wallet. The same key twice pays once. */
+  withdraw(me: ObjectId, amount: number, idempotencyKey: string): Promise<Withdrawal> {
+    return this.call(me, (c, t) => c.post<Withdrawal>(t, '/yays/wallet/withdraw', { amount, idempotencyKey }, { 'x-idempotency-key': idempotencyKey }));
+  }
+
+  withdrawals(me: ObjectId, skip: number): Promise<WithdrawalsPage> {
+    const s = Number.isFinite(skip) && skip > 0 ? Math.floor(skip) : 0;
+    return this.call(me, (c, t) => c.get<WithdrawalsPage>(t, `/yays/wallet/withdraw/history?limit=25&skip=${s}`));
   }
 }
 export const INDEXX_SERVICE = Symbol('INDEXX_SERVICE');

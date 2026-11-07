@@ -116,7 +116,7 @@ export function BonusPopup({ first, bonus: b, onClose }: { first: string; bonus:
   const go = () => { if (noMore) void api().dismissPopup('bonuses').catch(() => undefined); onClose(); router.push(jack ? '/ai' : b.needsLink ? '/settings/indexx' : '/btcy'); };
   const lead = jack
     ? `Welcome back, ${first}. Finish these ${b.tasks.length} tasks with Jack’s AI before midnight and the bonus is yours.`
-    : b.needsLink ? `Welcome back, ${first}. Link your Indexx account and these count from BTCY this week. Each task pays on its own.`
+    : b.needsLink ? `Welcome back, ${first}. Sign in to Indexx and these count from BTCY this week. Each task pays on its own.`
       : `Welcome back, ${first}. Do any of these in BTCY this week. Each task pays its INEX as soon as it’s done.`;
   return (
     <div className="p2-pop-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) later(); }}>
@@ -135,7 +135,7 @@ export function BonusPopup({ first, bonus: b, onClose }: { first: string; bonus:
           <div className="p2-note"><Icon name="clock" size={18} /><span>Ends in <strong>{timeLeft(b.endsAt)}</strong>. {b.allRequired ? `The ${b.points} INEX land in your wallet when all ${b.tasks.length} are done.` : 'INEX lands in your wallet as each task is done.'}</span></div>
           <div className="p2-bonus__actions">
             <OvalButton icon="clock" label="Remind me later" size="lg" variant="ghost" onClick={later} />
-            <OvalButton icon={jack ? 'sparkles' : 'bitcoin'} label={jack ? 'Ask Jack now' : b.needsLink ? 'Link Indexx account' : 'Open BTCY'} size="xl" onClick={go} data-autofocus />
+            <OvalButton icon={jack ? 'sparkles' : 'bitcoin'} label={jack ? 'Ask Jack now' : b.needsLink ? 'Sign in to Indexx' : 'Open BTCY'} size="xl" onClick={go} data-autofocus />
           </div>
           <div className="p2-bonus__foot">
             <label className="p2-check"><input type="checkbox" checked={noMore} onChange={(e) => setNoMore(e.target.checked)} />Don’t show bonus pop-ups today</label>

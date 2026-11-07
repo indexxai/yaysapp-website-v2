@@ -60,7 +60,7 @@ export default function Home() {
         <div className="wrap">
           <span className="eyebrow">Earn as you go</span>
           <h2>The things you already do are worth something.</h2>
-          <p className="sub">INEX is the Indexx coin. You earn it in YaysApp and can convert it to BTCY Nuggets.</p>
+          <p className="sub">INEX is the Indexx coin. You earn it in YaysApp and can withdraw it to your Indexx Exchange wallet.</p>
           <div className="points">{POINTS.map((p) => <div key={p.label} className={`point${p.soon ? ' soon' : ''}`}><span className="oval" style={{ width: 40, fontSize: 13 }} aria-hidden="true">★</span>{p.label}<b>{p.pts}</b></div>)}</div>
         </div>
       </section>

@@ -45,7 +45,8 @@ import { CALLS, CallsService } from './calls/calls.service';
 import { CallsController, LiveKitWebhookController } from './calls/calls.controller';
 import { MessageActionsController, PollsController, StarredController } from './chat/messages.controller';
 import { REWARDS, RewardsService } from './rewards/rewards.service';
-import { DevIndexx, INDEXX, offIndexx } from './indexx/indexx.provider';
+import { IndexxClient } from './indexx/indexx.client';
+import { standInIndexx } from './indexx/indexx.stand-in';
 import { INDEXX_SERVICE, IndexxService } from './indexx/indexx.service';
 import { AI_PROVIDER, createAiProvider } from './ai/ai.provider';
 import { createImageProvider } from './ai/ai.images';
@@ -82,8 +83,8 @@ export class AppModule {
     account.leaveCommunities = async (id) => { await communities.leaveAll(id); await circles.forget(id); };
     const calls = new CallsService(chat, push, db, c, log);
     const rewards = new RewardsService(i.mongo, db);
-    const indexxProvider = c.INDEXX_DRIVER === 'dev' ? new DevIndexx(db) : offIndexx;
-    const indexx = new IndexxService(indexxProvider, db, rewards);
+    const indexxClient = c.INDEXX_DRIVER === 'off' ? null : new IndexxClient(c.INDEXX_API_URL, log, c.INDEXX_DRIVER === 'dev' ? standInIndexx(db) : fetch);
+    const indexx = new IndexxService(indexxClient, db, c.INDEXX_TOKEN_SECRET ?? c.JWT_SECRET, log);
     rewards.indexx = indexx;
     const facebook = new FacebookService(createFacebook(c, log), users.col, redis, c);
     const aiProvider = createAiProvider(c, log);
@@ -98,7 +99,7 @@ export class AppModule {
       { provide: STORAGE, useValue: storage }, { provide: RATE_LIMITER, useValue: limiter }, { provide: OUTBOX, useValue: senders.outbox },
       { provide: TOKENS, useValue: tokens }, { provide: USERS, useValue: users }, { provide: SESSIONS, useValue: sessions },
       { provide: OTP, useValue: otp }, { provide: GOOGLE, useValue: google }, { provide: AUTH, useValue: auth }, { provide: CHAT, useValue: chat }, { provide: GROUPS, useValue: groups }, { provide: MESSAGES, useValue: messages }, { provide: PUSH, useValue: push }, { provide: SEARCH, useValue: search }, { provide: CHAT_PREFS, useValue: chatPrefs }, { provide: SAFETY, useValue: safety }, { provide: ACCOUNT, useValue: account }, { provide: SUPPORT, useValue: support }, { provide: COMMUNITIES, useValue: communities }, { provide: CIRCLES, useValue: circles }, { provide: CALLS, useValue: calls },
-      { provide: REWARDS, useValue: rewards }, { provide: INDEXX, useValue: indexxProvider }, { provide: INDEXX_SERVICE, useValue: indexx }, { provide: AI_PROVIDER, useValue: aiProvider }, { provide: AI, useValue: ai }, { provide: FACEBOOK, useValue: facebook }, { provide: SOCIALS_VIEW, useValue: mySocials(users.col, facebook.available) },
+      { provide: REWARDS, useValue: rewards }, { provide: INDEXX_SERVICE, useValue: indexx }, { provide: AI_PROVIDER, useValue: aiProvider }, { provide: AI, useValue: ai }, { provide: FACEBOOK, useValue: facebook }, { provide: SOCIALS_VIEW, useValue: mySocials(users.col, facebook.available) },
       AuthGuard,
     ];
     const controllers: DynamicModule['controllers'] = [HealthController, AuthController, MeController, ContactsController, MediaController, ChatController, PeopleController, GroupsController, InvitesController, MessageActionsController, StarredController, PollsController, PushController, SearchController, ChatPrefsController, SupportController, CommunitiesController, CommunityInvitesController, CirclesController, CirclePostsController, CircleCommentsController, CircleEventsController, CallsController, LiveKitWebhookController, RewardsController, IndexxController, AiController, SiteController, SupportDeskController, FacebookController, SocialsController];

@@ -3,11 +3,27 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { CheckinPopup } from '@/components/popups';
-import { LineArt, OvalButton } from '@/components/ui';
+import { Banner, LineArt, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
 import { api } from '@/lib/api';
 import { Icon, type IconName } from '@/lib/icons';
-import { PRODUCTS, useLoad } from '@/lib/phase2';
+import { IndexxSignIn } from '@/components/indexx-signin';
+import { money, num, PRODUCTS, useLoad } from '@/lib/phase2';
+import { INDEXX_LINKS, type ExploreView } from '@yays/shared';
+
+/** The live line under each product, from the person's Indexx account. */
+function liveLine(id: string, x: ExploreView): string | null {
+  if (id === 'btcy') { const b = x.btcy; return b ? `${num(b.portfolio.nuggets, 2)} Nuggets · ${b.mining.active ? 'mining' : 'not mining'}` : 'Couldn’t load right now'; }
+  if (id === 'emmm') { const e = x.emmm; return e ? `${num(e.openPositions)} open · ${num(e.settledThisMonth?.count)} settled this month` : 'Couldn’t load right now'; }
+  if (id === 'shoperpal') {
+    const s = x.shoperpal;
+    if (!s) return 'Couldn’t load right now';
+    if (s.role === 'seller' && s.supplier) return `${num(s.supplier.ordersToday)} orders today · ${num(s.supplier.pendingOrders)} to ship`;
+    return s.buyer ? `${money(s.buyer.monthSpend)} this month · ${num(s.buyer.orderCount)} orders` : 'No ShoperPal account yet';
+  }
+  if (id === 'wallstreet') { const w = x.wallstreet; return w ? `${num(w.holdings.count)} ${w.holdings.count === 1 ? 'stock' : 'stocks'} · ${money(w.holdings.totalInvested)} invested` : 'Couldn’t load right now'; }
+  return null;
+}
 
 const TILES: Array<{ title: string; sub: string; icon: IconName; href: string }> = [
   { title: 'Wallet', sub: 'INEX, Nuggets and USDXX', icon: 'wallet', href: '/wallet' },
@@ -21,6 +37,8 @@ export default function ExplorePage() {
   const [q, setQ] = useState('');
   const [claiming, setClaiming] = useState(false);
   const checkin = useLoad(() => api().checkin());
+  const x = useLoad(() => api().explore());
+  const ix = useLoad(() => api().indexx());
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase();
     return t ? PRODUCTS.filter((p) => `${p.name} ${p.sub}`.toLowerCase().includes(t)) : PRODUCTS;
@@ -49,11 +67,22 @@ export default function ExplorePage() {
           </div>
         </div>
 
+        {x.data && !x.data.linked && ix.data?.available && (
+          <IndexxSignIn email={ix.data.email ?? me?.email ?? null} ended={!!ix.data.email} onDone={(st) => { ix.setData(st); void x.reload(); }} />
+        )}
+
         <section className="p2-card p2-card--pad" aria-labelledby="prod">
-          <h2 id="prod">Indexx products</h2>
+          <div className="row" style={{ justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <h2 id="prod" style={{ margin: 0 }}>Indexx products</h2>
+            {x.data?.linked && ix.data?.email && <Link href="/settings/indexx" className="muted p2-small" data-testid="indexx-as">Signed in to Indexx as {ix.data.email}</Link>}
+          </div>
+          {x.error && <Banner tone="warning">{x.error}</Banner>}
           <div className="p2-products">
             {shown.map((p) => {
-              const inner = (<><span className="ys-oval" style={{ width: 60, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted">{p.sub}</span></>);
+              const live = x.data?.linked ? liveLine(p.id, x.data) : null;
+              const sub = live ?? (x.data || x.error ? p.sub : '…');
+              const inner = (<><span className="ys-oval" style={{ width: 60, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted" data-testid={`live-${p.id}`}>{sub}</span></>);
+              if (p.id === 'rehuman') return <a key={p.id} href={(x.data?.links ?? INDEXX_LINKS).rehuman} target="_blank" rel="noopener noreferrer" className="p2-product">{inner}</a>;
               return p.href ? <Link key={p.id} href={p.href} className="p2-product">{inner}</Link> : <div key={p.id} className="p2-product p2-product--soon" aria-disabled="true">{inner}</div>;
             })}
             {!shown.length && <p className="muted">Nothing matches “{q}”.</p>}
