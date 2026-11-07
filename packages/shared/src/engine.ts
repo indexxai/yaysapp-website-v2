@@ -95,6 +95,13 @@ export interface ChatSnapshot { v: 1; conversations: Record<string, Conversation
 export interface ChatCache { load(): Promise<ChatSnapshot | null> | ChatSnapshot | null; save(s: ChatSnapshot): Promise<void> | void }
 /** Messages per chat kept on the device. */
 const CACHE_PER_THREAD = 100;
+/**
+ * Links to photos, videos, voice notes and files are signed by the server and stop working 1–2 hours after
+ * they were fetched. A thread's links older than this are fetched again; a saved (cached) thread's always are.
+ */
+const LINKS_FRESH_MS = 45 * 60_000;
+/** How many messages a link refresh re-reads, newest first; older ones refresh when they fail to load. */
+const LINKS_REFRESH_MAX = 300;
 
 export interface EngineOptions {
   client: YaysClient;
@@ -142,6 +149,12 @@ export class ChatEngine {
   private flushTimer?: ReturnType<typeof setTimeout>;
   private saveTimer?: ReturnType<typeof setTimeout>;
   private typingTimer?: ReturnType<typeof setInterval>;
+  private linksTimer?: ReturnType<typeof setInterval>;
+  /** When each thread's media links were last fetched from the server (absent: from the saved copy). */
+  private linksAt = new Map<string, number>();
+  private refreshingLinks = new Map<string, Promise<void>>();
+  /** Media that failed to load and was re-fetched, so a broken file isn't asked for over and over. */
+  private retriedMedia = new Map<string, number>();
   private lastTypingSent: Record<string, number> = {};
   private stopped = false;
   private visible = true;
@@ -184,6 +197,8 @@ export class ChatEngine {
     this.set({ outbox: (saved ?? []).map((p) => ({ ...p, status: p.status === 'failed' ? 'failed' : 'pending' })) });
     this.connect();
     this.typingTimer = setInterval(() => this.pruneTyping(), 1000);
+    // The chat on screen gets new links before its current ones run out.
+    this.linksTimer = setInterval(() => { const id = this.state.active; if (id && this.linksStale(id)) void this.refreshLinks(id).catch(() => undefined); }, 5 * 60_000);
     await this.loadList().catch(() => undefined);
     void this.flush();
   }
@@ -224,7 +239,7 @@ export class ChatEngine {
     // The app is closing: write what is pending now rather than lose it.
     if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = undefined; this.saveNow(); }
     this.stopped = true;
-    clearTimeout(this.flushTimer); clearInterval(this.typingTimer); clearTimeout(this.peopleTimer);
+    clearTimeout(this.flushTimer); clearInterval(this.typingTimer); clearInterval(this.linksTimer); clearTimeout(this.peopleTimer);
     for (const c of this.uploadAborts.values()) c.abort();
     this.socket?.removeAllListeners(); this.socket?.disconnect(); this.socket = undefined;
     this.listeners.clear();
@@ -454,7 +469,10 @@ export class ChatEngine {
     const t = this.state.threads[conversationId];
     if (!t?.loaded) await this.loadLatest(conversationId);
     // Already on the device (maybe from the saved cache): show it; if offline, reconnecting catches up.
-    else await this.catchUp(conversationId).catch(() => undefined);
+    else {
+      await this.catchUp(conversationId).catch(() => undefined);
+      if (this.linksStale(conversationId)) void this.refreshLinks(conversationId).catch(() => undefined);
+    }
     void this.markActiveRead();
   }
 
@@ -462,6 +480,7 @@ export class ChatEngine {
     this.setThread(id, { loading: true });
     try {
       const p = await this.o.client.messages(id, { limit: 50 });
+      if (!this.linksAt.has(id)) this.linksAt.set(id, Date.now());
       const have = this.state.threads[id]?.items ?? [];
       this.setThread(id, { items: mergeMessages(have, p.items), hasMore: p.hasMore, loaded: true, loading: false });
     } catch (e) { this.setThread(id, { loading: false }); throw e; }
@@ -475,6 +494,44 @@ export class ChatEngine {
       const p = await this.o.client.messages(id, { before: t.items[0]?.seq ?? 1, limit: 50 });
       this.setThread(id, { items: mergeMessages(this.state.threads[id]?.items ?? [], p.items), hasMore: p.hasMore, loading: false });
     } catch (e) { this.setThread(id, { loading: false }); throw e; }
+  }
+
+  private linksStale(id: string) { return Date.now() - (this.linksAt.get(id) ?? 0) > LINKS_FRESH_MS; }
+
+  /**
+   * Fetches the messages already on screen again, so their photo, video, voice and file links work.
+   * With `seq`: just the messages around that one (its picture didn't load).
+   */
+  refreshLinks(id: string, seq?: number): Promise<void> {
+    if (seq !== undefined) {
+      const k = `${id}:${seq}`, last = this.retriedMedia.get(k) ?? 0;
+      if (Date.now() - last < 60_000 || this.refreshingLinks.has(id)) return this.refreshingLinks.get(id) ?? Promise.resolve();
+      this.retriedMedia.set(k, Date.now());
+      return this.o.client.messages(id, { before: seq + 1, limit: 25 }).then((p) => {
+        const t = this.state.threads[id];
+        if (t?.loaded) this.setThread(id, { items: refreshed(t.items, p.items) });
+      });
+    }
+    const running = this.refreshingLinks.get(id);
+    if (running) return running;
+    const p = (async () => {
+      const t = this.state.threads[id];
+      if (!t?.loaded || !t.items.length) return;
+      const started = Date.now();
+      const oldest = t.items[Math.max(0, t.items.length - LINKS_REFRESH_MAX)]!.seq;
+      let before = t.items[t.items.length - 1]!.seq + 1;
+      while (before > oldest) {
+        const page = await this.o.client.messages(id, { before, limit: 100 });
+        const cur = this.state.threads[id];
+        if (!cur?.loaded) return;
+        if (page.items.length) this.setThread(id, { items: refreshed(cur.items, page.items) });
+        if (!page.hasMore || !page.items.length) break;
+        before = page.items[0]!.seq;
+      }
+      this.linksAt.set(id, started);
+    })().finally(() => this.refreshingLinks.delete(id));
+    this.refreshingLinks.set(id, p);
+    return p;
   }
 
   /** Fetches whatever arrived after the newest message this device has, in order, with no gaps. */
@@ -952,6 +1009,15 @@ export function peopleIn(items: ChatMessage[]): string[] {
 }
 
 /** Merges two sorted message lists by seq, dropping duplicates. */
+/** The thread with fresh copies of messages it already has (new links); nothing is added or reordered. */
+function refreshed<T extends ChatMessage>(have: T[], fresh: ChatMessage[]): T[] {
+  if (!fresh.length) return have;
+  const bySeq = new Map(fresh.map((m) => [m.seq, m]));
+  let changed = false;
+  const out = have.map((m) => { const f = bySeq.get(m.seq); if (!f) return m; changed = true; return { ...m, ...f } as T; });
+  return changed ? out : have;
+}
+
 export function mergeMessages(a: ChatMessage[], b: ChatMessage[]): ChatMessage[] {
   if (!b.length) return a;
   const map = new Map<number, ChatMessage>();

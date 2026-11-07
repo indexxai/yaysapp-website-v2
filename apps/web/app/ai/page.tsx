@@ -59,6 +59,14 @@ function Ai() {
   }, [id]);
   useEffect(() => { thread.current?.scrollTo({ top: thread.current.scrollHeight }); }, [chat?.messages.length, pending]);
 
+  // Picture links last 1–2 hours: one that didn't load means the page has been open a while, so fetch them again.
+  const relinked = useRef(0);
+  const relink = () => {
+    if (!id || Date.now() - relinked.current < 60_000) return;
+    relinked.current = Date.now();
+    api().aiChat(id).then((c) => setChat((cur) => (cur ? c : cur))).catch(() => undefined);
+  };
+
   const imageMode = mode === 'image' || !!editing;
   const picsLeft = quota ? Math.max(0, quota.images.limit - quota.images.used) : null;
   const out = !!quota && (imageMode ? picsLeft === 0 : quota.used >= quota.limit);
@@ -149,7 +157,7 @@ function Ai() {
                 <div className="chips">{SUGGEST.map((s) => <button key={s} type="button" className="chip p2-chip" onClick={() => { if (/proposal/i.test(s)) setMode('document'); void send(s); }}>{s}</button>)}</div>
               </div>
             )}
-            {chat?.messages.map((m) => <Bubble key={m.id} m={m} onOpenPanel={openPanel} onEdit={(img) => { setEditing({ messageId: m.id, n: img.n, url: img.url }); input.current?.focus(); }} onShare={(n) => setSharing(n === undefined ? { messageId: m.id, label: m.document?.title ?? 'Document' } : { messageId: m.id, n, label: `Picture ${n}` })} />)}
+            {chat?.messages.map((m) => <Bubble key={m.id} m={m} onBroken={relink} onOpenPanel={openPanel} onEdit={(img) => { setEditing({ messageId: m.id, n: img.n, url: img.url }); input.current?.focus(); }} onShare={(n) => setSharing(n === undefined ? { messageId: m.id, label: m.document?.title ?? 'Document' } : { messageId: m.id, n, label: `Picture ${n}` })} />)}
             {pending && (<><div className="ys-bubble ys-bubble--me p2-ai__me">{pending}</div><div className="p2-ai__bot"><img src="/brand/jack.png" alt="" /><div className="p2-ai__working"><span className="ys-spin" aria-hidden />{editing ? 'Changing the picture… about 15 seconds' : mode === 'image' ? 'Making the picture… about 15 seconds' : mode === 'document' ? (doc ? 'Updating the document…' : 'Writing the document…') : mode === 'search' ? 'Searching the web…' : 'Thinking…'}</div></div></>)}
           </div>
           <div className="p2-ai__foot">
@@ -204,7 +212,7 @@ function Ai() {
   );
 }
 
-function Bubble({ m, onEdit, onShare, onOpenPanel }: { m: AiMessage; onEdit: (img: AiImage) => void; onShare: (n?: number) => void; onOpenPanel: () => void }) {
+function Bubble({ m, onEdit, onShare, onOpenPanel, onBroken }: { m: AiMessage; onEdit: (img: AiImage) => void; onShare: (n?: number) => void; onOpenPanel: () => void; onBroken: () => void }) {
   const [copied, setCopied] = useState(false);
   if (m.role === 'user') return <div className="ys-bubble ys-bubble--me p2-ai__me">{m.editOf && <span className="p2-ai__edittag"><Icon name="edit" size={12} /> Change to picture {m.editOf.n}</span>}{m.text}</div>;
   const copy = async () => { try { await navigator.clipboard.writeText(m.document ? m.document.markdown : m.text); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ } };
@@ -218,7 +226,7 @@ function Bubble({ m, onEdit, onShare, onOpenPanel }: { m: AiMessage; onEdit: (im
           <div className="p2-ai__pics" data-count={m.images.length}>
             {m.images.map((img) => (
               <figure key={img.n} className="p2-ai__pic">
-                <a href={img.url} target="_blank" rel="noopener noreferrer" aria-label={`Open picture ${img.n} full size`}><img src={img.url} alt={`Picture ${img.n} made by Jack’s AI`} width={img.width} height={img.height} /></a>
+                <a href={img.url} target="_blank" rel="noopener noreferrer" aria-label={`Open picture ${img.n} full size`}><img src={img.url} alt={`Picture ${img.n} made by Jack’s AI`} onError={onBroken} width={img.width} height={img.height} /></a>
                 <figcaption className="p2-ai__pictools">
                   <OvalButton icon="edit" label="Change" size="sm" variant="soft" aria-label={`Change picture ${img.n}`} onClick={() => onEdit(img)} />
                   <OvalButton icon="download" label="Save" size="sm" variant="soft" aria-label={`Save picture ${img.n}`} onClick={() => void savePicture(img)} />

@@ -7,6 +7,18 @@ import { prepareFile, VoiceRecorder } from '@/lib/media';
 import { Avatar, OvalButton } from './ui';
 import { ActionsCtx } from './message-actions';
 
+/**
+ * A photo, video or voice note that didn't load: its link may have run out (they last 1–2 hours), so the
+ * message is fetched again with a new one. At most once a minute per message.
+ */
+function useLinkRetry() {
+  const engine = useEngine();
+  return useCallback((m: ThreadItem) => {
+    const id = engine.getState().active;
+    if (id && m.seq && !m.upload) void engine.refreshLinks(id, m.seq).catch(() => undefined);
+  }, [engine]);
+}
+
 /** Fits a picture into the bubble without stretching it. */
 function boxSize(w?: number, h?: number) {
   if (!w || !h) return { width: 240, height: 180 };
@@ -38,13 +50,14 @@ function UploadOverlay({ m }: { m: ThreadItem }) {
 /** The photo, video, voice note or file inside a bubble. */
 export function MediaContent({ m, onOpen }: { m: ThreadItem; onOpen: () => void }) {
   const a = m.attachment!;
+  const retry = useLinkRetry();
   if (a.kind === 'image' || a.kind === 'video') {
     const size = boxSize(a.width, a.height);
     const src = a.thumbUrl || (a.kind === 'image' ? a.url : '');
     return (
       <span className="media-box" style={size}>
         <button type="button" className="media-thumb" onClick={onOpen} disabled={!!m.upload} aria-label={a.kind === 'image' ? `Photo${m.text ? `: ${m.text}` : ''}` : `Video, ${formatDuration(a.durationMs ?? 0)}`}>
-          {src ? <img src={src} alt="" loading="lazy" draggable={false} /> : <span className="media-ph"><Icon name={a.kind === 'video' ? 'video' : 'image'} size={32} /></span>}
+          {src ? <img src={src} alt="" loading="lazy" draggable={false} onError={() => retry(m)} /> : <span className="media-ph"><Icon name={a.kind === 'video' ? 'video' : 'image'} size={32} /></span>}
           {a.kind === 'video' && !m.upload && <span className="media-play"><Icon name="play" size={26} /></span>}
           {a.kind === 'video' && a.durationMs !== undefined && <span className="media-badge">{formatDuration(a.durationMs)}</span>}
         </button>
@@ -68,6 +81,7 @@ const SPEEDS = [1, 1.5, 2];
 /** Play/pause, a waveform that fills as it plays (click to seek), time and speed. */
 export function AudioPlayer({ m }: { m: ThreadItem }) {
   const a = m.attachment!;
+  const retry = useLinkRetry();
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState(0);
@@ -87,7 +101,7 @@ export function AudioPlayer({ m }: { m: ThreadItem }) {
   const done = total ? Math.min(1, pos / total) : 0;
   return (
     <span className="voice" data-testid="voice">
-      <audio ref={audio} src={a.url || undefined} preload="none"
+      <audio ref={audio} src={a.url || undefined} preload="none" onError={() => retry(m)}
         onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onEnded={() => { setPlaying(false); setPos(0); }}
         onTimeUpdate={(e) => setPos(e.currentTarget.currentTime * 1000)} />
       <button type="button" className="voice-play" onClick={toggle} disabled={!a.url} aria-label={playing ? 'Pause' : 'Play voice message'}><Icon name={playing ? 'pause' : 'play'} size={20} /></button>
@@ -175,6 +189,7 @@ export function AttachDialog({ files, name, replyToId, onClose, onAdded }: { fil
 // ---------------- viewer (w11) ----------------
 export function MediaViewer({ items, start, onClose }: { items: ThreadItem[]; start: string; onClose: () => void }) {
   const engine = useEngine();
+  const retry = useLinkRetry();
   const media = useMemo(() => items.filter((x) => x.attachment && (x.attachment.kind === 'image' || x.attachment.kind === 'video') && !x.deleted && !x.upload), [items]);
   const [i, setI] = useState(() => Math.max(0, media.findIndex((x) => x.key === start)));
   const [zoom, setZoom] = useState(1);
@@ -208,7 +223,7 @@ export function MediaViewer({ items, start, onClose }: { items: ThreadItem[]; st
       <div className="viewer__stage">
         <span className="viewer__nav">{i > 0 && <OvalButton icon="chevron-left" label="Previous" size="md" variant="soft" onClick={() => go(-1)} />}</span>
         <div className="viewer__media" style={{ transform: `scale(${zoom})` }}>
-          {a.kind === 'image' ? <img src={a.url} alt={cur.text || 'Photo'} /> : <video key={a.url} src={a.url} controls autoPlay poster={a.thumbUrl ?? undefined} />}
+          {a.kind === 'image' ? <img src={a.url} alt={cur.text || 'Photo'} onError={() => retry(cur)} /> : <video key={a.url} src={a.url} controls autoPlay poster={a.thumbUrl ?? undefined} onError={() => retry(cur)} />}
         </div>
         <span className="viewer__nav">{i < media.length - 1 && <OvalButton icon="chevron-right" label="Next" size="md" variant="soft" onClick={() => go(1)} />}</span>
       </div>
@@ -216,7 +231,7 @@ export function MediaViewer({ items, start, onClose }: { items: ThreadItem[]; st
       <div className="viewer__strip">
         {media.map((x, j) => (
           <button key={x.key} type="button" aria-label={`Item ${j + 1}`} aria-current={j === i} onClick={() => { setZoom(1); setI(j); }}>
-            {x.attachment!.thumbUrl || x.attachment!.kind === 'image' ? <img src={x.attachment!.thumbUrl || x.attachment!.url} alt="" /> : <Icon name="video" size={18} />}
+            {x.attachment!.thumbUrl || x.attachment!.kind === 'image' ? <img src={x.attachment!.thumbUrl || x.attachment!.url} alt="" onError={() => retry(x)} /> : <Icon name="video" size={18} />}
           </button>
         ))}
       </div>

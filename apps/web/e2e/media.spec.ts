@@ -23,6 +23,32 @@ async function webm(p: Page): Promise<Buffer> {
 }
 
 test.describe('Photos, videos, voice notes and files on the web', () => {
+  test('a photo saved in the browser with a link that ran out still shows: the chat gets a new link', async ({ browser }) => {
+    const ali = await apiUser('Ali'), sara = await apiUser('Sara');
+    const c = await apiCall('/v1/conversations/direct', { userId: sara.id }, ali.tokens.accessToken);
+    const a = await pageAs(browser, ali), s = await pageAs(browser, sara);
+    await a.page.goto(`/chats?c=${c.id}`);
+    await attach(a.page, [{ name: 'made-by-jack.png', mimeType: 'image/png', buffer: png(640, 640) }]);
+    await a.page.getByRole('dialog', { name: 'Send 1 file to Sara' }).getByRole('button', { name: 'Send' }).click();
+    await expect(bubbles(a.page).last()).toHaveAttribute('data-tick', /sent|delivered|read/, { timeout: 15000 });
+    await s.page.goto(`/chats?c=${c.id}`);
+    const loaded = (p: Page) => bubbles(p).last().locator('img').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth);
+    await expect.poll(() => loaded(s.page)).toBeGreaterThan(0);
+    // Hours later: the browser's saved copy of the chat still has the old links, which no longer work.
+    await s.page.goto('/settings/profile');
+    await expect.poll(() => s.page.evaluate((me) => !!localStorage.getItem(`yays.cache.${me}`)?.includes('/v1/media/local/'), sara.id)).toBe(true);
+    await s.page.evaluate((me) => {
+      const k = `yays.cache.${me}`;
+      localStorage.setItem(k, localStorage.getItem(k)!.replace(/\/v1\/media\/local\/[^"]+/g, '/v1/media/local/expired'));
+    }, sara.id);
+    const later = await s.ctx.newPage();
+    await later.goto(`/chats?c=${c.id}`);
+    await expect(bubbles(later).last().getByRole('button', { name: /^Photo/ })).toBeVisible();
+    await expect.poll(() => loaded(later), { timeout: 15000 }).toBeGreaterThan(0);
+    await expect(bubbles(later).last().locator('img')).not.toHaveAttribute('src', /expired/);
+    await a.ctx.close(); await s.ctx.close();
+  });
+
   test('a photo with a caption: sheet, upload, the other side, and the viewer', async ({ browser }) => {
     const ali = await apiUser('Ali'), sara = await apiUser('Sara');
     const c = await apiCall('/v1/conversations/direct', { userId: sara.id }, ali.tokens.accessToken);
