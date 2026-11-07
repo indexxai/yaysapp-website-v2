@@ -1,5 +1,6 @@
 'use client';
 import { AppShell } from '@/components/app-shell';
+import { BackButton } from '@/components/back';
 import { IndexxSignIn } from '@/components/indexx-signin';
 import { Banner, LineArt, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
@@ -30,6 +31,7 @@ export default function BtcyPage() {
       <LineArt name="trader" height={380} opacity={0.18} className="p2-art p2-art--br" />
       <div className="p2-page">
         <div className="p2-head">
+          <BackButton to="/explore" label="Explore" />
           <h1 className="row" style={{ gap: 10 }}><img src="/brand/products/btcy.png" alt="" style={{ height: '1.2em' }} />BTCY</h1>
           <a className="ys-ovalbtn ys-ovalbtn--sm ys-ovalbtn--soft" href={site} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}><span className="ys-oval"><Icon name="external" size={16} /></span><span className="ys-ovalbtn__label">Open BTCY</span></a>
         </div>

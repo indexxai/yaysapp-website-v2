@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState, type ReactNode } from 'react';
 import type { MeProfile } from '@yays/shared';
 import { api } from '@/lib/api';
 import { Icon, type IconName } from '@/lib/icons';
@@ -65,6 +65,7 @@ export function SettingsFrame({ title, children }: { title?: string; children: (
           {open ? (
             <div className="settings__content">
               <div className="settings__title">
+                <ExploreBack />
                 <span className="settings__back"><OvalButton icon="arrow-left" label="Settings" size="sm" variant="ghost" href="/settings" /></span>
                 <h2>{title ?? open.label}</h2>
               </div>
@@ -111,4 +112,10 @@ export function useSaved() {
     fail: (text: string) => setMsg({ tone: 'danger', text }),
     clear: () => setMsg(null),
   };
+}
+
+/** Opened from Explore (Help, Indexx account): a way back to Explore, on every screen size. */
+function ExploreBack() { return <Suspense fallback={null}><ExploreBackInner /></Suspense>; }
+function ExploreBackInner() {
+  return useSearchParams().get('from') === 'explore' ? <OvalButton icon="arrow-left" label="Explore" size="sm" variant="ghost" href="/explore" /> : null;
 }

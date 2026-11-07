@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { CheckinPopup, CheckinWeek, TaskList } from '@/components/popups';
 import { Banner, LineArt, OvalButton } from '@/components/ui';
+import { BackButton } from '@/components/back';
 import { useMe } from '@/components/use-me';
 import { api } from '@/lib/api';
 import { Bar, errText, fmtPoints, inviteLink, refreshBalance, setBalance, useLoad } from '@/lib/phase2';
@@ -30,7 +31,7 @@ export default function EarnPage() {
     <AppShell me={me}>
       <LineArt name="coins" height={300} opacity={0.18} className="p2-art p2-art--br" />
       <div className="p2-page">
-        <div className="p2-head"><h1>Earn</h1></div>
+        <div className="p2-head"><BackButton /><h1>Earn</h1></div>
         {(points.error || checkin.error) && <Banner>{points.error ?? checkin.error}</Banner>}
         <div className="p2-grid p2-grid--earn">
           <div className="p2-hero">

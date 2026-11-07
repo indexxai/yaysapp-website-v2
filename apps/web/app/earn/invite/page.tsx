@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { REFERRAL_POINTS } from '@yays/shared';
 import { AppShell } from '@/components/app-shell';
 import { Avatar, Banner, LineArt, OvalButton } from '@/components/ui';
+import { BackButton } from '@/components/back';
 import { useMe } from '@/components/use-me';
 import { api } from '@/lib/api';
 import { inviteLink, useLoad } from '@/lib/phase2';
@@ -27,7 +28,7 @@ export default function InvitePage() {
     <AppShell me={me}>
       <LineArt name="hype" width={360} opacity={0.18} className="p2-art p2-art--br" />
       <div className="p2-page p2-page--narrow">
-        <div className="p2-head"><OvalButton icon="arrow-left" label="Earn" size="sm" variant="ghost" href="/earn" /><h1>Invite friends</h1></div>
+        <div className="p2-head"><BackButton to="/earn" label="Earn" /><h1>Invite friends</h1></div>
         {r.error && <Banner>{r.error}</Banner>}
         <section className="p2-card p2-card--pad p2-invite">
           <h2>Get {REFERRAL_POINTS} INEX for each friend</h2>

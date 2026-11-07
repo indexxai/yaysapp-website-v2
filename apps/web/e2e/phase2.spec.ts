@@ -179,6 +179,30 @@ test('Indexx sign-in on Explore; BTCY, EMMM, ShoperPal and Wall Street from Inde
   await a.ctx.close();
 });
 
+test('every page opened from Explore has a way back to Explore', async ({ browser }) => {
+  const sara = await apiUser('Sara Ahmed');
+  const a = await pageAs(browser, sara, VP);
+  const back = () => a.page.getByRole('link', { name: 'Explore', exact: true }).last();
+  const open = async (name: RegExp | string, url: RegExp) => {
+    await a.page.goto('/explore');
+    await a.page.locator('main').getByRole('link', { name }).first().click();
+    await expect(a.page).toHaveURL(url);
+    await back().click();
+    await expect(a.page).toHaveURL(/\/explore$/);
+  };
+  await open(/^BTCY/, /\/btcy$/);
+  await open(/^EMMM/, /\/products\?tab=emmm/);
+  await open(/^Wallet/, /\/wallet\?from=explore/);
+  await open(/^Invite friends/, /\/earn\/invite\?from=explore/);
+  await open(/^Help and support/, /\/settings\/help\?from=explore/);
+  // Opened from the side bar, these keep their usual back (or none).
+  await a.page.goto('/wallet');
+  await expect(a.page.locator('main').getByRole('link', { name: 'Explore', exact: true })).toHaveCount(0);
+  await a.page.goto('/earn/invite');
+  await expect(a.page.getByRole('link', { name: 'Earn', exact: true }).last()).toHaveAttribute('href', '/earn');
+  await a.ctx.close();
+});
+
 test('wallet: the four cards from Indexx; withdraw INEX to Indexx Exchange; a sign-in that ends asks again', async ({ browser }) => {
   const sara = await apiUser('Sara Ahmed');
   const email = ixEmail(sara, 'sara');

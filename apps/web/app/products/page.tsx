@@ -3,6 +3,7 @@ import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { INDEXX_LINKS, type IndexxEmmm, type IndexxShoperPal, type IndexxWallStreet } from '@yays/shared';
 import { AppShell } from '@/components/app-shell';
+import { BackButton } from '@/components/back';
 import { IndexxSignIn } from '@/components/indexx-signin';
 import { Banner, LineArt, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
@@ -37,7 +38,7 @@ function Products() {
     <AppShell me={me}>
       <LineArt name="explorer" height={360} opacity={0.16} className="p2-art p2-art--br" />
       <div className="p2-page p2-page--narrow">
-        <div className="p2-head"><OvalButton icon="arrow-left" label="Explore" size="sm" variant="ghost" href="/explore" /><h1>Products</h1></div>
+        <div className="p2-head"><BackButton to="/explore" label="Explore" /><h1>Products</h1></div>
         <div className="ys-tabs" role="tablist" aria-label="Products">
           {TABS.map((t) => <button key={t.id} type="button" role="tab" className="ys-tab" aria-selected={t.id === p.id} onClick={() => router.replace(`/products?tab=${t.id}`)}>{t.name}</button>)}
         </div>

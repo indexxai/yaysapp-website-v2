@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, ErrorCode, type WalletView, type Withdrawal, type WithdrawalsPage, type WithdrawQuote } from '@yays/shared';
 import { AppShell } from '@/components/app-shell';
+import { BackButton } from '@/components/back';
 import { IndexxSignIn } from '@/components/indexx-signin';
 import { Modal } from '@/components/message-actions';
 import { Banner, LineArt, OvalButton } from '@/components/ui';
@@ -34,6 +35,7 @@ export default function WalletPage() {
       <LineArt name="wallet" height={360} opacity={0.17} className="p2-art p2-art--br" />
       <div className="p2-page p2-page--wide">
         <div className="p2-head">
+          <BackButton />
           <h1>Wallet</h1>
           {linked && <button type="button" className="link-btn muted p2-small row" style={{ gap: 6 }} onClick={() => void refresh()}><Icon name="refresh" size={14} />Refresh</button>}
         </div>

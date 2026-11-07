@@ -7,6 +7,7 @@ import { Banner, LineArt, OvalButton } from '@/components/ui';
 import { useMe } from '@/components/use-me';
 import { api } from '@/lib/api';
 import { Icon, type IconName } from '@/lib/icons';
+import { fromExplore } from '@/components/back';
 import { IndexxSignIn } from '@/components/indexx-signin';
 import { money, num, PRODUCTS, useLoad } from '@/lib/phase2';
 import { INDEXX_LINKS, type ExploreView } from '@yays/shared';
@@ -63,7 +64,7 @@ export default function ExplorePage() {
           <div className="p2-card p2-checkin-tile">
             <div className="row" style={{ gap: 12 }}><span className="ys-oval ys-oval--wash" style={{ width: 48 }}><Icon name="gift" size={22} /></span><span className="p2-col"><strong>Daily check-in</strong><span className="muted">{c ? (c.claimedToday ? `Claimed · day ${c.streak} streak` : c.streak ? `Day ${c.streak + 1} streak` : 'Start a streak') : '…'}</span></span></div>
             <div className="p2-big">{c ? (c.claimedToday ? `Tomorrow +${c.tomorrowPoints}` : `+${c.todayPoints} INEX`) : ' '}</div>
-            {c && !c.claimedToday ? <OvalButton icon="check" label="Claim" size="md" onClick={() => setClaiming(true)} /> : <OvalButton icon="star" label="Ways to earn" size="md" variant="soft" href="/earn" />}
+            {c && !c.claimedToday ? <OvalButton icon="check" label="Claim" size="md" onClick={() => setClaiming(true)} /> : <OvalButton icon="star" label="Ways to earn" size="md" variant="soft" href={fromExplore('/earn')} />}
           </div>
         </div>
 
@@ -74,7 +75,7 @@ export default function ExplorePage() {
         <section className="p2-card p2-card--pad" aria-labelledby="prod">
           <div className="row" style={{ justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <h2 id="prod" style={{ margin: 0 }}>Indexx products</h2>
-            {x.data?.linked && ix.data?.email && <Link href="/settings/indexx" className="muted p2-small" data-testid="indexx-as">Signed in to Indexx as {ix.data.email}</Link>}
+            {x.data?.linked && ix.data?.email && <Link href={fromExplore('/settings/indexx')} className="muted p2-small" data-testid="indexx-as">Signed in to Indexx as {ix.data.email}</Link>}
           </div>
           {x.error && <Banner tone="warning">{x.error}</Banner>}
           <div className="p2-products">
@@ -91,7 +92,7 @@ export default function ExplorePage() {
 
         <div className="p2-grid p2-grid--3">
           {TILES.map((t) => (
-            <Link key={t.href} href={t.href} className="p2-tile">
+            <Link key={t.href} href={fromExplore(t.href)} className="p2-tile">
               <span className="ys-oval ys-oval--wash" style={{ width: 44 }}><Icon name={t.icon} size={20} /></span>
               <span className="p2-col" style={{ flex: 1 }}><strong>{t.title}</strong><span className="muted">{t.sub}</span></span>
               <Icon name="chevron-right" size={18} />
