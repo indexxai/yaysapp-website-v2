@@ -1,23 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ApiError, MAX_TEXT, textLength, tickFor, type ConversationSummary, type MeProfile, type PublicProfile, type ThreadItem, type Tick } from '@yays/shared';
-import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '../lib/chat';
+import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, attachmentLabel, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
+import { ActionsCtx, Bubble, CallLine, ComposeBar, MessageSheet, SystemLine, TickMark, canDeleteForEveryone, errText, type Actions } from '../chat/messages';
+import { dayLabel, lastSeen, listTime, useChatState, useEngine } from '../lib/chat';
 import { font, useTheme, type Theme } from '../lib/theme';
 import { Avatar, Banner, Field, OvalButton } from '../ui/kit';
 import { Icon } from '../ui/Icon';
 import { Oval } from '../ui/Oval';
-
-const TICK_LABEL: Record<Tick, string> = { pending: 'Sending', failed: 'Not sent', sent: 'Sent', delivered: 'Delivered', read: 'Read' };
-function TickMark({ tick, color }: { tick: Tick; color: string }) {
-  const name = tick === 'pending' ? 'clock' : tick === 'failed' ? 'alert' : tick === 'sent' ? 'check' : 'check-double';
-  return (
-    <View accessible accessibilityLabel={TICK_LABEL[tick]} testID={`tick-${tick}`} style={{ opacity: tick === 'sent' || tick === 'delivered' ? 0.6 : 1 }}>
-      <Icon name={name} size={14} color={color} strokeWidth={tick === 'read' ? 2.6 : 1.8} />
-    </View>
-  );
-}
 
 function ConnectionNotice() {
   const s = useChatState();
@@ -77,27 +68,124 @@ export function ChatListScreen({ me, openChat, openNewChat }: { me: MeProfile; o
   );
 }
 
+/** What the chat list says about the last message: "📷 Photo", "Sara: see you", "You added Ali". */
+function rowPreview(c: ConversationSummary, me: string, nameOf: (id: string) => string) {
+  const last = c.lastMessage;
+  if (!last) return '';
+  if (last.type === 'system' && last.system) return systemText(last.system, last.senderId, (u) => (u === last.senderId && c.lastSenderName ? c.lastSenderName : nameOf(u)));
+  const text = last.deleted ? (last.senderId === me ? 'You deleted this message' : 'This message was deleted') : messagePreview(last);
+  return c.kind === 'group' && last.senderId !== me && c.lastSenderName ? `${c.lastSenderName.split(' ')[0]}: ${text}` : text;
+}
+
 function ChatRow({ c, me, typing, onPress }: { c: ConversationSummary; me: string; typing: boolean; onPress: () => void }) {
   const t = useTheme();
-  const name = c.peer?.displayName ?? 'Chat';
+  const engine = useEngine();
+  const name = c.kind === 'group' ? c.group?.name ?? 'Group' : c.peer?.displayName ?? 'Chat';
+  const photo = c.kind === 'group' ? c.group?.photoUrl : c.peer?.photoUrl;
   const last = c.lastMessage;
-  const unread = c.unread > 0;
+  const unread = c.unread > 0 || c.markedUnread;
+  const muted = !!c.mutedUntil && Date.parse(c.mutedUntil) > Date.now();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${name}${unread ? `, ${c.unread >= 100 ? '99+' : c.unread} unread` : ''}`} testID="chat-row" onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${name}${c.unread > 0 ? `, ${c.unread >= 100 ? '99+' : c.unread} unread` : c.markedUnread ? ', marked unread' : ''}`} testID="chat-row" onPress={onPress}
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface : t.ground }]}>
-      <Avatar name={name} photoUrl={c.peer?.photoUrl} size={48} />
+      <Avatar name={name} photoUrl={photo} size={48} />
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <Text numberOfLines={1} style={{ fontWeight: '700', fontSize: 16, color: t.ink }}>{name}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          {!typing && last && last.senderId === me ? <TickMark tick={tickFor(last, c)} color={t['ink-soft']} /> : null}
-          <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, color: typing ? t['ember-ink'] : t['ink-soft'], fontWeight: typing ? '700' : '400' }}>{typing ? 'typing…' : last?.text ?? ''}</Text>
+          {!typing && last && last.senderId === me && last.type !== 'system' && !last.deleted ? <TickMark tick={tickFor(last, c)} color={t['ink-soft']} /> : null}
+          <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, color: typing ? t['ember-ink'] : t['ink-soft'], fontWeight: typing ? '700' : '400' }}>{typing ? 'typing…' : rowPreview(c, me, (u) => engine.nameOf(u))}</Text>
         </View>
       </View>
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
-        <Text style={{ fontSize: 12, color: unread ? t['ember-ink'] : t['ink-soft'], fontWeight: unread ? '800' : '600' }}>{listTime(c.lastActivityAt)}</Text>
-        {unread ? <View style={[styles.badge, { backgroundColor: t.ember }]}><Text style={{ color: t['on-ember'], fontSize: 11, fontWeight: '800' }}>{c.unread >= 100 ? '99+' : c.unread}</Text></View> : <View style={{ height: 20 }} />}
+        <Text style={{ fontSize: 12, color: unread && !muted ? t['ember-ink'] : t['ink-soft'], fontWeight: unread ? '800' : '600' }}>{listTime(c.lastActivityAt)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: 20 }}>
+          {muted ? <Icon name="bell-off" size={14} color={t['ink-faint']} /> : null}
+          {c.pinnedAt ? <Icon name="pin" size={14} color={t['ink-faint']} /> : null}
+          {c.unread > 0 ? <View style={[styles.badge, { backgroundColor: muted ? t['ink-faint'] : t.ember }]}><Text style={{ color: t['on-ember'], fontSize: 11, fontWeight: '800' }}>{c.unread >= 100 ? '99+' : c.unread}</Text></View>
+            : c.markedUnread ? <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: t.ember }} /> : null}
+        </View>
       </View>
     </Pressable>
+  );
+}
+
+// ---------------- forward ----------------
+/** Pick up to 5 chats to send a copy to, with an optional note. */
+export function ForwardScreen({ conversationId, messageId, onDone }: { conversationId: string; messageId: string; onDone: (sentTo: string | null) => void }) {
+  const t = useTheme();
+  const engine = useEngine();
+  const s = useChatState();
+  const [picked, setPicked] = useState<string[]>([]);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const chats = s.order.map((x) => s.conversations[x]!).filter((c) => c && c.canSend && !c.archived);
+  const nameOf = (c: ConversationSummary) => (c.kind === 'group' ? c.group?.name ?? 'Group' : c.peer?.displayName ?? 'Chat');
+  const send = async () => {
+    setBusy(true); setError(null);
+    try { await engine.forward(conversationId, messageId, picked, note); onDone(picked.length === 1 ? picked[0]! : null); }
+    catch (e) { setError(errText(e, 'Could not forward.')); setBusy(false); }
+  };
+  return (
+    <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 4 }}>
+        <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Forward to</Text>
+        <Text style={{ color: t['ink-soft'], fontSize: 14 }}>Pick up to {MAX_FORWARD_TARGETS} chats{picked.length ? ` · ${picked.length} picked` : ''}.</Text>
+      </View>
+      {error ? <View style={{ paddingHorizontal: 16 }}><Banner>{error}</Banner></View> : null}
+      <FlatList data={chats} keyExtractor={(c) => c.id} style={{ flex: 1 }}
+        renderItem={({ item }) => {
+          const on = picked.includes(item.id);
+          const full = !on && picked.length >= MAX_FORWARD_TARGETS;
+          return (
+            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: full }} accessibilityLabel={nameOf(item)} disabled={full} testID="forward-row"
+              onPress={() => setPicked((p) => (on ? p.filter((x) => x !== item.id) : [...p, item.id]))} style={[styles.row, { opacity: full ? 0.45 : 1 }]}>
+              <Avatar name={nameOf(item)} photoUrl={item.kind === 'group' ? item.group?.photoUrl : item.peer?.photoUrl} size={44} />
+              <Text numberOfLines={1} style={{ flex: 1, fontWeight: '700', fontSize: 16, color: t.ink }}>{nameOf(item)}</Text>
+              <Oval width={28} fill={on ? t.ember : t.sunken}>{on ? <Icon name="check" size={16} color={t['on-ember']} /> : null}</Oval>
+            </Pressable>
+          );
+        }} />
+      <View style={{ padding: 16, gap: 12, borderTopWidth: 1, borderTopColor: t.line }}>
+        <Field label="Add a note (optional)" value={note} onChangeText={setNote} placeholder="Say something about it" />
+        <View style={{ alignItems: 'center' }}><OvalButton icon="send" label="Forward" loading={busy} disabled={!picked.length} onPress={() => void send()} /></View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+// ---------------- message info ----------------
+/** Your message: who has read it, who has it, who doesn't yet. */
+export function MessageInfoScreen({ conversationId, messageId }: { conversationId: string; messageId: string }) {
+  const t = useTheme();
+  const engine = useEngine();
+  const [info, setInfo] = useState<MessageInfo | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { engine.messageInfo(conversationId, messageId).then(setInfo).catch((e) => setError(errText(e, 'Could not load message info.'))); }, [engine, conversationId, messageId]);
+  const when = (iso: string) => `${dayLabel(iso)} at ${new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const section = (title: string, rows: Array<{ user: PublicProfile; at?: string }>) => (
+    <View style={{ gap: 6 }} key={title}>
+      <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 15, color: t.ink }}>{title}</Text>
+      <View style={{ backgroundColor: t.raised, borderRadius: 20, overflow: 'hidden' }}>
+        {rows.length ? rows.map((r) => (
+          <View key={r.user.id} style={[styles.row, { paddingVertical: 10 }]}>
+            <Avatar name={r.user.displayName} photoUrl={r.user.photoUrl} size={36} />
+            <Text style={{ flex: 1, fontWeight: '700', color: t.ink }}>{r.user.displayName}</Text>
+            {r.at ? <Text style={{ fontSize: 12, color: t['ink-soft'] }}>{when(r.at)}</Text> : null}
+          </View>
+        )) : <Text style={{ padding: 14, color: t['ink-soft'] }}>Nobody yet</Text>}
+      </View>
+    </View>
+  );
+  return (
+    <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 18 }}>
+        <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Message info</Text>
+        {error ? <Banner>{error}</Banner> : null}
+        {!info && !error ? <ActivityIndicator color={t.ember} /> : null}
+        {info ? [section('Read by', info.readBy), section('Delivered to', info.deliveredTo), ...(info.waiting.length ? [section('Not delivered yet', info.waiting.map((user) => ({ user })))] : [])] : null}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -140,122 +228,182 @@ export function NewChatScreen({ onOpened }: { onOpened: (id: string) => void }) 
 }
 
 // ---------------- conversation ----------------
-type Row = { kind: 'msg'; m: ThreadItem } | { kind: 'day'; key: string; label: string };
+type Row = { kind: 'msg'; m: ThreadItem; showName: boolean } | { kind: 'day'; key: string; label: string };
 
-export function ChatScreen({ id, onBack }: { id: string; onBack: () => void }) {
+/** Who is typing, in words: "Sara is typing…", "Sara and Ali are typing…". */
+function typingWords(names: string[], group: boolean) {
+  if (!names.length) return null;
+  if (!group) return 'typing…';
+  return names.length === 1 ? `${names[0]} is typing…` : names.length === 2 ? `${names[0]} and ${names[1]} are typing…` : `${names.length} people are typing…`;
+}
+
+export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; onBack: () => void; openForward: (conversationId: string, messageId: string) => void; openInfo: (conversationId: string, messageId: string) => void }) {
   const t = useTheme();
   const engine = useEngine();
   const s = useChatState();
   const c = s.conversations[id];
   const thread = s.threads[id];
   const [error, setError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<ThreadItem | null>(null);
+  const [replying, setReplying] = useState<ThreadItem | null>(null);
+  const [editing, setEditing] = useState<ThreadItem | null>(null);
+  const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
   useEffect(() => {
     engine.open(id).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
     return () => { if (engine.getState().active === id) void engine.open(null); };
   }, [engine, id]);
+  useEffect(() => { if (!notice) return; const tm = setTimeout(() => setNotice(null), 3500); return () => clearTimeout(tm); }, [notice]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const items = useMemo(() => engine.thread(id), [engine, id, thread, s.outbox, c]);
+  const items = useMemo(() => engine.thread(id), [engine, id, thread, s.outbox, s.uploads, c]);
+  const group = c?.kind === 'group';
   // Newest first, for an inverted list that starts at the bottom; a day label follows the last message of each day.
   const rows = useMemo(() => {
     const out: Row[] = [];
     for (let i = items.length - 1; i >= 0; i--) {
       const m = items[i];
-      out.push({ kind: 'msg', m });
+      const prev = items[i - 1];
       const day = dayLabel(m.createdAt);
-      if (i === 0 || dayLabel(items[i - 1].createdAt) !== day) out.push({ kind: 'day', key: `day-${m.key}`, label: day });
+      const newDay = i === 0 || dayLabel(prev.createdAt) !== day;
+      // In a group, the sender's name heads each run of their messages.
+      const showName = group && (newDay || !prev || prev.type === 'system' || prev.senderId !== m.senderId);
+      out.push({ kind: 'msg', m, showName });
+      if (newDay) out.push({ kind: 'day', key: `day-${m.key}`, label: day });
     }
     return out;
-  }, [items]);
+  }, [items, group]);
+  const actions = useMemo<Actions>(() => ({
+    reply: (m) => { setEditing(null); setReplying(m); },
+    edit: (m) => { setReplying(null); setEditing(m); },
+    forward: (m) => openForward(id, m.id!),
+    info: (m) => openInfo(id, m.id!),
+    remove: (m) => {
+      const cur = engine.getState().conversations[id];
+      const everyone = !!cur && canDeleteForEveryone(m, cur);
+      const go = (fn: () => Promise<unknown>) => void fn().catch((e) => setNotice({ text: errText(e, 'Could not delete.'), tone: 'danger' }));
+      Alert.alert('Delete message?', everyone ? (m.mine ? `You can delete it for everyone for ${DELETE_FOR_EVERYONE_MINUTES} minutes after sending.` : 'As an admin you can delete it for everyone in the group.') : 'It will be removed from this phone and your other devices.', [
+        ...(everyone ? [{ text: 'Delete for everyone', style: 'destructive' as const, onPress: () => go(() => engine.deleteForEveryone(id, m.id!)) }] : []),
+        { text: 'Delete for me', style: everyone ? 'default' : 'destructive', onPress: () => go(() => engine.deleteForMe(id, m.id!)) },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    },
+    report: (m) => {
+      const send = (reason: ReportReason) => void engine.report({ conversationId: id, messageId: m.id!, reason })
+        .then(() => setNotice({ text: 'Thanks. Our team will look at it.', tone: 'success' }))
+        .catch((e) => setNotice({ text: errText(e, 'Could not report.'), tone: 'danger' }));
+      Alert.alert('Report this message?', 'YaysApp’s team will see this message and who sent it.', [
+        { text: 'Spam', onPress: () => send('spam') }, { text: 'Scam or harassment', onPress: () => send('harassment') }, { text: 'Cancel', style: 'cancel' },
+      ]);
+    },
+    notice: (text, tone = 'danger') => setNotice({ text, tone }),
+  }), [engine, id, openForward, openInfo]);
 
   if (error) return <SafeAreaView style={{ flex: 1, padding: 24, gap: 16, backgroundColor: t.ground }}><Banner>{error}</Banner><OvalButton icon="arrow-left" label="Back to chats" variant="ghost" onPress={onBack} /></SafeAreaView>;
   if (!c) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.surface }}><ActivityIndicator color={t.ember} /></View>;
-  const name = c.peer?.displayName ?? 'Chat';
-  const typing = engine.typingIn(id).length > 0;
+  const name = group ? c.group?.name ?? 'Group' : c.peer?.displayName ?? 'Chat';
+  const photo = group ? c.group?.photoUrl : c.peer?.photoUrl;
+  const typingNames = engine.typingIn(id).map((u) => engine.nameOf(u).split(' ')[0]!);
+  const typing = typingWords(typingNames, group);
   const p = c.peer ? s.presence[c.peer.id] : undefined;
-  const status = typing ? 'typing…' : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : c.peer?.username ? `@${c.peer.username}` : '';
+  const status = typing ?? (group ? `${c.group?.memberCount ?? 0} members` : p?.online ? 'online' : p?.lastSeenAt ? lastSeen(p.lastSeenAt) : c.peer?.username ? `@${c.peer.username}` : '');
+  const pin = c.pins[0];
   return (
-    <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: t.ground }}>
-      <View style={[styles.head, { borderBottomColor: t.line }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={onBack} hitSlop={12}><Icon name="arrow-left" size={24} color={t.ink} /></Pressable>
-        <View>
-          <Avatar name={name} photoUrl={c.peer?.photoUrl} size={40} />
-          {p?.online ? <View testID="online-dot" style={[styles.dot, { backgroundColor: t.success, borderColor: t.ground }]} /> : null}
+    <ActionsCtx.Provider value={actions}>
+      <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: t.ground }}>
+        <View style={[styles.head, { borderBottomColor: t.line }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={onBack} hitSlop={12}><Icon name="arrow-left" size={24} color={t.ink} /></Pressable>
+          <View>
+            <Avatar name={name} photoUrl={photo} size={40} />
+            {p?.online ? <View testID="online-dot" style={[styles.dot, { backgroundColor: t.success, borderColor: t.ground }]} /> : null}
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text accessibilityRole="header" numberOfLines={1} style={{ fontWeight: '800', fontSize: 17, color: t.ink, fontFamily: font.display }}>{name}</Text>
+            <Text testID="peer-status" numberOfLines={1} style={{ fontSize: 13, color: typing ? t['ember-ink'] : t['ink-soft'], fontWeight: typing ? '700' : '400' }}>{status}</Text>
+          </View>
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text accessibilityRole="header" numberOfLines={1} style={{ fontWeight: '800', fontSize: 17, color: t.ink, fontFamily: font.display }}>{name}</Text>
-          <Text testID="peer-status" numberOfLines={1} style={{ fontSize: 13, color: typing ? t['ember-ink'] : t['ink-soft'], fontWeight: typing ? '700' : '400' }}>{status}</Text>
-        </View>
-      </View>
-      <ConnectionNotice />
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <FlatList
-          testID="thread"
-          inverted
-          data={rows}
-          keyExtractor={(r) => (r.kind === 'msg' ? r.m.key : r.key)}
-          renderItem={({ item }) => item.kind === 'day' ? <DayLabel label={item.label} t={t} /> : <Bubble m={item.m} t={t} />}
-          onEndReached={() => void engine.loadOlder(id)}
-          onEndReachedThreshold={0.3}
-          contentContainerStyle={{ padding: 12, gap: 6, flexGrow: 1 }}
-          ListHeaderComponent={typing ? <View accessibilityLabel="Typing" style={[styles.bubble, styles.them, { backgroundColor: t['bubble-them'], flexDirection: 'row', gap: 4 }]}><Text style={{ color: t['ink-soft'] }}>•••</Text></View> : null}
-          ListFooterComponent={thread?.loading ? <ActivityIndicator color={t.ember} style={{ margin: 12 }} /> : null}
-          ListEmptyComponent={thread?.loaded ? <View style={{ transform: [{ scaleY: -1 }] }}><DayLabel label="Say hello 👋" t={t} /></View> : null}
-        />
-        <Composer id={id} />
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        {pin ? (
+          <View testID="pinned" style={[styles.pinBar, { backgroundColor: t.ground, borderBottomColor: t.line }]}>
+            <Icon name="pin" size={16} color={t['ember-ink']} />
+            <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: t.ink }}><Text style={{ fontWeight: '700' }}>Pinned{c.pins.length > 1 ? ` (${c.pins.length})` : ''}: </Text>{pin.text || 'Message'}</Text>
+          </View>
+        ) : null}
+        <ConnectionNotice />
+        {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <FlatList
+            testID="thread"
+            inverted
+            data={rows}
+            keyExtractor={(r) => (r.kind === 'msg' ? r.m.key : r.key)}
+            renderItem={({ item }) => item.kind === 'day' ? <DayLabel label={item.label} t={t} />
+              : item.m.type === 'system' && item.m.system?.kind === 'call' ? <CallLine m={item.m} />
+              : item.m.type === 'system' ? <SystemLine m={item.m} />
+              : <Bubble m={item.m} c={c} showName={item.showName} onLongPress={() => setSheet(item.m)}><MessageBody m={item.m} /></Bubble>}
+            onEndReached={() => void engine.loadOlder(id)}
+            onEndReachedThreshold={0.3}
+            contentContainerStyle={{ padding: 12, gap: 6, flexGrow: 1 }}
+            ListHeaderComponent={typing ? <View accessibilityLabel="Typing" style={[styles.typing, { backgroundColor: t['bubble-them'] }]}><Text style={{ color: t['ink-soft'] }}>•••</Text></View> : null}
+            ListFooterComponent={thread?.loading ? <ActivityIndicator color={t.ember} style={{ margin: 12 }} /> : null}
+            ListEmptyComponent={thread?.loaded ? <View style={{ transform: [{ scaleY: -1 }] }}><DayLabel label="Say hello 👋" t={t} /></View> : null}
+          />
+          {c.canSend ? (
+            <Composer id={id} replying={replying} editing={editing} onDone={() => { setReplying(null); setEditing(null); }} />
+          ) : (
+            <View style={[styles.cannot, { backgroundColor: t.ground, borderTopColor: t.line }]}>
+              <Text style={{ textAlign: 'center', color: t['ink-soft'], fontSize: 14 }}>{c.group?.role === 'former' ? 'You’re no longer in this group.' : group ? 'Only admins can send messages.' : 'You can’t send messages to this chat.'}</Text>
+            </View>
+          )}
+        </KeyboardAvoidingView>
+        <MessageSheet m={sheet} c={c} onClose={() => setSheet(null)} />
+      </SafeAreaView>
+    </ActionsCtx.Provider>
   );
+}
+
+/** What a message shows besides its text. Photos, videos, voice notes, files and polls come next; until then a label. */
+function MessageBody({ m }: { m: ThreadItem }) {
+  const t = useTheme();
+  const engine = useEngine();
+  const mine = m.senderId === engine.me;
+  if (m.type === 'media' && m.attachment) return <Text style={{ fontSize: 15, fontWeight: '700', color: mine ? t['on-ember'] : t.ink }}>{attachmentLabel(m.attachment)}</Text>;
+  if (m.type === 'poll') return <Text style={{ fontSize: 13, fontWeight: '700', color: mine ? t['on-ember'] : t['ink-soft'] }}>Poll</Text>;
+  return null;
 }
 
 function DayLabel({ label, t }: { label: string; t: Theme }) {
   return <View style={{ alignSelf: 'center', marginVertical: 8, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: t.ground }}><Text style={{ fontSize: 12, fontWeight: '700', color: t['ink-soft'] }}>{label}</Text></View>;
 }
 
-function Bubble({ m, t }: { m: ThreadItem; t: Theme }) {
-  const engine = useEngine();
-  const mine = m.senderId === engine.me;
-  const failed = m.tick === 'failed';
-  return (
-    <View testID={mine ? 'msg-mine' : 'msg-theirs'} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-      <View style={[styles.bubble, mine ? styles.me : styles.them, { backgroundColor: mine ? t['bubble-me'] : t['bubble-them'], opacity: m.tick === 'pending' || failed ? 0.75 : 1 }]}>
-        <Text style={{ fontSize: 16, lineHeight: 22, color: mine ? t['on-ember'] : t.ink }}>{m.text}</Text>
-        <View style={{ flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', gap: 4, marginTop: 2 }}>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: mine ? t['on-ember'] : t['ink-soft'], opacity: 0.85 }}>{clock(m.createdAt)}</Text>
-          {mine && m.tick ? <TickMark tick={m.tick} color={t['on-ember']} /> : null}
-        </View>
-      </View>
-      {failed ? (
-        <View style={{ flexDirection: 'row', gap: 16, marginTop: 4 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Retry sending" onPress={() => void engine.retry(m.clientId)} hitSlop={8}><Text style={{ color: t['danger-ink'], fontWeight: '700', fontSize: 13 }}>Not sent. Retry</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Delete unsent message" onPress={() => void engine.discard(m.clientId)} hitSlop={8}><Text style={{ color: t['ink-soft'], fontWeight: '700', fontSize: 13 }}>Delete</Text></Pressable>
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function Composer({ id }: { id: string }) {
+function Composer({ id, replying, editing, onDone }: { id: string; replying: ThreadItem | null; editing: ThreadItem | null; onDone: () => void }) {
   const t = useTheme();
   const engine = useEngine();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const input = useRef<React.ElementRef<typeof TextInput>>(null);
+  // Editing puts the message's text in the box; replying focuses it.
+  useEffect(() => { if (editing) { setText(editing.text); input.current?.focus(); } }, [editing]);
+  useEffect(() => { if (replying) input.current?.focus(); }, [replying]);
   const len = textLength(text.trim());
   const tooLong = len > MAX_TEXT;
   const send = async () => {
     if (!text.trim() || tooLong) return;
     const v = text;
     setText('');
-    try { await engine.send(id, v); } catch (e) { setText(v); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
+    try {
+      if (editing) { if (v.trim() !== editing.text.trim()) await engine.editMessage(id, editing.id!, v); }
+      else await engine.send(id, v, replying?.id ? { replyToId: replying.id } : {});
+      onDone();
+    } catch (e) { setText(v); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
   };
   return (
-    <View style={{ backgroundColor: t.ground, borderTopWidth: 1, borderTopColor: t.line, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, gap: 4 }}>
+    <View style={{ backgroundColor: t.ground, borderTopWidth: 1, borderTopColor: t.line, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, gap: 6 }}>
+      {replying ? <ComposeBar kind="reply" m={replying} onCancel={onDone} /> : null}
+      {editing ? <ComposeBar kind="edit" m={editing} onCancel={() => { setText(''); onDone(); }} /> : null}
       {error || tooLong ? <Text accessibilityRole="alert" style={{ color: t['danger-ink'], fontWeight: '600', fontSize: 13 }}>{tooLong ? `Messages can be up to ${MAX_TEXT} characters (${len} now).` : error}</Text> : null}
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
         <TextInput ref={input} accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t['ink-faint']} multiline value={text}
-          onChangeText={(v) => { setText(v); setError(null); engine.typing(id, v.trim().length > 0); }} onBlur={() => engine.typing(id, false)}
+          onChangeText={(v) => { setText(v); setError(null); if (!editing) engine.typing(id, v.trim().length > 0); }} onBlur={() => engine.typing(id, false)}
           style={{ flex: 1, minHeight: 44, maxHeight: 140, marginBottom: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, borderRadius: 22, backgroundColor: t.surface, color: t.ink, fontSize: 16 }} />
-        <OvalButton icon="send" label="Send" disabled={!text.trim() || tooLong} onPress={() => void send()} />
+        <OvalButton icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} disabled={!text.trim() || tooLong} onPress={() => void send()} />
       </View>
     </View>
   );
@@ -271,7 +419,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontFamily: font.display, fontSize: 22, fontWeight: '800', textAlign: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1 },
   dot: { position: 'absolute', right: 0, bottom: 0, width: 12, height: 12, borderRadius: 6, borderWidth: 2 },
-  bubble: { paddingHorizontal: 14, paddingTop: 9, paddingBottom: 7, borderRadius: 20 },
-  me: { borderBottomRightRadius: 6 },
-  them: { borderBottomLeftRadius: 6, alignSelf: 'flex-start' },
+  pinBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1 },
+  typing: { alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderBottomLeftRadius: 6 },
+  cannot: { padding: 16, borderTopWidth: 1 },
 });

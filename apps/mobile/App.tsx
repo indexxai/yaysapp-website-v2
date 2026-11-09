@@ -12,13 +12,13 @@ import { useTheme } from './src/lib/theme';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { SignInScreen } from './src/screens/SignInScreen';
 import { DevicesScreen, ProfileSetupScreen, SettingsScreen } from './src/screens/MainScreens';
-import { ChatListScreen, ChatScreen, NewChatScreen } from './src/screens/ChatScreens';
+import { ChatListScreen, ChatScreen, ForwardScreen, MessageInfoScreen, NewChatScreen } from './src/screens/ChatScreens';
 import { ChatProvider, useChatState } from './src/lib/chat';
 import { ComingScreen, MeScreen } from './src/screens/TabScreens';
 import { TabBar, type TabName } from './src/ui/TabBar';
 import type { MeProfile } from '@yays/shared';
 
-export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Profile: undefined; Devices: undefined };
+export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; Profile: undefined; Devices: undefined };
 const Stack = createNativeStackNavigator<Routes>();
 const Tab = createBottomTabNavigator<Record<TabName, undefined>>();
 type Nav = NativeStackNavigationProp<Routes>;
@@ -64,7 +64,10 @@ function Root() {
           <>
             <Stack.Screen name="Tabs" options={{ headerShown: false }}>{() => <Tabs me={me!} />}</Stack.Screen>
             <Stack.Screen name="NewChat">{({ navigation }) => <NewChatScreen onOpened={(id) => navigation.replace('Chat', { id })} />}</Stack.Screen>
-            <Stack.Screen name="Chat" options={{ headerShown: false }}>{({ navigation, route }) => <ChatScreen id={route.params.id} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs'))} />}</Stack.Screen>
+            <Stack.Screen name="Chat" options={{ headerShown: false }}>{({ navigation, route }) => <ChatScreen id={route.params.id} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs'))}
+              openForward={(conversationId, messageId) => navigation.navigate('Forward', { conversationId, messageId })} openInfo={(conversationId, messageId) => navigation.navigate('MessageInfo', { conversationId, messageId })} />}</Stack.Screen>
+            <Stack.Screen name="Forward">{({ navigation, route }) => <ForwardScreen {...route.params} onDone={(to) => (to ? navigation.replace('Chat', { id: to }) : navigation.goBack())} />}</Stack.Screen>
+            <Stack.Screen name="MessageInfo">{({ route }) => <MessageInfoScreen {...route.params} />}</Stack.Screen>
             <Stack.Screen name="Profile">{({ navigation }) => <SettingsScreen openDevices={() => navigation.navigate('Devices')} />}</Stack.Screen>
             <Stack.Screen name="Devices" component={DevicesScreen} />
           </>

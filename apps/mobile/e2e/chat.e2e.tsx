@@ -6,7 +6,8 @@ import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import App from '../App';
 import { resetApiForTests } from '../src/lib/api';
-import { API, codeFor, freshEmail, freshPhone } from './helpers';
+import { API } from './helpers';
+import { call, say, user, uuid, type U } from './people';
 
 const store = (Keychain as unknown as { __store: Map<string, string> }).__store;
 
@@ -28,27 +29,6 @@ class NetSwitch {
   up() { this.isUp = true; }
   close() { this.down(); return new Promise((r) => this.server.close(() => r(null))); }
 }
-
-interface U { id: string; name: string; username: string; tokens: { accessToken: string } & Record<string, string> }
-async function call(path: string, body?: unknown, token?: string, method = body === undefined ? 'GET' : 'POST') {
-  const r = await fetch(`${API}${path}`, { method, headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
-  const j = r.status === 204 ? null : await r.json();
-  if (!r.ok) throw new Error(`${method} ${path} → ${r.status} ${JSON.stringify(j)}`);
-  return j;
-}
-async function user(name: string): Promise<U> {
-  const phone = freshPhone(), email = freshEmail(name.toLowerCase());
-  const dev = { deviceId: `m-${phone.slice(-7)}-device`, platform: 'android', name: 'Test phone' };
-  await call('/v1/auth/phone/start', { phone });
-  const v = await call('/v1/auth/phone/verify', { phone, code: await codeFor(phone), device: dev });
-  await call('/v1/auth/signup/email/start', { signupToken: v.signupToken, email });
-  const r = await call('/v1/auth/signup/email/verify', { signupToken: v.signupToken, email, code: await codeFor(email), device: dev });
-  const username = `${name.toLowerCase()}_${phone.slice(-6)}`;
-  await call('/v1/me', { displayName: name, username }, r.tokens.accessToken, 'PATCH');
-  return { id: r.me.id, name, username, tokens: r.tokens };
-}
-const uuid = () => 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));
-const say = (from: U, convId: string, text: string) => call(`/v1/conversations/${convId}/messages`, { clientId: uuid(), text }, from.tokens.accessToken);
 
 let sw: NetSwitch;
 /** Opens the app signed in as `u`, talking to the API through the network switch. */

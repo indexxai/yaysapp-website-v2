@@ -12,3 +12,4 @@ jest.mock('react-native-keychain', () => {
   };
 });
 jest.mock('react-native-image-crop-picker', () => ({ openPicker: jest.fn() }));
+jest.mock('@react-native-clipboard/clipboard', () => require('@react-native-clipboard/clipboard/jest/clipboard-mock.js'));
