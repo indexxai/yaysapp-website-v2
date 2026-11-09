@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ChatEngine, type ChatCache, type ChatSnapshot, type ChatState, type OutboxStore, type PendingMessage } from '@yays/shared';
 import { api } from './api';
+import { phoneUploader } from '../chat/media';
 
 /** Unsent messages survive the app being closed: they are kept in phone storage until the server has them. */
 export function phoneOutbox(me: string): OutboxStore {
@@ -32,7 +33,7 @@ export function ChatProvider({ me, children }: { me: string; children: ReactNode
     let cancelled = false;
     void api().then((client) => {
       if (cancelled) return;
-      e = new ChatEngine({ client, me, outbox: phoneOutbox(me), cache: phoneCache(me), socketOptions: (globalThis as { YAYS_SOCKET_OPTIONS?: Record<string, unknown> }).YAYS_SOCKET_OPTIONS });
+      e = new ChatEngine({ client, me, outbox: phoneOutbox(me), cache: phoneCache(me), uploader: phoneUploader, socketOptions: (globalThis as { YAYS_SOCKET_OPTIONS?: Record<string, unknown> }).YAYS_SOCKET_OPTIONS });
       setEngine(e);
       void e.start();
     });

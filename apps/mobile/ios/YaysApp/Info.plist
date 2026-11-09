@@ -31,6 +31,12 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>YaysApp uses the camera so you can take photos and videos to send in chats, and for video calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>YaysApp uses the microphone for voice notes, voice and video calls.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>YaysApp opens your photos so you can send them in chats and set your profile picture.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string/>
 	<key>UILaunchStoryboardName</key>

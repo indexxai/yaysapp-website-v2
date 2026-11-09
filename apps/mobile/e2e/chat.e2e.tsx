@@ -139,9 +139,11 @@ describe('Week 3 · mobile chats against the real API', () => {
     const r = launchAs(ali);
     fireEvent.press(await screen.findByLabelText(/Chat with Sara/));
     await screen.findByText('Hi');
-    expect(screen.getByLabelText('Send').props.accessibilityState.disabled).toBe(true);
+    // Nothing typed (or only spaces): the button records a voice note instead of sending.
+    expect(screen.queryByLabelText('Send')).toBeNull();
+    expect(screen.getByLabelText('Voice')).toBeTruthy();
     fireEvent.changeText(screen.getByLabelText('Message'), '    ');
-    expect(screen.getByLabelText('Send').props.accessibilityState.disabled).toBe(true);
+    expect(screen.queryByLabelText('Send')).toBeNull();
     fireEvent.changeText(screen.getByLabelText('Message'), 'x'.repeat(4097));
     expect(await screen.findByText('Messages can be up to 4096 characters (4097 now).')).toBeTruthy();
     expect(screen.getByLabelText('Send').props.accessibilityState.disabled).toBe(true);

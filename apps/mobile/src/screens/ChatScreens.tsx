@@ -3,6 +3,8 @@ import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pre
 import { Text, TextInput } from '../ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, attachmentLabel, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
+import { AttachSheet, MediaBody, MediaViewer, RecordingBar, useVoiceRecorder } from '../chat/MediaParts';
+import { fromCamera, pickFiles, pickMedia, type Picked } from '../chat/media';
 import { ActionsCtx, Bubble, CallLine, ComposeBar, MessageSheet, SystemLine, TickMark, canDeleteForEveryone, errText, type Actions } from '../chat/messages';
 import { dayLabel, lastSeen, listTime, useChatState, useEngine } from '../lib/chat';
 import { font, useTheme, type Theme } from '../lib/theme';
@@ -248,6 +250,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
   const [replying, setReplying] = useState<ThreadItem | null>(null);
   const [editing, setEditing] = useState<ThreadItem | null>(null);
   const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
+  const [viewing, setViewing] = useState<ThreadItem | null>(null);
   useEffect(() => {
     engine.open(id).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
     return () => { if (engine.getState().active === id) void engine.open(null); };
@@ -337,7 +340,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
             renderItem={({ item }) => item.kind === 'day' ? <DayLabel label={item.label} t={t} />
               : item.m.type === 'system' && item.m.system?.kind === 'call' ? <CallLine m={item.m} />
               : item.m.type === 'system' ? <SystemLine m={item.m} />
-              : <Bubble m={item.m} c={c} showName={item.showName} onLongPress={() => setSheet(item.m)}><MessageBody m={item.m} /></Bubble>}
+              : <Bubble m={item.m} c={c} showName={item.showName} onLongPress={() => setSheet(item.m)}><MessageBody m={item.m} onOpen={() => setViewing(item.m)} /></Bubble>}
             onEndReached={() => void engine.loadOlder(id)}
             onEndReachedThreshold={0.3}
             contentContainerStyle={{ padding: 12, gap: 6, flexGrow: 1 }}
@@ -346,7 +349,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
             ListEmptyComponent={thread?.loaded ? <View style={{ transform: [{ scaleY: -1 }] }}><DayLabel label="Say hello 👋" t={t} /></View> : null}
           />
           {c.canSend ? (
-            <Composer id={id} replying={replying} editing={editing} onDone={() => { setReplying(null); setEditing(null); }} />
+            <Composer id={id} replying={replying} editing={editing} onDone={() => { setReplying(null); setEditing(null); }} onError={(text) => setNotice({ text, tone: 'danger' })} />
           ) : (
             <View style={[styles.cannot, { backgroundColor: t.ground, borderTopColor: t.line }]}>
               <Text style={{ textAlign: 'center', color: t['ink-soft'], fontSize: 14 }}>{c.group?.role === 'former' ? 'You’re no longer in this group.' : group ? 'Only admins can send messages.' : 'You can’t send messages to this chat.'}</Text>
@@ -354,17 +357,18 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
           )}
         </KeyboardAvoidingView>
         <MessageSheet m={sheet} c={c} onClose={() => setSheet(null)} />
+        <MediaViewer m={viewing} onClose={() => setViewing(null)} />
       </SafeAreaView>
     </ActionsCtx.Provider>
   );
 }
 
-/** What a message shows besides its text. Photos, videos, voice notes, files and polls come next; until then a label. */
-function MessageBody({ m }: { m: ThreadItem }) {
+/** What a message shows besides its text: a photo, video, voice note or file. Polls come next; until then a label. */
+function MessageBody({ m, onOpen }: { m: ThreadItem; onOpen: () => void }) {
   const t = useTheme();
   const engine = useEngine();
   const mine = m.senderId === engine.me;
-  if (m.type === 'media' && m.attachment) return <Text style={{ fontSize: 15, fontWeight: '700', color: mine ? t['on-ember'] : t.ink }}>{attachmentLabel(m.attachment)}</Text>;
+  if (m.type === 'media' && m.attachment) return <MediaBody m={m} onOpen={onOpen} />;
   if (m.type === 'poll') return <Text style={{ fontSize: 13, fontWeight: '700', color: mine ? t['on-ember'] : t['ink-soft'] }}>Poll</Text>;
   return null;
 }
@@ -373,11 +377,13 @@ function DayLabel({ label, t }: { label: string; t: Theme }) {
   return <View style={{ alignSelf: 'center', marginVertical: 8, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: t.ground }}><Text style={{ fontSize: 12, fontWeight: '700', color: t['ink-soft'] }}>{label}</Text></View>;
 }
 
-function Composer({ id, replying, editing, onDone }: { id: string; replying: ThreadItem | null; editing: ThreadItem | null; onDone: () => void }) {
+function Composer({ id, replying, editing, onDone, onError }: { id: string; replying: ThreadItem | null; editing: ThreadItem | null; onDone: () => void; onError: (text: string) => void }) {
   const t = useTheme();
   const engine = useEngine();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [attach, setAttach] = useState(false);
+  const voice = useVoiceRecorder();
   const input = useRef<React.ElementRef<typeof TextInput>>(null);
   // Editing puts the message's text in the box; replying focuses it.
   useEffect(() => { if (editing) { setText(editing.text); input.current?.focus(); } }, [editing]);
@@ -394,17 +400,47 @@ function Composer({ id, replying, editing, onDone }: { id: string; replying: Thr
       onDone();
     } catch (e) { setText(v); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
   };
+  /** Each picked file goes as its own message; the typed text becomes the first one's caption. */
+  const sendFiles = (files: Picked[]) => {
+    files.forEach((f, i) => {
+      try { engine.sendFile(id, { ...f, ...(i === 0 && text.trim() ? { caption: text.trim() } : {}), ...(i === 0 && replying?.id ? { replyToId: replying.id } : {}) }); }
+      catch (e) { onError(errText(e, `Could not send ${f.name}.`)); }
+    });
+    if (files.length && text.trim()) setText('');
+    if (files.length) onDone();
+  };
+  const pickAnd = async (what: 'media' | 'camera' | 'video' | 'file') => {
+    try { sendFiles(what === 'media' ? await pickMedia() : what === 'file' ? await pickFiles() : await fromCamera(what === 'video')); }
+    catch (e) { onError(errText(e, what === 'camera' || what === 'video' ? 'Could not open the camera. Allow it in Settings.' : 'Could not open your files.')); }
+  };
+  const record = async () => { const problem = await voice.start(); if (problem) onError(problem); };
+  const sendVoice = async () => {
+    const note = await voice.stop(true);
+    if (!note) { onError('Hold on a little longer: voice messages need at least a second.'); return; }
+    try { engine.sendFile(id, { file: note.file, kind: 'voice', name: 'Voice message.m4a', durationMs: note.durationMs, waveform: note.waveform, localUrl: note.localUrl, ...(replying?.id ? { replyToId: replying.id } : {}) }); onDone(); }
+    catch (e) { onError(errText(e, 'Could not send the voice message.')); }
+  };
   return (
     <View style={{ backgroundColor: t.ground, borderTopWidth: 1, borderTopColor: t.line, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, gap: 6 }}>
       {replying ? <ComposeBar kind="reply" m={replying} onCancel={onDone} /> : null}
       {editing ? <ComposeBar kind="edit" m={editing} onCancel={() => { setText(''); onDone(); }} /> : null}
       {error || tooLong ? <Text accessibilityRole="alert" style={{ color: t['danger-ink'], fontWeight: '600', fontSize: 13 }}>{tooLong ? `Messages can be up to ${MAX_TEXT} characters (${len} now).` : error}</Text> : null}
-      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 10 }}>
-        <TextInput ref={input} accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t['ink-faint']} multiline value={text}
-          onChangeText={(v) => { setText(v); setError(null); if (!editing) engine.typing(id, v.trim().length > 0); }} onBlur={() => engine.typing(id, false)}
-          style={{ flex: 1, minHeight: 44, maxHeight: 140, marginBottom: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, borderRadius: 22, backgroundColor: t.surface, color: t.ink, fontSize: 16 }} />
-        <OvalButton icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} disabled={!text.trim() || tooLong} onPress={() => void send()} />
-      </View>
+      {voice.recording ? <RecordingBar ms={voice.ms} levels={voice.levels} onCancel={() => void voice.stop(false)} onSend={() => void sendVoice()} /> : (
+        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+          {!editing ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Attach" onPress={() => setAttach(true)} hitSlop={8} style={{ marginBottom: 32 }}>
+              <Icon name="plus" size={26} color={t['ember-ink']} />
+            </Pressable>
+          ) : null}
+          <TextInput ref={input} accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t['ink-faint']} multiline value={text}
+            onChangeText={(v) => { setText(v); setError(null); if (!editing) engine.typing(id, v.trim().length > 0); }} onBlur={() => engine.typing(id, false)}
+            style={{ flex: 1, minHeight: 44, maxHeight: 140, marginBottom: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, borderRadius: 22, backgroundColor: t.surface, color: t.ink, fontSize: 16 }} />
+          {text.trim() || editing
+            ? <OvalButton icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} disabled={!text.trim() || tooLong} onPress={() => void send()} />
+            : <OvalButton icon="mic" label="Voice" variant="soft" onPress={() => void record()} />}
+        </View>
+      )}
+      <AttachSheet open={attach} onClose={() => setAttach(false)} onPick={(w) => void pickAnd(w)} />
     </View>
   );
 }
