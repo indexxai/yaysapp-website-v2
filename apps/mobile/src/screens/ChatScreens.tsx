@@ -6,6 +6,8 @@ import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, a
 import { AttachSheet, MediaBody, MediaViewer, RecordingBar, useVoiceRecorder } from '../chat/MediaParts';
 import { fromCamera, pickFiles, pickMedia, type Picked } from '../chat/media';
 import { MentionList, PollCard } from '../chat/PollParts';
+import { ChatActionsSheet, FilterTabs, hasUnread, type ListFilter } from '../chat/ListParts';
+import { LineArt } from '../ui/LineArt';
 import { ActionsCtx, Bubble, CallLine, ComposeBar, MessageSheet, SystemLine, TickMark, canDeleteForEveryone, errText, type Actions } from '../chat/messages';
 import { dayLabel, lastSeen, listTime, useChatState, useEngine } from '../lib/chat';
 import { font, useTheme, type Theme } from '../lib/theme';
@@ -29,23 +31,35 @@ function ConnectionNotice() {
 }
 
 // ---------------- chat list ----------------
-export function ChatListScreen({ me, openChat, openNewChat, openNewGroup }: { me: MeProfile; openChat: (id: string) => void; openNewChat: () => void; openNewGroup: () => void }) {
+export function ChatListScreen({ me, openChat, openNewChat, openNewGroup, openSearch, openArchived }: { me: MeProfile; openChat: (id: string) => void; openNewChat: () => void; openNewGroup: () => void; openSearch: () => void; openArchived: () => void }) {
   const t = useTheme();
   const s = useChatState();
   const engine = useEngine();
   const [refreshing, setRefreshing] = useState(false);
-  const rows = s.order.map((id) => s.conversations[id]);
+  const [filter, setFilter] = useState<ListFilter>('all');
+  const [actions, setActions] = useState<ConversationSummary | null>(null);
+  const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
+  useEffect(() => { if (!notice) return; const tm = setTimeout(() => setNotice(null), 3000); return () => clearTimeout(tm); }, [notice]);
+  const all = s.order.map((id) => s.conversations[id]).filter((c): c is ConversationSummary => !!c);
+  const main = all.filter((c) => !c.archived);
+  const archived = all.filter((c) => c.archived);
+  const unread = main.filter(hasUnread).length;
+  const rows = main.filter((c) => filter === 'all' || (filter === 'unread' ? hasUnread(c) : c.kind === 'group'));
+  const archivedUnread = archived.filter(hasUnread).length;
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: t.ground }}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
       <View style={styles.listHead}>
         <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Chats</Text>
         <View style={{ flexDirection: 'row', gap: 12 }}>
+          <OvalButton icon="search" label="Search" size="sm" variant="secondary" onPress={openSearch} />
           <OvalButton icon="users" label="New group" size="sm" variant="soft" onPress={openNewGroup} />
           <OvalButton icon="edit" label="New chat" size="sm" onPress={openNewChat} />
         </View>
       </View>
+      {main.length || archived.length ? <FilterTabs value={filter} onChange={setFilter} unread={unread} /> : null}
       <ConnectionNotice />
-      {!s.listLoaded ? (s.connection === 'offline'
+      {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
+      {!s.listLoaded && !all.length ? (s.connection === 'offline'
         ? <Text style={{ textAlign: 'center', margin: 32, color: t['ink-soft'], fontSize: 15 }}>Your chats will load when you're back online.</Text>
         : <ActivityIndicator style={{ marginTop: 40 }} color={t.ember} />) : (
         <FlatList
@@ -54,22 +68,54 @@ export function ChatListScreen({ me, openChat, openNewChat, openNewGroup }: { me
           keyExtractor={(c) => c.id}
           refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); void engine.loadList().finally(() => setRefreshing(false)); }}
-          onEndReached={() => { if (s.listNext) void engine.loadList(true); }}
-          renderItem={({ item }) => <ChatRow c={item} me={me.id} typing={engine.typingIn(item.id).length > 0} onPress={() => openChat(item.id)} />}
+          onEndReached={() => { if (s.listNext && filter === 'all') void engine.loadList(true); }}
+          ListHeaderComponent={filter === 'all' && archived.length ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Archived, ${archived.length} chat${archived.length === 1 ? '' : 's'}`} onPress={openArchived} style={[styles.row, { paddingVertical: 10 }]}>
+              <Oval width={48} fill={t.sunken}><Icon name="archive" size={20} color={t['ink-soft']} /></Oval>
+              <Text style={{ flex: 1, fontWeight: '700', fontSize: 16, color: t.ink }}>Archived</Text>
+              <Text style={{ fontWeight: '700', fontSize: 13, color: archivedUnread ? t['ember-ink'] : t['ink-soft'] }}>{archivedUnread || archived.length}</Text>
+            </Pressable>
+          ) : null}
+          renderItem={({ item }) => <ChatRow c={item} me={me.id} typing={engine.typingIn(item.id).length > 0} onPress={() => openChat(item.id)} onLongPress={() => setActions(item)} />}
           ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: t.line, marginLeft: 76 }} />}
-          ListEmptyComponent={
+          ListEmptyComponent={main.length ? (
+            <Text style={{ textAlign: 'center', margin: 32, color: t['ink-soft'], fontSize: 15 }}>{filter === 'unread' ? 'No unread chats.' : 'No groups yet.'}</Text>
+          ) : (
             <View testID="chats-ready" style={styles.empty}>
-              <Oval width={72} fill={t['ember-wash']}><Icon name="chats" size={30} color={t['ember-ink']} /></Oval>
+              <LineArt name="chat" height={170} opacity={0.6} style={{ position: 'relative', right: 0, bottom: 0 }} />
               <Text style={[styles.emptyTitle, { color: t.ink }]}>Welcome, {me.displayName}</Text>
               <Text style={{ textAlign: 'center', color: t['ink-soft'], fontSize: 14, lineHeight: 20 }}>
                 {me.migrated ? 'Your account from the old YaysApp is connected.' : 'Your account is ready.'} No chats yet: start one with anyone on YaysApp by their username, phone number or email.
               </Text>
               <OvalButton icon="edit" label="Start a chat" onPress={openNewChat} />
             </View>
-          }
+          )}
           contentContainerStyle={rows.length ? undefined : { flexGrow: 1 }}
         />
       )}
+      <ChatActionsSheet c={actions} onClose={() => setActions(null)} onNotice={(text, tone = 'danger') => setNotice({ text, tone })} />
+    </SafeAreaView>
+  );
+}
+
+/** Archived chats. New messages don't bring them back to the list. */
+export function ArchivedScreen({ me, openChat }: { me: MeProfile; openChat: (id: string) => void }) {
+  const t = useTheme();
+  const s = useChatState();
+  const engine = useEngine();
+  const [actions, setActions] = useState<ConversationSummary | null>(null);
+  const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
+  useEffect(() => { void engine.loadArchived().catch(() => undefined); }, [engine]);
+  const rows = s.order.map((id) => s.conversations[id]).filter((c): c is ConversationSummary => !!c && c.archived);
+  return (
+    <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <Text accessibilityRole="header" style={[styles.h1, { color: t.ink, paddingHorizontal: 20, paddingBottom: 8 }]}>Archived</Text>
+      {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
+      <FlatList data={rows} keyExtractor={(c) => c.id}
+        renderItem={({ item }) => <ChatRow c={item} me={me.id} typing={false} onPress={() => openChat(item.id)} onLongPress={() => setActions(item)} />}
+        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: t.line, marginLeft: 76 }} />}
+        ListEmptyComponent={<Text style={{ textAlign: 'center', margin: 32, color: t['ink-soft'] }}>No archived chats. Long-press a chat to archive it.</Text>} />
+      <ChatActionsSheet c={actions} onClose={() => setActions(null)} onNotice={(text, tone = 'danger') => setNotice({ text, tone })} />
     </SafeAreaView>
   );
 }
@@ -83,7 +129,7 @@ function rowPreview(c: ConversationSummary, me: string, nameOf: (id: string) => 
   return c.kind === 'group' && last.senderId !== me && c.lastSenderName ? `${c.lastSenderName.split(' ')[0]}: ${text}` : text;
 }
 
-function ChatRow({ c, me, typing, onPress }: { c: ConversationSummary; me: string; typing: boolean; onPress: () => void }) {
+function ChatRow({ c, me, typing, onPress, onLongPress }: { c: ConversationSummary; me: string; typing: boolean; onPress: () => void; onLongPress?: () => void }) {
   const t = useTheme();
   const engine = useEngine();
   const name = c.kind === 'group' ? c.group?.name ?? 'Group' : c.peer?.displayName ?? 'Chat';
@@ -92,7 +138,8 @@ function ChatRow({ c, me, typing, onPress }: { c: ConversationSummary; me: strin
   const unread = c.unread > 0 || c.markedUnread;
   const muted = !!c.mutedUntil && Date.parse(c.mutedUntil) > Date.now();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${name}${c.unread > 0 ? `, ${c.unread >= 100 ? '99+' : c.unread} unread` : c.markedUnread ? ', marked unread' : ''}`} testID="chat-row" onPress={onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={`Chat with ${name}${c.unread > 0 ? `, ${c.unread >= 100 ? '99+' : c.unread} unread` : c.markedUnread ? ', marked unread' : ''}`} testID="chat-row" onPress={onPress} onLongPress={onLongPress} delayLongPress={350}
+      accessibilityHint={onLongPress ? 'Long press to pin, mute, archive or delete' : undefined}
       style={({ pressed }) => [styles.row, { backgroundColor: pressed ? t.surface : t.ground }]}>
       <Avatar name={name} photoUrl={photo} size={48} />
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
