@@ -1,0 +1,45 @@
+{
+  "migIndex": 1,
+  "data": [
+    {
+      "path": "assets/fonts/NunitoSans-Bold.ttf",
+      "sha1": "5f7aaebe62f05f995ad87bc937ed95c7985452de"
+    },
+    {
+      "path": "assets/fonts/NunitoSans-ExtraBold.ttf",
+      "sha1": "8742052a4b94ca77daa4421302ae1320371ffa09"
+    },
+    {
+      "path": "assets/fonts/NunitoSans-Medium.ttf",
+      "sha1": "72777dd3293884dbdecdbac1caa1ada637556e05"
+    },
+    {
+      "path": "assets/fonts/NunitoSans-Regular.ttf",
+      "sha1": "9f61da85b1160fb0ca306a30c7a5b26e6d89c4b5"
+    },
+    {
+      "path": "assets/fonts/NunitoSans-SemiBold.ttf",
+      "sha1": "15a192c2cf6754016dca040bb92712ddff16b203"
+    },
+    {
+      "path": "assets/fonts/Outfit-Bold.ttf",
+      "sha1": "148c9a4f145442e85509a202472f3dfc002f2359"
+    },
+    {
+      "path": "assets/fonts/Outfit-ExtraBold.ttf",
+      "sha1": "a46134346caa0c18b65157641be59e5973037ded"
+    },
+    {
+      "path": "assets/fonts/Outfit-Medium.ttf",
+      "sha1": "9d7db2e6a458135b81b68078a7f4863fa17c2024"
+    },
+    {
+      "path": "assets/fonts/Outfit-Regular.ttf",
+      "sha1": "06a8de7221f96cdce3e90e32444f1db7897b479a"
+    },
+    {
+      "path": "assets/fonts/Outfit-SemiBold.ttf",
+      "sha1": "187a51467f6faeab3853f62a38c729817a938bc0"
+    }
+  ]
+}

@@ -8,5 +8,7 @@ module.exports = mergeConfig(getDefaultConfig(__dirname), {
   resolver: {
     nodeModulesPaths: [path.join(__dirname, 'node_modules'), path.join(root, 'node_modules')],
     unstable_enableSymlinks: true,
+    // @yays/tokens and @yays/shared publish their files through package.json "exports" (e.g. @yays/tokens/icons.json).
+    unstable_enablePackageExports: true,
   },
 });

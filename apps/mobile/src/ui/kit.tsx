@@ -1,5 +1,6 @@
 import React, { type ReactNode } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View, type TextInputProps } from 'react-native';
+import { Text, TextInput } from './Text';
 import { font, useTheme, type Theme } from '../lib/theme';
 import { Icon, type IconName } from './Icon';
 import { Oval } from './Oval';

@@ -1,5 +1,6 @@
 import React, { type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { font, useTheme } from '../lib/theme';
 

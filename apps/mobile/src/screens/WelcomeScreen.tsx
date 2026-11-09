@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { font, useTheme } from '../lib/theme';
 import { OvalButton } from '../ui/kit';

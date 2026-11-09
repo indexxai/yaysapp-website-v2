@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Alert, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { ApiError, type DeviceSession } from '@yays/shared';
 import { api } from '../lib/api';
 import { useSession } from '../lib/session';

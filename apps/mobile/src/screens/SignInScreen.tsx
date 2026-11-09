@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { Text } from '../ui/Text';
 import { ApiError, ErrorCode, needsPin, normalizeEmail, normalizePhone, type AuthResult, type CodeSent, type SignInResult } from '@yays/shared';
 import { api } from '../lib/api';
 import { font, useTheme } from '../lib/theme';

@@ -88,7 +88,7 @@ describe('Week 2 · mobile sign-in against the real API', () => {
     fireEvent.press(screen.getByLabelText('Continue'));
     await screen.findByText('Welcome, Omar');
 
-    fireEvent.press(screen.getByLabelText('Settings'));
+    fireEvent.press(screen.getByLabelText('Me'));
     fireEvent.press(await screen.findByLabelText('Linked devices'));
     await waitFor(() => expect(screen.getAllByTestId('device-row')).toHaveLength(2));
     expect(screen.getByText('Chrome on Mac')).toBeTruthy();
@@ -106,7 +106,7 @@ describe('Week 2 · mobile sign-in against the real API', () => {
     fireEvent.changeText(screen.getByLabelText('Your name'), 'Bye');
     fireEvent.press(screen.getByLabelText('Continue'));
     await screen.findByText('Welcome, Bye');
-    fireEvent.press(screen.getByLabelText('Settings'));
+    fireEvent.press(screen.getByLabelText('Me'));
     fireEvent.press(await screen.findByLabelText('Log out'));
     expect(await screen.findByText('Chat. Earn. Together.')).toBeTruthy();
     expect(store.size).toBe(0);

@@ -1,8 +1,11 @@
 import React from 'react';
-import { ActivityIndicator, StatusBar, Text, View } from 'react-native';
+import { ActivityIndicator, StatusBar, View } from 'react-native';
+import { Text } from './src/ui/Text';
 import { OvalButton } from './src/ui/kit';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useNavigation } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider, useSession } from './src/lib/session';
 import { useTheme } from './src/lib/theme';
@@ -10,10 +13,31 @@ import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { SignInScreen } from './src/screens/SignInScreen';
 import { DevicesScreen, ProfileSetupScreen, SettingsScreen } from './src/screens/MainScreens';
 import { ChatListScreen, ChatScreen, NewChatScreen } from './src/screens/ChatScreens';
-import { ChatProvider } from './src/lib/chat';
+import { ChatProvider, useChatState } from './src/lib/chat';
+import { ComingScreen, MeScreen } from './src/screens/TabScreens';
+import { TabBar, type TabName } from './src/ui/TabBar';
+import type { MeProfile } from '@yays/shared';
 
-export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Chats: undefined; NewChat: undefined; Chat: { id: string }; Settings: undefined; Devices: undefined };
+export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Profile: undefined; Devices: undefined };
 const Stack = createNativeStackNavigator<Routes>();
+const Tab = createBottomTabNavigator<Record<TabName, undefined>>();
+type Nav = NativeStackNavigationProp<Routes>;
+
+/** Chats, Calls, Circles, Explore and Me, with the bar from the design. */
+function Tabs({ me }: { me: MeProfile }) {
+  const nav = useNavigation<Nav>();
+  const s = useChatState();
+  const unread = s.order.filter((id) => { const c = s.conversations[id]; return c && (c.unread > 0 || c.markedUnread) && !c.archived && !(c.mutedUntil && Date.parse(c.mutedUntil) > Date.now()); }).length;
+  return (
+    <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={(p) => <TabBar {...p} badges={{ Chats: { n: unread, label: `${unread} unread chat${unread === 1 ? '' : 's'}` } }} />}>
+      <Tab.Screen name="Chats">{() => <ChatListScreen me={me} openChat={(id) => nav.navigate('Chat', { id })} openNewChat={() => nav.navigate('NewChat')} />}</Tab.Screen>
+      <Tab.Screen name="Calls">{() => <ComingScreen title="Calls" art="selfie" icon="phone" lines={['Voice and video calls with friends and groups.', 'Calls already work on YaysApp for the web.']} />}</Tab.Screen>
+      <Tab.Screen name="Circles">{() => <ComingScreen title="Circles" art="hype" icon="people" lines={['Communities for the things you love: posts, events and people near you.', 'Circles already work on YaysApp for the web.']} />}</Tab.Screen>
+      <Tab.Screen name="Explore">{() => <ComingScreen title="Explore" art="explorer" icon="compass" lines={['Jack’s AI, daily check-in, INEX rewards, your wallet and the Indexx products.', 'All of it already works on YaysApp for the web.']} />}</Tab.Screen>
+      <Tab.Screen name="Me">{() => <MeScreen me={me} open={(r) => nav.navigate(r)} />}</Tab.Screen>
+    </Tab.Navigator>
+  );
+}
 
 function Root() {
   const s = useSession();
@@ -38,10 +62,10 @@ function Root() {
           <Stack.Screen name="ProfileSetup" component={ProfileSetupScreen} options={{ headerShown: false }} />
         ) : (
           <>
-            <Stack.Screen name="Chats" options={{ headerShown: false }}>{({ navigation }) => <ChatListScreen me={me!} openChat={(id) => navigation.navigate('Chat', { id })} openNewChat={() => navigation.navigate('NewChat')} openSettings={() => navigation.navigate('Settings')} />}</Stack.Screen>
+            <Stack.Screen name="Tabs" options={{ headerShown: false }}>{() => <Tabs me={me!} />}</Stack.Screen>
             <Stack.Screen name="NewChat">{({ navigation }) => <NewChatScreen onOpened={(id) => navigation.replace('Chat', { id })} />}</Stack.Screen>
-            <Stack.Screen name="Chat" options={{ headerShown: false }}>{({ navigation, route }) => <ChatScreen id={route.params.id} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Chats'))} />}</Stack.Screen>
-            <Stack.Screen name="Settings">{({ navigation }) => <SettingsScreen openDevices={() => navigation.navigate('Devices')} />}</Stack.Screen>
+            <Stack.Screen name="Chat" options={{ headerShown: false }}>{({ navigation, route }) => <ChatScreen id={route.params.id} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs'))} />}</Stack.Screen>
+            <Stack.Screen name="Profile">{({ navigation }) => <SettingsScreen openDevices={() => navigation.navigate('Devices')} />}</Stack.Screen>
             <Stack.Screen name="Devices" component={DevicesScreen} />
           </>
         )}

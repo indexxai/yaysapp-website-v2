@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '../ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, MAX_TEXT, textLength, tickFor, type ConversationSummary, type MeProfile, type PublicProfile, type ThreadItem, type Tick } from '@yays/shared';
 import { clock, dayLabel, lastSeen, listTime, useChatState, useEngine } from '../lib/chat';
@@ -34,7 +35,7 @@ function ConnectionNotice() {
 }
 
 // ---------------- chat list ----------------
-export function ChatListScreen({ me, openChat, openNewChat, openSettings }: { me: MeProfile; openChat: (id: string) => void; openNewChat: () => void; openSettings: () => void }) {
+export function ChatListScreen({ me, openChat, openNewChat }: { me: MeProfile; openChat: (id: string) => void; openNewChat: () => void }) {
   const t = useTheme();
   const s = useChatState();
   const engine = useEngine();
@@ -44,10 +45,7 @@ export function ChatListScreen({ me, openChat, openNewChat, openSettings }: { me
     <SafeAreaView style={{ flex: 1, backgroundColor: t.ground }}>
       <View style={styles.listHead}>
         <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Chats</Text>
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <OvalButton icon="edit" label="New chat" size="sm" onPress={openNewChat} />
-          <OvalButton icon="settings" label="Settings" size="sm" variant="secondary" onPress={openSettings} />
-        </View>
+        <OvalButton icon="edit" label="New chat" size="sm" onPress={openNewChat} />
       </View>
       <ConnectionNotice />
       {!s.listLoaded ? (s.connection === 'offline'
@@ -241,7 +239,7 @@ function Composer({ id }: { id: string }) {
   const engine = useEngine();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const input = useRef<TextInput>(null);
+  const input = useRef<React.ElementRef<typeof TextInput>>(null);
   const len = textLength(text.trim());
   const tooLong = len > MAX_TEXT;
   const send = async () => {
