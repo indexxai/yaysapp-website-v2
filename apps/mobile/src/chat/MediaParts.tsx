@@ -161,17 +161,18 @@ export function MediaViewer({ m, onClose }: { m: ThreadItem | null; onClose: () 
 }
 
 /** "+" in the message box: photos and videos, the camera, or a file. */
-export function AttachSheet({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (what: 'media' | 'camera' | 'video' | 'file') => void }) {
+export function AttachSheet({ open, poll, onClose, onPick }: { open: boolean; poll?: boolean; onClose: () => void; onPick: (what: 'media' | 'camera' | 'video' | 'file' | 'poll') => void }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   if (!open) return null;
-  const items: Array<[IconName, string, 'media' | 'camera' | 'video' | 'file']> = [
+  const items: Array<[IconName, string, 'media' | 'camera' | 'video' | 'file' | 'poll']> = [
     ['image', 'Photos and videos', 'media'], ['camera', 'Take a photo', 'camera'], ['video', 'Record a video', 'video'], ['file', 'Document', 'file'],
+    ...(poll ? [['list', 'Poll', 'poll'] as [IconName, string, 'poll']] : []),
   ];
   return (
     <Modal transparent animationType="slide" visible onRequestClose={onClose} statusBarTranslucent>
       <Pressable accessibilityLabel="Close" style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }} onPress={onClose} />
-      <View testID="attach-sheet" style={{ backgroundColor: t.ground, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 18, paddingBottom: Math.max(insets.bottom, 18), flexDirection: 'row', justifyContent: 'space-around' }}>
+      <View testID="attach-sheet" style={{ backgroundColor: t.ground, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 18, paddingBottom: Math.max(insets.bottom, 18), flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', rowGap: 16 }}>
         {items.map(([icon, label, what]) => (
           <Pressable key={what} accessibilityRole="button" accessibilityLabel={label} onPress={() => { onClose(); onPick(what); }} style={{ alignItems: 'center', gap: 8, width: 84 }}>
             <Oval width={56} fill={t['ember-wash']}><Icon name={icon} size={24} color={t['ember-ink']} /></Oval>

@@ -11,6 +11,7 @@ import { useTheme, type Theme } from '../lib/theme';
 import { Icon, type IconName } from '../ui/Icon';
 import { Oval } from '../ui/Oval';
 import { Text } from '../ui/Text';
+import { withMentions } from './PollParts';
 
 const minutesSince = (iso: string) => (Date.now() - Date.parse(iso)) / 60000;
 /** The same rules as the web: edit your own text for 15 minutes; delete for everyone for 15 minutes (admins: any message). */
@@ -117,7 +118,13 @@ export function Bubble({ m, c, showName, onLongPress, children }: { m: ThreadIte
         ) : (
           <>
             {children}
-            {m.text ? <Text style={{ fontSize: 16, lineHeight: 22, color: ink }} selectable={false}>{m.text}</Text> : null}
+            {m.text && m.type !== 'poll' ? (
+              <Text style={{ fontSize: 16, lineHeight: 22, color: ink }}>
+                {withMentions(m.text, (m.mentions ?? []).map((u) => engine.nameOf(u))).map((part, i) => part.mention
+                  ? <Text key={i} style={{ fontWeight: '800', color: mine ? ink : t['ember-ink'] }}>{part.text}</Text>
+                  : <Text key={i}>{part.text}</Text>)}
+              </Text>
+            ) : null}
           </>
         )}
         <View style={styles.meta}>

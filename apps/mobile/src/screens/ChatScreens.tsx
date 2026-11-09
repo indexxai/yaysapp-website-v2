@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, attachmentLabel, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
 import { AttachSheet, MediaBody, MediaViewer, RecordingBar, useVoiceRecorder } from '../chat/MediaParts';
 import { fromCamera, pickFiles, pickMedia, type Picked } from '../chat/media';
+import { MentionList, PollCard } from '../chat/PollParts';
 import { ActionsCtx, Bubble, CallLine, ComposeBar, MessageSheet, SystemLine, TickMark, canDeleteForEveryone, errText, type Actions } from '../chat/messages';
 import { dayLabel, lastSeen, listTime, useChatState, useEngine } from '../lib/chat';
 import { font, useTheme, type Theme } from '../lib/theme';
@@ -28,7 +29,7 @@ function ConnectionNotice() {
 }
 
 // ---------------- chat list ----------------
-export function ChatListScreen({ me, openChat, openNewChat }: { me: MeProfile; openChat: (id: string) => void; openNewChat: () => void }) {
+export function ChatListScreen({ me, openChat, openNewChat, openNewGroup }: { me: MeProfile; openChat: (id: string) => void; openNewChat: () => void; openNewGroup: () => void }) {
   const t = useTheme();
   const s = useChatState();
   const engine = useEngine();
@@ -38,7 +39,10 @@ export function ChatListScreen({ me, openChat, openNewChat }: { me: MeProfile; o
     <SafeAreaView style={{ flex: 1, backgroundColor: t.ground }}>
       <View style={styles.listHead}>
         <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Chats</Text>
-        <OvalButton icon="edit" label="New chat" size="sm" onPress={openNewChat} />
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <OvalButton icon="users" label="New group" size="sm" variant="soft" onPress={openNewGroup} />
+          <OvalButton icon="edit" label="New chat" size="sm" onPress={openNewChat} />
+        </View>
       </View>
       <ConnectionNotice />
       {!s.listLoaded ? (s.connection === 'offline'
@@ -239,7 +243,7 @@ function typingWords(names: string[], group: boolean) {
   return names.length === 1 ? `${names[0]} is typing…` : names.length === 2 ? `${names[0]} and ${names[1]} are typing…` : `${names.length} people are typing…`;
 }
 
-export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; onBack: () => void; openForward: (conversationId: string, messageId: string) => void; openInfo: (conversationId: string, messageId: string) => void }) {
+export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, openNewPoll }: { id: string; onBack: () => void; openForward: (conversationId: string, messageId: string) => void; openInfo: (conversationId: string, messageId: string) => void; openChatInfo: () => void; openNewPoll: () => void }) {
   const t = useTheme();
   const engine = useEngine();
   const s = useChatState();
@@ -314,6 +318,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
       <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={{ flex: 1, backgroundColor: t.ground }}>
         <View style={[styles.head, { borderBottomColor: t.line }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Back to chats" onPress={onBack} hitSlop={12}><Icon name="arrow-left" size={24} color={t.ink} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={group ? 'Group info' : 'Contact info'} onPress={openChatInfo} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <View>
             <Avatar name={name} photoUrl={photo} size={40} />
             {p?.online ? <View testID="online-dot" style={[styles.dot, { backgroundColor: t.success, borderColor: t.ground }]} /> : null}
@@ -322,6 +327,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
             <Text accessibilityRole="header" numberOfLines={1} style={{ fontWeight: '800', fontSize: 17, color: t.ink, fontFamily: font.display }}>{name}</Text>
             <Text testID="peer-status" numberOfLines={1} style={{ fontSize: 13, color: typing ? t['ember-ink'] : t['ink-soft'], fontWeight: typing ? '700' : '400' }}>{status}</Text>
           </View>
+          </Pressable>
         </View>
         {pin ? (
           <View testID="pinned" style={[styles.pinBar, { backgroundColor: t.ground, borderBottomColor: t.line }]}>
@@ -349,7 +355,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
             ListEmptyComponent={thread?.loaded ? <View style={{ transform: [{ scaleY: -1 }] }}><DayLabel label="Say hello 👋" t={t} /></View> : null}
           />
           {c.canSend ? (
-            <Composer id={id} replying={replying} editing={editing} onDone={() => { setReplying(null); setEditing(null); }} onError={(text) => setNotice({ text, tone: 'danger' })} />
+            <Composer id={id} group={group} replying={replying} editing={editing} onDone={() => { setReplying(null); setEditing(null); }} onError={(text) => setNotice({ text, tone: 'danger' })} openNewPoll={openNewPoll} />
           ) : (
             <View style={[styles.cannot, { backgroundColor: t.ground, borderTopColor: t.line }]}>
               <Text style={{ textAlign: 'center', color: t['ink-soft'], fontSize: 14 }}>{c.group?.role === 'former' ? 'You’re no longer in this group.' : group ? 'Only admins can send messages.' : 'You can’t send messages to this chat.'}</Text>
@@ -363,13 +369,13 @@ export function ChatScreen({ id, onBack, openForward, openInfo }: { id: string; 
   );
 }
 
-/** What a message shows besides its text: a photo, video, voice note or file. Polls come next; until then a label. */
+/** What a message shows besides its text: a photo, video, voice note, file or poll. */
 function MessageBody({ m, onOpen }: { m: ThreadItem; onOpen: () => void }) {
   const t = useTheme();
   const engine = useEngine();
   const mine = m.senderId === engine.me;
   if (m.type === 'media' && m.attachment) return <MediaBody m={m} onOpen={onOpen} />;
-  if (m.type === 'poll') return <Text style={{ fontSize: 13, fontWeight: '700', color: mine ? t['on-ember'] : t['ink-soft'] }}>Poll</Text>;
+  if (m.type === 'poll') { const c = engine.getState().conversations[engine.getState().active ?? '']; return c ? <PollCard m={m} c={c} /> : <Text style={{ color: mine ? t['on-ember'] : t.ink }}>{m.text}</Text>; }
   return null;
 }
 
@@ -377,16 +383,37 @@ function DayLabel({ label, t }: { label: string; t: Theme }) {
   return <View style={{ alignSelf: 'center', marginVertical: 8, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, backgroundColor: t.ground }}><Text style={{ fontSize: 12, fontWeight: '700', color: t['ink-soft'] }}>{label}</Text></View>;
 }
 
-function Composer({ id, replying, editing, onDone, onError }: { id: string; replying: ThreadItem | null; editing: ThreadItem | null; onDone: () => void; onError: (text: string) => void }) {
+function Composer({ id, group, replying, editing, onDone, onError, openNewPoll }: { id: string; group: boolean; replying: ThreadItem | null; editing: ThreadItem | null; onDone: () => void; onError: (text: string) => void; openNewPoll: () => void }) {
   const t = useTheme();
   const engine = useEngine();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [attach, setAttach] = useState(false);
   const voice = useVoiceRecorder();
+  const s = useChatState();
+  // @mentions in groups: "@" opens the member list; names picked stay mentioned while they're in the text.
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [caret, setCaret] = useState(0);
+  const picked = useRef(new Map<string, string>());
+  useEffect(() => { if (group && !s.groups[id]) void engine.loadGroup(id).catch(() => undefined); }, [group, id, engine, s.groups]);
+  const members = (s.groups[id]?.members ?? []).filter((m) => m.id !== engine.me).map((m) => ({ id: m.id, name: m.displayName, photoUrl: m.photoUrl }));
+  const matches = mention ? members.filter((m) => !mention.query || m.name.toLowerCase().split(/\s+/).some((w) => w.startsWith(mention.query.toLowerCase())) || m.name.toLowerCase().startsWith(mention.query.toLowerCase())).slice(0, 6) : [];
+  const track = (value: string, at: number) => {
+    if (!group) return;
+    const hit = /(^|\s)@([^\s@]{0,30})$/.exec(value.slice(0, at));
+    setMention(hit ? { start: at - hit[2]!.length - 1, query: hit[2]! } : null);
+  };
+  const pickMention = (m: { id: string; name: string }) => {
+    if (!mention) return;
+    const end = mention.start + 1 + mention.query.length;
+    setText(`${text.slice(0, mention.start)}@${m.name} ${text.slice(end)}`);
+    picked.current.set(m.id, m.name);
+    setMention(null);
+  };
+  const mentionsIn = (v: string) => [...picked.current].filter(([, name]) => v.includes(`@${name}`)).map(([u]) => u);
   const input = useRef<React.ElementRef<typeof TextInput>>(null);
   // Editing puts the message's text in the box; replying focuses it.
-  useEffect(() => { if (editing) { setText(editing.text); input.current?.focus(); } }, [editing]);
+  useEffect(() => { if (editing) { picked.current = new Map((editing.mentions ?? []).map((u) => [u, engine.nameOf(u)])); setText(editing.text); input.current?.focus(); } }, [editing, engine]);
   useEffect(() => { if (replying) input.current?.focus(); }, [replying]);
   const len = textLength(text.trim());
   const tooLong = len > MAX_TEXT;
@@ -395,8 +422,9 @@ function Composer({ id, replying, editing, onDone, onError }: { id: string; repl
     const v = text;
     setText('');
     try {
-      if (editing) { if (v.trim() !== editing.text.trim()) await engine.editMessage(id, editing.id!, v); }
-      else await engine.send(id, v, replying?.id ? { replyToId: replying.id } : {});
+      if (editing) { if (v.trim() !== editing.text.trim()) await engine.editMessage(id, editing.id!, v, group ? mentionsIn(v) : undefined); }
+      else await engine.send(id, v, { ...(replying?.id ? { replyToId: replying.id } : {}), ...(group ? { mentions: mentionsIn(v) } : {}) });
+      picked.current.clear();
       onDone();
     } catch (e) { setText(v); setError(e instanceof ApiError ? e.message : 'Could not send.'); }
   };
@@ -409,7 +437,8 @@ function Composer({ id, replying, editing, onDone, onError }: { id: string; repl
     if (files.length && text.trim()) setText('');
     if (files.length) onDone();
   };
-  const pickAnd = async (what: 'media' | 'camera' | 'video' | 'file') => {
+  const pickAnd = async (what: 'media' | 'camera' | 'video' | 'file' | 'poll') => {
+    if (what === 'poll') { openNewPoll(); return; }
     try { sendFiles(what === 'media' ? await pickMedia() : what === 'file' ? await pickFiles() : await fromCamera(what === 'video')); }
     catch (e) { onError(errText(e, what === 'camera' || what === 'video' ? 'Could not open the camera. Allow it in Settings.' : 'Could not open your files.')); }
   };
@@ -425,6 +454,7 @@ function Composer({ id, replying, editing, onDone, onError }: { id: string; repl
       {replying ? <ComposeBar kind="reply" m={replying} onCancel={onDone} /> : null}
       {editing ? <ComposeBar kind="edit" m={editing} onCancel={() => { setText(''); onDone(); }} /> : null}
       {error || tooLong ? <Text accessibilityRole="alert" style={{ color: t['danger-ink'], fontWeight: '600', fontSize: 13 }}>{tooLong ? `Messages can be up to ${MAX_TEXT} characters (${len} now).` : error}</Text> : null}
+      {mention && matches.length ? <MentionList people={matches} onPick={pickMention} /> : null}
       {voice.recording ? <RecordingBar ms={voice.ms} levels={voice.levels} onCancel={() => void voice.stop(false)} onSend={() => void sendVoice()} /> : (
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
           {!editing ? (
@@ -433,14 +463,15 @@ function Composer({ id, replying, editing, onDone, onError }: { id: string; repl
             </Pressable>
           ) : null}
           <TextInput ref={input} accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t['ink-faint']} multiline value={text}
-            onChangeText={(v) => { setText(v); setError(null); if (!editing) engine.typing(id, v.trim().length > 0); }} onBlur={() => engine.typing(id, false)}
+            onChangeText={(v) => { setText(v); setError(null); track(v, Math.min(v.length, caret + Math.max(0, v.length - text.length))); if (!editing) engine.typing(id, v.trim().length > 0); }} onBlur={() => engine.typing(id, false)}
+          onSelectionChange={(e) => setCaret(e.nativeEvent.selection.end)}
             style={{ flex: 1, minHeight: 44, maxHeight: 140, marginBottom: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, borderRadius: 22, backgroundColor: t.surface, color: t.ink, fontSize: 16 }} />
           {text.trim() || editing
             ? <OvalButton icon={editing ? 'check' : 'send'} label={editing ? 'Save' : 'Send'} disabled={!text.trim() || tooLong} onPress={() => void send()} />
             : <OvalButton icon="mic" label="Voice" variant="soft" onPress={() => void record()} />}
         </View>
       )}
-      <AttachSheet open={attach} onClose={() => setAttach(false)} onPick={(w) => void pickAnd(w)} />
+      <AttachSheet open={attach} poll={group} onClose={() => setAttach(false)} onPick={(w) => void pickAnd(w)} />
     </View>
   );
 }

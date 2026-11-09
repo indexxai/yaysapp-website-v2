@@ -15,10 +15,12 @@ import { DevicesScreen, ProfileSetupScreen, SettingsScreen } from './src/screens
 import { ChatListScreen, ChatScreen, ForwardScreen, MessageInfoScreen, NewChatScreen } from './src/screens/ChatScreens';
 import { ChatProvider, useChatState } from './src/lib/chat';
 import { ComingScreen, MeScreen } from './src/screens/TabScreens';
+import { AddMembersScreen, ChatInfoScreen, NewGroupScreen } from './src/chat/InfoScreens';
+import { NewPollScreen } from './src/chat/PollParts';
 import { TabBar, type TabName } from './src/ui/TabBar';
 import type { MeProfile } from '@yays/shared';
 
-export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; Profile: undefined; Devices: undefined };
+export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined };
 const Stack = createNativeStackNavigator<Routes>();
 const Tab = createBottomTabNavigator<Record<TabName, undefined>>();
 type Nav = NativeStackNavigationProp<Routes>;
@@ -30,7 +32,7 @@ function Tabs({ me }: { me: MeProfile }) {
   const unread = s.order.filter((id) => { const c = s.conversations[id]; return c && (c.unread > 0 || c.markedUnread) && !c.archived && !(c.mutedUntil && Date.parse(c.mutedUntil) > Date.now()); }).length;
   return (
     <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={(p) => <TabBar {...p} badges={{ Chats: { n: unread, label: `${unread} unread chat${unread === 1 ? '' : 's'}` } }} />}>
-      <Tab.Screen name="Chats">{() => <ChatListScreen me={me} openChat={(id) => nav.navigate('Chat', { id })} openNewChat={() => nav.navigate('NewChat')} />}</Tab.Screen>
+      <Tab.Screen name="Chats">{() => <ChatListScreen me={me} openChat={(id) => nav.navigate('Chat', { id })} openNewChat={() => nav.navigate('NewChat')} openNewGroup={() => nav.navigate('NewGroup')} />}</Tab.Screen>
       <Tab.Screen name="Calls">{() => <ComingScreen title="Calls" art="selfie" icon="phone" lines={['Voice and video calls with friends and groups.', 'Calls already work on YaysApp for the web.']} />}</Tab.Screen>
       <Tab.Screen name="Circles">{() => <ComingScreen title="Circles" art="hype" icon="people" lines={['Communities for the things you love: posts, events and people near you.', 'Circles already work on YaysApp for the web.']} />}</Tab.Screen>
       <Tab.Screen name="Explore">{() => <ComingScreen title="Explore" art="explorer" icon="compass" lines={['Jack’s AI, daily check-in, INEX rewards, your wallet and the Indexx products.', 'All of it already works on YaysApp for the web.']} />}</Tab.Screen>
@@ -65,7 +67,12 @@ function Root() {
             <Stack.Screen name="Tabs" options={{ headerShown: false }}>{() => <Tabs me={me!} />}</Stack.Screen>
             <Stack.Screen name="NewChat">{({ navigation }) => <NewChatScreen onOpened={(id) => navigation.replace('Chat', { id })} />}</Stack.Screen>
             <Stack.Screen name="Chat" options={{ headerShown: false }}>{({ navigation, route }) => <ChatScreen id={route.params.id} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs'))}
-              openForward={(conversationId, messageId) => navigation.navigate('Forward', { conversationId, messageId })} openInfo={(conversationId, messageId) => navigation.navigate('MessageInfo', { conversationId, messageId })} />}</Stack.Screen>
+              openForward={(conversationId, messageId) => navigation.navigate('Forward', { conversationId, messageId })} openInfo={(conversationId, messageId) => navigation.navigate('MessageInfo', { conversationId, messageId })}
+              openChatInfo={() => navigation.navigate('ChatInfo', { id: route.params.id })} openNewPoll={() => navigation.navigate('NewPoll', { conversationId: route.params.id })} />}</Stack.Screen>
+            <Stack.Screen name="NewGroup">{({ navigation }) => <NewGroupScreen onCreated={(id) => navigation.replace('Chat', { id })} />}</Stack.Screen>
+            <Stack.Screen name="ChatInfo">{({ navigation, route }) => <ChatInfoScreen id={route.params.id} openChat={(id) => navigation.push('Chat', { id })} openAddMembers={() => navigation.navigate('AddMembers', { id: route.params.id })} onLeft={() => navigation.popToTop()} />}</Stack.Screen>
+            <Stack.Screen name="AddMembers">{({ navigation, route }) => <AddMembersScreen id={route.params.id} onDone={() => navigation.goBack()} />}</Stack.Screen>
+            <Stack.Screen name="NewPoll">{({ navigation, route }) => <NewPollScreen conversationId={route.params.conversationId} onDone={() => navigation.goBack()} />}</Stack.Screen>
             <Stack.Screen name="Forward">{({ navigation, route }) => <ForwardScreen {...route.params} onDone={(to) => (to ? navigation.replace('Chat', { id: to }) : navigation.goBack())} />}</Stack.Screen>
             <Stack.Screen name="MessageInfo">{({ route }) => <MessageInfoScreen {...route.params} />}</Stack.Screen>
             <Stack.Screen name="Profile">{({ navigation }) => <SettingsScreen openDevices={() => navigation.navigate('Devices')} />}</Stack.Screen>

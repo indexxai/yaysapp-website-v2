@@ -5,4 +5,6 @@ export const config = {
   /** Read when the API client is created, so tests can point the app at another server. */
   get apiUrl() { return (globalThis as { YAYS_API_URL?: string }).YAYS_API_URL ?? (__DEV__ ? devUrl : 'https://api.yays.app'); },
   appVersion: '2.0.0',
+  /** The web app, for links people share (group invites). */
+  get webUrl() { return __DEV__ ? 'http://localhost:3000' : 'https://yaysapp.com'; },
 };
