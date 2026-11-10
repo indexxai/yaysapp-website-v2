@@ -73,6 +73,7 @@ export function Landing() {
         <OvalButton icon="globe" label="Open web app" size="sm" href="/sign-in" />
       </header>
 
+      <main>
       <section className="lp-hero lp-wrap">
         <LineArt name="hype" width={300} opacity={0.2} className="lp-art lp-art--hero" />
         <div className="lp-hero__copy">
@@ -149,6 +150,7 @@ export function Landing() {
         <p className="muted" style={{ textAlign: 'center' }}>Still stuck? Ask Jack’s AI in the corner.</p>
       </Section>
 
+      </main>
       <footer className="lp-foot">
         <div className="lp-wrap lp-foot__cols">
           <div className="p2-col" style={{ gap: 10, maxWidth: 280 }}><Wordmark /><p className="muted">YaysApp is the chat hub of the Indexx ecosystem.</p></div>

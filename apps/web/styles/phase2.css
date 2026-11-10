@@ -267,6 +267,14 @@ a.p2-product:hover { transform: translateY(-2px); }
 .lp-nav { flex: 1; display: flex; gap: 26px; flex-wrap: wrap; }
 .lp-nav a { color: var(--ink); text-decoration: none; font: 700 15px var(--font-display); }
 .lp-nav a:hover { color: var(--ember-ink); }
+/* Phones: logo, theme and "Open web app" on one row; the menu on its own row underneath, scrolling sideways if it must. */
+@media (max-width: 720px) {
+  .lp-top { gap: 10px 14px; padding-top: 14px; padding-bottom: 10px; }
+  .lp-logo { width: 116px; }
+  .lp-top > button.ys-ovalbtn { margin-left: auto; }
+  .lp-nav { order: 3; flex: 1 0 100%; flex-wrap: nowrap; gap: 20px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .lp-nav a { white-space: nowrap; }
+}
 .lp-hero { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 40px; padding-top: 40px; padding-bottom: 72px; }
 .lp-hero__copy { flex: 1 1 420px; display: flex; flex-direction: column; gap: 18px; }
 .lp-hero__copy h1 { margin: 0; font: 800 60px/1.02 var(--font-display); letter-spacing: -0.03em; text-wrap: balance; }

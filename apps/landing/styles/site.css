@@ -1,0 +1,45 @@
+/* What the website adds to the web app's styles (styles/yays, app, phase2, circles are copies from apps/web). */
+.lp-home { display: inline-flex; align-items: center; text-decoration: none; }
+
+/* Privacy, Terms, Support and Delete account: the old site's words, word for word, set in the new design. */
+.legal { position: relative; isolation: isolate; padding-block: 24px 72px; }
+.legal .wrap { max-width: none; padding: 0; }
+.legal-hero { max-width: 760px; padding: 24px 0 28px; }
+.legal .eyebrow { margin: 0 0 10px; font: 800 12px/16px var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: var(--ember-ink); }
+.legal h1 { font: 800 clamp(34px, 5vw, 52px)/1.05 var(--font-display); letter-spacing: -0.02em; margin: 0 0 14px; color: var(--ink); }
+.legal-intro { font-size: 18px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
+.legal-meta { font-size: 14px; color: var(--ink-faint); }
+.legal-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 40px; align-items: start; }
+.legal-toc { position: sticky; top: 24px; display: flex; flex-direction: column; gap: 4px; padding: 18px; border-radius: 24px; background: var(--raised); }
+.legal-toc strong { font: 800 14px var(--font-display); margin-bottom: 6px; color: var(--ink); }
+.legal-toc a { padding: 6px 10px; border-radius: 12px; color: var(--ink-soft); text-decoration: none; font-size: 14px; }
+.legal-toc a:hover { background: var(--ember-wash); color: var(--ember-ink); }
+.legal-copy { max-width: 760px; }
+.legal-copy section { scroll-margin-top: 24px; }
+.legal h2 { font: 800 24px/30px var(--font-display); margin: 34px 0 10px; color: var(--ink); }
+.legal-copy section:first-child h2 { margin-top: 0; }
+.legal h3 { font: 700 18px var(--font-display); margin: 24px 0 6px; color: var(--ink); }
+.legal p, .legal li { color: var(--ink-soft); line-height: 1.65; }
+.legal a { color: var(--ember-ink); }
+.legal-note, .danger-list { margin: 18px 0; padding: 16px 18px; border-radius: 20px; background: var(--ember-wash); color: var(--ink); }
+.danger-list { background: var(--danger-wash); }
+.danger-list ul { margin: 8px 0 0; padding-left: 20px; }
+.legal .faq details { padding: 14px 18px; border-radius: 18px; background: var(--raised); margin: 10px 0; }
+.legal .faq summary { font: 700 16px var(--font-display); cursor: pointer; color: var(--ink); }
+.legal-form { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; padding: 24px; border-radius: 28px; background: var(--raised); }
+.legal-form .field { display: flex; flex-direction: column; gap: 6px; }
+.legal-form label { font: 700 14px var(--font-display); color: var(--ink); }
+.legal-form input, .legal-form select, .legal-form textarea { font: 500 16px var(--font-body); padding: 12px 16px; border: 1px solid var(--line-strong); border-radius: 18px; background: var(--ground); color: var(--ink); }
+.legal-form input:focus, .legal-form select:focus, .legal-form textarea:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px var(--ember-wash); }
+.legal-form .field-hint { font-size: 13px; color: var(--ink-faint); }
+.legal-form .check-row { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; font: 500 14px var(--font-body); color: var(--ink-soft); }
+.legal-form .check-row input { width: 18px; height: 18px; padding: 0; accent-color: var(--ember); }
+.form-actions { display: flex; gap: 12px; }
+.form-button { padding: 12px 24px; border: 0; border-radius: 999px; background: var(--ember); color: var(--on-ember); font: 700 15px var(--font-display); cursor: pointer; }
+.form-button.danger { background: var(--danger); color: #ffffff; }
+.form-button:disabled { opacity: .5; cursor: default; }
+.form-status { display: none; padding: 12px 16px; border-radius: 16px; font-size: 14px; }
+.form-status.show { display: block; }
+.form-status.success { background: var(--success-wash); color: var(--success-ink); }
+.form-status.error { background: var(--danger-wash); color: var(--danger-ink); }
+@media (max-width: 860px) { .legal-layout { grid-template-columns: 1fr; gap: 20px; } .legal-toc { position: static; } }

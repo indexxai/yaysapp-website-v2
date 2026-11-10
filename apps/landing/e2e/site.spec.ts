@@ -11,16 +11,25 @@ const oldText = (file: string) => {
 /** Letters and digits only, lower case: the wording must match exactly; styling and spacing may not. */
 const words = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
 
-test('home: hero, Google Play link, App Store marked coming soon', async ({ page }) => {
+test('home: the same page as the web app, with Open web app going to the web app', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Chat. Earn. Together.');
-  const play = page.getByRole('link', { name: /Google Play/ }).first();
-  await expect(play).toHaveAttribute('href', 'https://play.google.com/store/apps/details?id=com.indexx.yaysapp');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('The chat app that rewards you for showing up.');
+  await expect(page.getByRole('link', { name: 'Open web app' }).first()).toHaveAttribute('href', /\/sign-in$/);
   await expect(page.getByLabel('App Store, coming soon').first()).toBeVisible();
-  await expect(page.getByRole('link', { name: /App Store/ })).toHaveCount(0);
-  for (const id of ['features', 'earn', 'ecosystem']) await expect(page.locator(`#${id}`)).toBeVisible();
-  await expect(page.getByText('YaysApp rewards are paid in INEX').first()).toBeVisible();
-  for (const img of await page.locator('img').all()) expect(await img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+  await expect(page.getByLabel('Google Play, coming soon').first()).toBeVisible();
+  for (const id of ['features', 'earn', 'communities', 'download', 'faq']) await expect(page.locator(`#${id}`)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Open the chat assistant' })).toBeVisible();
+  for (const img of await page.locator('img:visible').all()) expect(await img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+});
+
+test('light and dark: the button switches, and the choice is kept', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Switch to dark theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.goto('/privacy');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.getByRole('button', { name: 'Switch to light theme' })).toBeVisible();
 });
 
 for (const [route, file, title] of [['/privacy', 'privacy.html', 'Privacy Policy'], ['/terms', 'terms.html', 'Terms of Use'], ['/support', 'support.html', 'Support'], ['/delete-account', 'delete-account.html', 'Delete Your Account']] as const) {
@@ -34,11 +43,12 @@ for (const [route, file, title] of [['/privacy', 'privacy.html', 'Privacy Policy
 }
 
 test('footer links reach every page', async ({ page }) => {
-  for (const [name, url] of [['Privacy', '/privacy'], ['Delete account', '/delete-account'], ['Terms', '/terms'], ['Support', '/support']]) {
+  for (const [name, url] of [['Privacy policy', '/privacy'], ['Delete account', '/delete-account'], ['Terms', '/terms'], ['Support', '/support']]) {
     await page.goto('/');
     await page.getByRole('contentinfo').getByRole('link', { name, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`${url}$`));
     await expect(page.locator('main h1')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'YaysApp home' })).toBeVisible();
   }
 });
 
