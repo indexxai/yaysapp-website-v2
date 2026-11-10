@@ -283,6 +283,8 @@ a.p2-product:hover { transform: translateY(-2px); }
 .lp-hero__art { position: relative; flex: 1 1 380px; display: grid; place-items: center; height: 460px; }
 .lp-hero__art .ys-oval { position: absolute; width: min(420px, 90vw); }
 .lp-hero__art .ys-lineart { position: relative; }
+.lp-hero__img { position: relative; width: auto; height: 440px; max-width: 100%; object-fit: contain; filter: drop-shadow(0 18px 30px rgba(0,0,0,.12)); }
+@media (max-width: 560px) { .lp-hero__art { height: 380px; } .lp-hero__img { height: 360px; } }
 .lp-stores { display: flex; flex-wrap: wrap; gap: 12px; }
 .lp-section { position: relative; padding: 72px 0; }
 .lp-section:nth-of-type(even) { background: var(--surface); }

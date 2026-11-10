@@ -111,7 +111,7 @@ export function Landing() {
           <Stores />
           <span className="muted p2-small">Free to use · on your phone and in your browser</span>
         </div>
-        <div className="lp-hero__art"><span className="ys-oval ys-oval--wash" /><LineArt name="chat" width={240} /></div>
+        <div className="lp-hero__art"><span className="ys-oval ys-oval--wash" /><img className="lp-hero__img" src="/illustrations/hero-bassist.webp" width={671} height={1000} alt="A YaysApp character jumping with a bass guitar, surrounded by chat bubbles" fetchPriority="high" /></div>
       </section>
 
       <Section id="features" label="f" eyebrow="Features" title="Everything you need to stay close" lead="Chats, calls, communities and an AI assistant, in one app that works the same on your phone and on the web." art={<><LineArt name="selfie" height={300} opacity={0.22} className="lp-art lp-art--r" /><LineArt name="gear" height={220} opacity={0.2} className="lp-art lp-art--c" /></>}>

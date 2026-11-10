@@ -3,7 +3,7 @@
 import { cpSync, readFileSync, writeFileSync } from 'node:fs';
 const web = new URL('../../web/', import.meta.url), here = new URL('../', import.meta.url);
 for (const f of ['yays', 'app', 'phase2', 'circles']) cpSync(new URL(`styles/${f}.css`, web), new URL(`styles/${f}.css`, here));
-cpSync(new URL('public/lineart/', web), new URL('public/lineart/', here), { recursive: true });
+for (const d of ['lineart', 'illustrations']) cpSync(new URL(`public/${d}/`, web), new URL(`public/${d}/`, here), { recursive: true });
 const tokens = new URL('../../../packages/tokens/dist/', import.meta.url);
 writeFileSync(new URL('styles/tokens.css', here), `/* Copied from packages/tokens/dist/tokens.css (generated from tokens.json). Refresh with: pnpm -F @yays/landing sync */\n${readFileSync(new URL('tokens.css', tokens), 'utf8')}`);
 cpSync(new URL('icons.json', tokens), new URL('lib/icons.json', here));
