@@ -1,0 +1,8 @@
+# Netlify redirects for web.yaysapp.com (the web app).
+# The legal and help pages live on the website, yaysapp.com.
+# No catch-all rule: the app's own pages are served by Next.js.
+
+/privacy          https://yaysapp.com/privacy         301
+/terms            https://yaysapp.com/terms           301
+/support          https://yaysapp.com/support         301
+/delete-account   https://yaysapp.com/delete-account  301
