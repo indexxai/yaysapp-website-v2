@@ -27,6 +27,9 @@ const schema = z.object({
   EMAIL_DRIVER: z.enum(['dev', 'ses']).default('dev'),
   SES_REGION: z.string().optional(),
   SES_FROM: z.string().optional(),
+  /** Keys for sending email only. Without them, SES uses the server's AWS keys or IAM role (the same as S3). */
+  SES_ACCESS_KEY_ID: z.string().optional(),
+  SES_SECRET_ACCESS_KEY: z.string().optional(),
   GOOGLE_DRIVER: z.enum(['dev', 'google']).default('dev'),
   GOOGLE_CLIENT_IDS: z.string().default(''),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
@@ -115,6 +118,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
   if (c.SMS_DRIVER === 'twilio' && !(c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN && c.TWILIO_VERIFY_SID)) problems.push('SMS_DRIVER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SID');
   if (c.EMAIL_DRIVER === 'ses' && !(c.SES_REGION && c.SES_FROM)) problems.push('EMAIL_DRIVER=ses needs SES_REGION and SES_FROM');
+  if (!c.SES_ACCESS_KEY_ID !== !c.SES_SECRET_ACCESS_KEY) problems.push('SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY go together: set both or neither');
   if (c.STORAGE_DRIVER === 's3' && !(c.S3_BUCKET && c.S3_REGION)) problems.push('STORAGE_DRIVER=s3 needs S3_BUCKET and S3_REGION');
   if (c.PUSH_DRIVER === 'webpush' && c.NODE_ENV === 'production' && !(c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY)) problems.push('PUSH_DRIVER=webpush needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys)');
   if (c.LIVEKIT_URL && !(c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET)) problems.push('LIVEKIT_URL needs LIVEKIT_API_KEY and LIVEKIT_API_SECRET');

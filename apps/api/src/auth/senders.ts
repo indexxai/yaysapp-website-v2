@@ -66,11 +66,15 @@ export class DevEmailSender implements EmailSender {
 
 export class SesEmailSender implements EmailSender {
   private ses: SESv2Client;
-  constructor(region: string, private readonly from: string) { this.ses = new SESv2Client({ region }); }
+  constructor(region: string, private readonly from: string, private readonly log: Logger, credentials?: { accessKeyId: string; secretAccessKey: string }) {
+    this.ses = new SESv2Client({ region, credentials });
+  }
   async send(to: string, subject: string, text: string) {
     try {
       await this.ses.send(new SendEmailCommand({ FromEmailAddress: this.from, Destination: { ToAddresses: [to] }, Content: { Simple: { Subject: { Data: subject }, Body: { Text: { Data: text } } } } }));
-    } catch {
+    } catch (e) {
+      const err = e as { name?: string; message?: string };
+      this.log.error({ err: { name: err.name, message: err.message } }, 'SES email send failed');
       throw new AppError(503, ErrorCode.PROVIDER_UNAVAILABLE, "We couldn't send the email right now. Try again in a minute.");
     }
   }
@@ -83,6 +87,7 @@ export const OUTBOX = Symbol('OUTBOX');
 export function createSenders(c: Config, redis: Redis, log: Logger) {
   const outbox = new Outbox(redis);
   const phone: PhoneSender = c.SMS_DRIVER === 'twilio' ? new TwilioPhoneSender(c.TWILIO_ACCOUNT_SID!, c.TWILIO_AUTH_TOKEN!, c.TWILIO_VERIFY_SID!) : new DevPhoneSender(outbox, log);
-  const email: EmailSender = c.EMAIL_DRIVER === 'ses' ? new SesEmailSender(c.SES_REGION!, c.SES_FROM!) : new DevEmailSender(outbox);
+  const sesKeys = c.SES_ACCESS_KEY_ID && c.SES_SECRET_ACCESS_KEY ? { accessKeyId: c.SES_ACCESS_KEY_ID, secretAccessKey: c.SES_SECRET_ACCESS_KEY } : undefined;
+  const email: EmailSender = c.EMAIL_DRIVER === 'ses' ? new SesEmailSender(c.SES_REGION!, c.SES_FROM!, log, sesKeys) : new DevEmailSender(outbox);
   return { outbox, phone, email };
 }
