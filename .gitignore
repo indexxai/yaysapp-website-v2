@@ -20,3 +20,9 @@ apps/*/playwright-report
 .data
 apps/api/.data
 *.tsbuildinfo
+
+# Push notification keys: secrets for the API, never committed
+AuthKey_*.p8
+*.p8
+*firebase-adminsdk*.json
+firebase-service-account*.json

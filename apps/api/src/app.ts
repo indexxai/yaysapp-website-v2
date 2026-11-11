@@ -64,6 +64,7 @@ export async function createApp(env: Record<string, string | undefined> = proces
   /** Stops sockets and HTTP, then the database and Redis connections, so the process can exit. */
   const shutdown = async () => {
     calls.close();
+    push.apns?.close(); // Apple's push connection stays open between notifications
     await realtime.close().catch(() => undefined);
     await app.close().catch(() => undefined);
     await mongo.close(true).catch(() => undefined);

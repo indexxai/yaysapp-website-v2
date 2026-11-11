@@ -64,7 +64,8 @@ export function createFacebook(c: Config, log: Logger): FacebookProvider {
 }
 
 export interface FacebookFields { facebook?: { id: string; name: string; photoUrl: string | null; login: boolean; linkedAt: Date } }
-type Pending = { purpose: 'link'; uid: string; login: boolean } | { purpose: 'login'; device: DeviceInput };
+/** `app`: started in the phone app, so the browser goes back to it (yaysapp://…), not to the web app. */
+type Pending = ({ purpose: 'link'; uid: string; login: boolean } | { purpose: 'login'; device: DeviceInput }) & { app?: boolean };
 const STATE_SECONDS = 600, TICKET_SECONDS = 120;
 
 /**
@@ -76,6 +77,8 @@ export class FacebookService {
   get available() { return this.fb.available; }
   private callbackUrl() { return `${this.c.PUBLIC_URL.replace(/\/$/, '')}/v1/oauth/facebook/callback`; }
   private web(path: string) { return `${this.c.WEB_URL.replace(/\/$/, '')}${path}`; }
+  /** The phone app's own link: yaysapp://auth/facebook?… (sign-in) or yaysapp://settings/facebook?… (linking). */
+  private app(path: string) { return `${this.c.APP_SCHEME}://${path}`; }
 
   private async begin(p: Pending) {
     const state = randomBytes(24).toString('base64url');
@@ -83,14 +86,14 @@ export class FacebookService {
     return { url: this.fb.authUrl(state, this.callbackUrl()) };
   }
   startLink(me: ObjectId, login: boolean) { if (!this.fb.available) throw AppError.validation('Facebook isn’t set up on this server yet.'); return this.begin({ purpose: 'link', uid: me.toHexString(), login }); }
-  startLogin(device: DeviceInput) { if (!this.fb.available) throw AppError.validation('Facebook sign-in isn’t set up on this server yet.'); return this.begin({ purpose: 'login', device }); }
+  startLogin(device: DeviceInput, app = false) { if (!this.fb.available) throw AppError.validation('Facebook sign-in isn’t set up on this server yet.'); return this.begin({ purpose: 'login', device, ...(app ? { app: true } : {}) }); }
 
   /** Facebook sent the browser back here. Returns where the browser goes next, in the web app. */
   async callback(q: { state?: string; code?: string; error?: string }): Promise<string> {
     const raw = q.state ? await this.redis.getdel(`fb:s:${q.state}`) : null;
     if (!raw) return this.web('/sign-in?fb=expired');
     const p = JSON.parse(raw) as Pending;
-    const back = (k: string, extra = '') => this.web(`${p.purpose === 'link' ? '/settings/socials' : '/sign-in'}?fb=${k}${extra}`);
+    const back = (k: string, extra = '') => p.app ? this.app(`${p.purpose === 'link' ? 'settings/facebook' : 'auth/facebook'}?fb=${k}${extra}`) : this.web(`${p.purpose === 'link' ? '/settings/socials' : '/sign-in'}?fb=${k}${extra}`);
     if (q.error || !q.code) return back('cancelled');
     let who: FacebookIdentity;
     try { who = await this.fb.exchange(q.code, this.callbackUrl()); } catch { return back('error'); }
@@ -106,7 +109,7 @@ export class FacebookService {
     if (!u) return back('not_linked', `&fb_name=${encodeURIComponent(who.name)}`);
     const ticket = randomBytes(24).toString('base64url');
     await this.redis.set(`fb:t:${ticket}`, JSON.stringify({ uid: u._id.toHexString(), device: p.device }), 'EX', TICKET_SECONDS);
-    return this.web(`/sign-in?fb_ticket=${ticket}`);
+    return p.app ? this.app(`auth/facebook?fb_ticket=${ticket}`) : this.web(`/sign-in?fb_ticket=${ticket}`);
   }
 
   /** The web app trades the one-time ticket for a session (or the PIN step). */

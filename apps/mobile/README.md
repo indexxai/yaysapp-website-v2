@@ -57,6 +57,41 @@ Voice and video calls go through LiveKit, like on the web. The API needs `LIVEKI
 - A call rings the phone while YaysApp is open. Ringing a phone that is locked or closed needs push notifications,
   which come next.
 
+### Google and Facebook sign-in
+
+The sign-in screen has **Facebook** and **Google** under the phone number, as in the design.
+
+- **Google.** In development, without client ids, the Google button opens a stand-in that asks for an email (it needs
+  the API's `GOOGLE_DRIVER=dev`). For real Google sign-in, in Google Cloud console › APIs & Services › Credentials,
+  create three OAuth client ids:
+  - **Web application**: put it in `src/lib/config.ts` as `google.webClientId`. Google signs the app's token for this one.
+  - **iOS**, bundle id `com.indexx.yaysapp`: put it in `google.iosClientId`, and its "iOS URL scheme" in
+    `ios/YaysApp/Info.plist` in place of `com.googleusercontent.apps.REPLACE-WITH-IOS-CLIENT`.
+  - **Android**, package `com.indexx.yaysapp` with your signing key's SHA-1 (`cd android && ./gradlew signingReport`,
+    and Play Console's app signing key for releases). Nothing to paste; Google matches the app by these.
+
+  On the API: `GOOGLE_DRIVER=google` and `GOOGLE_CLIENT_IDS=<web id>,<iOS id>`.
+- **Facebook** needs nothing in the app. It uses the API's Facebook settings (`FACEBOOK_DRIVER`, `FACEBOOK_APP_ID`,
+  `FACEBOOK_APP_SECRET`), opens Facebook in a sign-in browser and comes back on `yaysapp://`. Facebook signs in only
+  accounts that linked it (Settings › Social accounts on the web).
+
+### Notifications
+
+Messages and calls notify the phone when YaysApp isn't open. Android uses Firebase Cloud Messaging; iPhone uses
+Apple's push service directly (no Firebase on iOS).
+
+- **Android**: in the [Firebase console](https://console.firebase.google.com), add an Android app with package
+  `com.indexx.yaysapp` and put its `google-services.json` in `android/app/`. Without that file the app builds and
+  runs with notifications off.
+- **iPhone**: in Xcode › YaysApp target › Signing & Capabilities, add **Push Notifications** (this needs a paid Apple
+  developer team). Test on a real iPhone, or a simulator on an Apple-silicon Mac.
+- **API** (`apps/api/.env`), with `PUSH_DRIVER=webpush`:
+  - Android: Firebase console › Project settings › Service accounts › Generate new private key, then
+    `FCM_SERVICE_ACCOUNT_FILE=/path/to/that.json`.
+  - iPhone: developer.apple.com › Certificates, IDs & Profiles › Keys › new key with Apple Push Notifications service,
+    then `APNS_KEY_FILE=/path/to/AuthKey_XXXX.p8`, `APNS_KEY_ID=XXXX`, `APNS_TEAM_ID=<your team id>`.
+  - `GET /v1/push/config` shows `"phones": { "android": true, "ios": true }` when both are set.
+
 ## Check it
 
 ```bash

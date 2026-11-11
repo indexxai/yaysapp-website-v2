@@ -117,3 +117,9 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Push notifications need the Firebase project's google-services.json in this folder (android/app). Without it the
+// app still builds and runs, with notifications off.
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+}

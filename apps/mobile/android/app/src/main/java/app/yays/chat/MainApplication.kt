@@ -1,6 +1,11 @@
 package app.yays.chat
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
+import android.os.Build
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -39,10 +44,26 @@ class MainApplication : Application(), ReactApplication {
     super.onCreate()
     // Calls: LiveKit's audio setup, before React Native starts. Communication audio gives echo cancellation.
     LiveKitReactNative.setup(this, AudioType.CommunicationAudioType())
+    createNotificationChannels()
     SoLoader.init(this, OpenSourceMergedSoMapping)
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       // If you opted-in for the New Architecture, we load the native entry point for this app.
       load()
     }
+  }
+
+  /** Android 8+: notifications go in channels people can tune in Settings. The server names them per notification. */
+  private fun createNotificationChannels() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    val nm = getSystemService(NotificationManager::class.java) ?: return
+    nm.createNotificationChannel(NotificationChannel("messages", "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
+      description = "New messages in your chats and groups"
+    })
+    nm.createNotificationChannel(NotificationChannel("calls", "Calls", NotificationManager.IMPORTANCE_HIGH).apply {
+      description = "Voice and video calls ringing you"
+      setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE), AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+      enableVibration(true)
+    })
   }
 }

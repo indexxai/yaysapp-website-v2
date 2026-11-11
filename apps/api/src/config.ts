@@ -37,13 +37,32 @@ const schema = z.object({
   S3_BUCKET: z.string().optional(),
   S3_REGION: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
-  /** dev: pushes are kept in Redis for tests. webpush: real Web Push with the VAPID keys below. */
+  /** dev: pushes are kept in Redis for tests. webpush: real delivery (Web Push with the VAPID keys below, and phones with the keys after). */
   PUSH_DRIVER: z.enum(['dev', 'webpush']).default('dev'),
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),
   VAPID_SUBJECT: z.string().default('mailto:support@yays.app'),
   /** Tests only: accept a self-signed certificate from a stand-in push service. Refused in production. */
   PUSH_INSECURE_TLS: bool.default('false'),
+  /**
+   * Phones. Android: Firebase Cloud Messaging, with a Firebase service account (Firebase console › Project settings ›
+   * Service accounts › Generate new private key): the JSON itself, or the path to the file. iPhone: Apple's push
+   * service with an APNs auth key (.p8) from developer.apple.com › Keys. Without them, phones get no notifications
+   * (with PUSH_DRIVER=dev they're recorded for tests, as for browsers).
+   */
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  FCM_SERVICE_ACCOUNT_FILE: z.string().optional(),
+  /** Tests only: a stand-in for Google's push and sign-in addresses. */
+  FCM_API_URL: z.string().url().default('https://fcm.googleapis.com'),
+  APNS_KEY: z.string().optional(),
+  APNS_KEY_FILE: z.string().optional(),
+  APNS_KEY_ID: z.string().optional(),
+  APNS_TEAM_ID: z.string().optional(),
+  APNS_BUNDLE_ID: z.string().default('com.indexx.yaysapp'),
+  /** Tests only: a stand-in for Apple's push service (otherwise api.push.apple.com, or the sandbox for debug builds). */
+  APNS_HOST: z.string().url().optional(),
+  /** The phone app's link scheme: Facebook sign-in started in the app comes back to yaysapp://… */
+  APP_SCHEME: z.string().regex(/^[a-z][a-z0-9+.-]*$/).default('yaysapp'),
   /** LiveKit, for voice and video calls. Without these, starting a call says calls aren't available. */
   LIVEKIT_URL: z.string().optional(),
   /** Where this server reaches LiveKit's API, if not the same host as LIVEKIT_URL. */
@@ -121,6 +140,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   if (!c.SES_ACCESS_KEY_ID !== !c.SES_SECRET_ACCESS_KEY) problems.push('SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY go together: set both or neither');
   if (c.STORAGE_DRIVER === 's3' && !(c.S3_BUCKET && c.S3_REGION)) problems.push('STORAGE_DRIVER=s3 needs S3_BUCKET and S3_REGION');
   if (c.PUSH_DRIVER === 'webpush' && c.NODE_ENV === 'production' && !(c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY)) problems.push('PUSH_DRIVER=webpush needs VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY (npx web-push generate-vapid-keys)');
+  if ((c.APNS_KEY || c.APNS_KEY_FILE) && !(c.APNS_KEY_ID && c.APNS_TEAM_ID)) problems.push('An APNs key needs APNS_KEY_ID and APNS_TEAM_ID');
+  if (c.NODE_ENV === 'production' && (c.APNS_HOST || c.FCM_API_URL !== 'https://fcm.googleapis.com')) problems.push('APNS_HOST and FCM_API_URL are for tests only');
   if (c.LIVEKIT_URL && !(c.LIVEKIT_API_KEY && c.LIVEKIT_API_SECRET)) problems.push('LIVEKIT_URL needs LIVEKIT_API_KEY and LIVEKIT_API_SECRET');
   if (c.NODE_ENV === 'production' && c.LIVEKIT_API_SECRET && c.LIVEKIT_API_SECRET.length < 32) problems.push('LIVEKIT_API_SECRET must be at least 32 characters in production');
   if (c.FACEBOOK_DRIVER === 'facebook' && !(c.FACEBOOK_APP_ID && c.FACEBOOK_APP_SECRET)) problems.push('FACEBOOK_DRIVER=facebook needs FACEBOOK_APP_ID and FACEBOOK_APP_SECRET');

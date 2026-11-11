@@ -83,3 +83,39 @@ jest.mock('livekit-client', () => {
   }
   return { Room, RoomEvent, ConnectionState, ConnectionQuality: { Excellent: 'excellent', Good: 'good', Poor: 'poor', Lost: 'lost' }, Track, __rooms: rooms };
 });
+
+// Sign-in with Google: tests set what Google's sheet returns with __next.
+jest.mock('@react-native-google-signin/google-signin', () => {
+  const g = { __next: { type: 'cancelled', data: null } };
+  return {
+    GoogleSignin: { configure: jest.fn(), hasPlayServices: jest.fn(async () => true), signOut: jest.fn(async () => null), signIn: jest.fn(async () => g.__next) },
+    isSuccessResponse: (r) => r.type === 'success',
+    statusCodes: { SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED' },
+    __google: g,
+  };
+});
+// The sign-in browser: tests play Facebook with openAuth.
+jest.mock('react-native-inappbrowser-reborn', () => ({ InAppBrowser: { isAvailable: jest.fn(async () => true), openAuth: jest.fn(async () => ({ type: 'cancel' })) } }));
+// Firebase (Android): not set up unless a test says so.
+jest.mock('@react-native-firebase/app', () => ({ getApps: jest.fn(() => []) }));
+jest.mock('@react-native-firebase/messaging', () => ({
+  getMessaging: jest.fn(() => ({})), getToken: jest.fn(async () => 'fcm-test-token-0123456789'), onTokenRefresh: jest.fn(() => () => {}),
+  onNotificationOpenedApp: jest.fn(() => () => {}), getInitialNotification: jest.fn(async () => null),
+}));
+// iPhone notifications: tests answer the permission prompt and send events with __emit.
+jest.mock('@react-native-community/push-notification-ios', () => {
+  const handlers = {};
+  const P = {
+    __allow: true, __handlers: handlers, __delivered: [], __removed: [],
+    requestPermissions: jest.fn(async () => (P.__allow ? { alert: true, badge: true, sound: true } : { alert: false, badge: false, sound: false })),
+    checkPermissions: jest.fn((cb) => cb(P.__allow ? { alert: true, sound: true } : {})),
+    addEventListener: jest.fn((type, fn) => { handlers[type] = fn; }),
+    removeEventListener: jest.fn((type) => { delete handlers[type]; }),
+    getInitialNotification: jest.fn(async () => null),
+    getDeliveredNotifications: jest.fn((cb) => cb(P.__delivered)),
+    removeDeliveredNotifications: jest.fn((ids) => { P.__removed.push(...ids); }),
+    setApplicationIconBadgeNumber: jest.fn(),
+    __emit: (type, arg) => handlers[type] && handlers[type](arg),
+  };
+  return { __esModule: true, default: P };
+});

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../ui/Text';
 import { CallButtons } from '../calls/Calls';
+import { clearChat } from '../lib/push';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, attachmentLabel, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
 import { AttachSheet, MediaBody, MediaViewer, RecordingBar, useVoiceRecorder } from '../chat/MediaParts';
@@ -303,6 +304,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
   const [editing, setEditing] = useState<ThreadItem | null>(null);
   const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
   const [viewing, setViewing] = useState<ThreadItem | null>(null);
+  useEffect(() => { clearChat(id); }, [id]); // its notifications, on iPhone
   useEffect(() => {
     engine.open(id).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
     return () => { if (engine.getState().active === id) void engine.open(null); };

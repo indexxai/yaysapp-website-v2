@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { font, useTheme } from '../lib/theme';
 import { Banner, Field, OvalButton, TextLink } from '../ui/kit';
 import { Screen } from './Screen';
+import { SocialSignIn } from './SocialSignIn';
 
 type Step =
   | { s: 'phone' } | { s: 'phone-code'; phone: string; sent: CodeSent }
@@ -52,6 +53,7 @@ export function SignInScreen({ onDone }: { onDone: (r: AuthResult) => void }) {
         {step.s === 'phone'
           ? <PhoneForm busy={busy} onSubmit={(phone) => run(async () => { const r = await (await api()).startPhone(phone); sent(r); setStep({ s: 'phone-code', phone, sent: r }); })} />
           : <EmailForm busy={busy} onSubmit={(email) => run(async () => { const r = await (await api()).startEmail(email); sent(r); setStep({ s: 'email-code', email, sent: r }); })} />}
+        <SocialSignIn onDone={onDone} onEmail={step.s === 'phone' ? () => { setError(null); setStep({ s: 'email' }); } : undefined} />
       </Screen>
     );
   }

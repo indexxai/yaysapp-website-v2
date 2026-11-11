@@ -35,7 +35,8 @@ export class FacebookController {
   @Post('auth/facebook/start') @HttpCode(200)
   async startLogin(@Body() b: unknown, @Req() r: Request) {
     await this.limiter.hit(`fbstart:${ipOf(r)}`, 30, 3600);
-    return this.fb.startLogin(parse(z.object({ device: deviceSchema }), b).device);
+    const v = parse(z.object({ device: deviceSchema, returnTo: z.enum(['web', 'app']).default('web') }), b);
+    return this.fb.startLogin(v.device, v.returnTo === 'app');
   }
   @Post('auth/facebook/finish') @HttpCode(200)
   async finish(@Body() b: unknown, @Req() r: Request) {

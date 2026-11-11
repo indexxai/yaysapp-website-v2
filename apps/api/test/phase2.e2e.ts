@@ -362,6 +362,22 @@ describe('Facebook: link, sign in, show on profile', () => {
     expect((await t.http.get('/v1/oauth/facebook/callback').query({ state: 'nope', dev_name: 'X' }).expect(302)).headers.location).toBe(`${WEB}/sign-in?fb=expired`);
   });
 
+  it('started in the phone app, Facebook comes back to the app (yaysapp://), not the web', async () => {
+    const phone = { deviceId: 'ios-fb-device-1234', platform: 'ios', name: 'iPhone' };
+    const s = (await t.http.post('/v1/auth/facebook/start').send({ device: phone, returnTo: 'app' }).expect(200)).body;
+    const back = await viaFacebook(s.url, 'Sara Ahmed');
+    expect(back.startsWith('yaysapp://auth/facebook?fb_ticket=')).toBe(true);
+    const r = (await t.http.post('/v1/auth/facebook/finish').send({ ticket: new URL(back).searchParams.get('fb_ticket') }).expect(200)).body;
+    expect(r.me.id).toBe(sara.id);
+    const sessions = (await t.http.get('/v1/me/devices').set({ authorization: `Bearer ${r.tokens.accessToken}` }).expect(200)).body;
+    expect(sessions.find((x: { current: boolean }) => x.current)).toMatchObject({ platform: 'ios' });
+    const s2 = (await t.http.post('/v1/auth/facebook/start').send({ device: phone, returnTo: 'app' }).expect(200)).body;
+    expect(await viaFacebook(s2.url, 'Someone New')).toBe('yaysapp://auth/facebook?fb=not_linked&fb_name=Someone%20New');
+    const s3 = (await t.http.post('/v1/auth/facebook/start').send({ device: phone, returnTo: 'app' }).expect(200)).body;
+    expect(await viaFacebook(s3.url, null)).toBe('yaysapp://auth/facebook?fb=cancelled');
+    expect((await t.http.post('/v1/auth/facebook/start').send({ device: phone, returnTo: 'elsewhere' })).status).toBe(400);
+  });
+
   it('signs in with a linked Facebook, with the PIN when two-step is on', async () => {
     const s = (await t.http.post('/v1/auth/facebook/start').send({ device }).expect(200)).body;
     const back = await viaFacebook(s.url, 'Sara Ahmed');

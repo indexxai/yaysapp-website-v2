@@ -21,13 +21,24 @@ import { SearchScreen } from './src/chat/ListParts';
 import { TabBar, type TabName } from './src/ui/TabBar';
 import { CallLayer, CallsProvider } from './src/calls/Calls';
 import { CallsScreen } from './src/calls/CallsTab';
+import { useClearBadgeOnOpen, usePushNotifications, type PushData } from './src/lib/push';
 import type { MeProfile } from '@yays/shared';
 
 export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined };
 const Stack = createNativeStackNavigator<Routes>();
 /** For the call screens, which sit above the navigator: "Message" on a ringing call opens its chat. */
 const navRef = createNavigationContainerRef<Routes>();
-const openChatFromCall = (id: string) => { if (navRef.isReady()) navRef.navigate('Chat', { id }); };
+const openChatFromCall = (id: string, tries = 0) => {
+  if (navRef.isReady()) navRef.navigate('Chat', { id });
+  else if (tries < 25) setTimeout(() => openChatFromCall(id, tries + 1), 200); // a tap that launched the app: wait for the screens
+};
+/** A tapped notification: its chat. A ringing call needs nothing here: opening the app shows the ring. */
+const openFromPush = (d: PushData) => { if (d.type === 'message' && d.conversationId) openChatFromCall(d.conversationId); };
+function Notifications() {
+  usePushNotifications(openFromPush);
+  useClearBadgeOnOpen();
+  return null;
+}
 const Tab = createBottomTabNavigator<Record<TabName, undefined>>();
 type Nav = NativeStackNavigationProp<Routes>;
 
@@ -92,7 +103,7 @@ function Root() {
   );
   // The chat engine runs while signed in with a finished profile (and an id: not the offline placeholder).
   // Calls ride on the chat engine's connection: rings and updates arrive with the messages.
-  return me?.id && !needsProfile ? <ChatProvider me={me.id}><CallsProvider><View style={{ flex: 1 }}>{tree}<CallLayer openChat={openChatFromCall} /></View></CallsProvider></ChatProvider> : tree;
+  return me?.id && !needsProfile ? <ChatProvider me={me.id}><CallsProvider><Notifications /><View style={{ flex: 1 }}>{tree}<CallLayer openChat={openChatFromCall} /></View></CallsProvider></ChatProvider> : tree;
 }
 
 function OfflineStart({ retry }: { retry: () => Promise<void> }) {

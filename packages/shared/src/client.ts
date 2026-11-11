@@ -370,7 +370,11 @@ export class YaysClient {
   facebookLogin(on: boolean) { return this.request<SocialsView>('PUT', '/v1/me/socials/facebook/login', { on }); }
   unlinkFacebook() { return this.request<SocialsView>('DELETE', '/v1/me/socials/facebook'); }
   /** Sign in with Facebook: where to send the browser. It comes back to /sign-in with a ticket. */
-  facebookSignInStart() { return this.request<{ url: string }>('POST', '/v1/auth/facebook/start', { device: this.o.device }, { auth: false }); }
+  /** `app`: Facebook sends the person back to the phone app (yaysapp://auth/facebook?…) instead of the web app. */
+  facebookSignInStart(app = false) { return this.request<{ url: string }>('POST', '/v1/auth/facebook/start', { device: this.o.device, ...(app ? { returnTo: 'app' } : {}) }, { auth: false }); }
+  /** The phone app's push token (Firebase on Android, Apple on iPhone). */
+  registerPushDevice(d: { platform: 'android' | 'ios'; token: string; sandbox?: boolean }) { return this.request<void>('POST', '/v1/push/devices', d); }
+  unregisterPushDevice(token: string) { return this.request<void>('DELETE', '/v1/push/devices', { token }); }
   async facebookSignIn(ticket: string) { return this.signedIn(await this.request<SignInResult>('POST', '/v1/auth/facebook/finish', { ticket }, { auth: false })); }
   userSocials(userId: string) { return this.request<SocialsView>('GET', `/v1/users/${encodeURIComponent(userId)}/socials`); }
 

@@ -290,6 +290,8 @@ export const socketReceiptSchema = receiptSchema.extend({ conversationId: object
 export const typingSchema = z.object({ conversationId: objectIdSchema, on: z.boolean() });
 export const focusSchema = z.object({ conversationId: objectIdSchema.nullable(), visible: z.boolean() });
 export const pushSubscriptionSchema = z.object({ endpoint: z.string().url().max(2000).refine((u) => u.startsWith('https://') || u.startsWith('http://127.0.0.1') || u.startsWith('http://localhost'), 'Push endpoints must use https.'), keys: z.object({ p256dh: z.string().min(20).max(200), auth: z.string().min(8).max(100) }) });
+/** The phone app's push token: Firebase (Android) or Apple (iPhone); `sandbox` for debug builds of the iPhone app. */
+export const pushDeviceSchema = z.object({ platform: z.enum(['android', 'ios']), token: z.string().min(16).max(4096).regex(/^[A-Za-z0-9_:\-.]+$/, 'That is not a push token.'), sandbox: z.boolean().default(false) });
 export const presenceWatchSchema = z.object({ userIds: z.array(objectIdSchema).max(50) });
 export const openDirectSchema = z.object({ userId: objectIdSchema });
 const groupName = z.string().transform((v, ctx) => {
