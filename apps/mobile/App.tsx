@@ -2,7 +2,7 @@ import React from 'react';
 import { ActivityIndicator, StatusBar, View } from 'react-native';
 import { Text } from './src/ui/Text';
 import { OvalButton } from './src/ui/kit';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator, type NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useNavigation } from '@react-navigation/native';
@@ -19,10 +19,15 @@ import { AddMembersScreen, ChatInfoScreen, NewGroupScreen } from './src/chat/Inf
 import { NewPollScreen } from './src/chat/PollParts';
 import { SearchScreen } from './src/chat/ListParts';
 import { TabBar, type TabName } from './src/ui/TabBar';
+import { CallLayer, CallsProvider } from './src/calls/Calls';
+import { CallsScreen } from './src/calls/CallsTab';
 import type { MeProfile } from '@yays/shared';
 
 export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined };
 const Stack = createNativeStackNavigator<Routes>();
+/** For the call screens, which sit above the navigator: "Message" on a ringing call opens its chat. */
+const navRef = createNavigationContainerRef<Routes>();
+const openChatFromCall = (id: string) => { if (navRef.isReady()) navRef.navigate('Chat', { id }); };
 const Tab = createBottomTabNavigator<Record<TabName, undefined>>();
 type Nav = NativeStackNavigationProp<Routes>;
 
@@ -32,9 +37,9 @@ function Tabs({ me }: { me: MeProfile }) {
   const s = useChatState();
   const unread = s.order.filter((id) => { const c = s.conversations[id]; return c && (c.unread > 0 || c.markedUnread) && !c.archived && !(c.mutedUntil && Date.parse(c.mutedUntil) > Date.now()); }).length;
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={(p) => <TabBar {...p} badges={{ Chats: { n: unread, label: `${unread} unread chat${unread === 1 ? '' : 's'}` } }} />}>
+    <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={(p) => <TabBar {...p} badges={{ Chats: { n: unread, label: `${unread} unread chat${unread === 1 ? '' : 's'}` }, Calls: { n: s.missedCalls, label: `${s.missedCalls} missed call${s.missedCalls === 1 ? '' : 's'}` } }} />}>
       <Tab.Screen name="Chats">{() => <ChatListScreen me={me} openChat={(id) => nav.navigate('Chat', { id })} openNewChat={() => nav.navigate('NewChat')} openNewGroup={() => nav.navigate('NewGroup')} openSearch={() => nav.navigate('Search')} openArchived={() => nav.navigate('Archived')} />}</Tab.Screen>
-      <Tab.Screen name="Calls">{() => <ComingScreen title="Calls" art="selfie" icon="phone" lines={['Voice and video calls with friends and groups.', 'Calls already work on YaysApp for the web.']} />}</Tab.Screen>
+      <Tab.Screen name="Calls">{() => <CallsScreen openChat={(id) => nav.navigate('Chat', { id })} />}</Tab.Screen>
       <Tab.Screen name="Circles">{() => <ComingScreen title="Circles" art="hype" icon="people" lines={['Communities for the things you love: posts, events and people near you.', 'Circles already work on YaysApp for the web.']} />}</Tab.Screen>
       <Tab.Screen name="Explore">{() => <ComingScreen title="Explore" art="explorer" icon="compass" lines={['Jack’s AI, daily check-in, INEX rewards, your wallet and the Indexx products.', 'All of it already works on YaysApp for the web.']} />}</Tab.Screen>
       <Tab.Screen name="Me">{() => <MeScreen me={me} open={(r) => nav.navigate(r)} />}</Tab.Screen>
@@ -53,7 +58,7 @@ function Root() {
   const needsProfile = s.state.status === 'signedIn' && s.state.me.pending.includes('profile');
   const me = s.state.status === 'signedIn' ? s.state.me : null;
   const tree = (
-    <NavigationContainer theme={{ ...(t.scheme === 'dark' ? DarkTheme : DefaultTheme), colors: { ...(t.scheme === 'dark' ? DarkTheme : DefaultTheme).colors, background: t.ground, primary: t.ember, card: t.ground, text: t.ink, border: t.line } }}>
+    <NavigationContainer ref={navRef} theme={{ ...(t.scheme === 'dark' ? DarkTheme : DefaultTheme), colors: { ...(t.scheme === 'dark' ? DarkTheme : DefaultTheme).colors, background: t.ground, primary: t.ember, card: t.ground, text: t.ink, border: t.line } }}>
       <StatusBar barStyle={t.scheme === 'dark' ? 'light-content' : 'dark-content'} />
       <Stack.Navigator screenOptions={{ headerShadowVisible: false, headerTitle: '', headerBackTitle: 'Back', headerTintColor: t['ember-ink'] }}>
         {s.state.status === 'signedOut' ? (
@@ -86,7 +91,8 @@ function Root() {
     </NavigationContainer>
   );
   // The chat engine runs while signed in with a finished profile (and an id: not the offline placeholder).
-  return me?.id && !needsProfile ? <ChatProvider me={me.id}>{tree}</ChatProvider> : tree;
+  // Calls ride on the chat engine's connection: rings and updates arrive with the messages.
+  return me?.id && !needsProfile ? <ChatProvider me={me.id}><CallsProvider><View style={{ flex: 1 }}>{tree}<CallLayer openChat={openChatFromCall} /></View></CallsProvider></ChatProvider> : tree;
 }
 
 function OfflineStart({ retry }: { retry: () => Promise<void> }) {

@@ -41,6 +41,22 @@ The emulator reaches your Mac's API at `10.0.2.2:4000`; the iPhone simulator at 
 Sign in with your phone number or email. With the API in development mode no SMS or email is sent: the code is at
 http://localhost:4000/v1/_test/outbox?to=you@example.com (use `%2B` for the `+` of a phone number).
 
+### Calls
+
+Voice and video calls go through LiveKit, like on the web. The API needs `LIVEKIT_URL`, `LIVEKIT_API_KEY` and
+`LIVEKIT_API_SECRET` in `apps/api/.env` (see `.env.example`), with your LiveKit server running.
+
+- **After pulling this**, rebuild the app: `cd ios && bundle exec pod install`, then `pnpm ios` / `pnpm android`.
+  The calls package is native, so a Metro reload is not enough.
+- **Test calls on real phones.** The iPhone simulator can't use a camera or microphone (LiveKit's own note), so a call
+  from it connects but sends nothing. The Android emulator can, with its virtual camera and microphone.
+- In development the app reaches LiveKit on the same host as the API, so the Android emulator's `10.0.2.2` works for
+  both. A real phone on your Wi-Fi needs your Mac's address: change `devUrl` in `src/lib/config.ts` to
+  `http://<your Mac's IP>:4000`, and start LiveKit with `--bind 0.0.0.0` so the phone can reach it. LiveKit's address
+  then follows the API's.
+- A call rings the phone while YaysApp is open. Ringing a phone that is locked or closed needs push notifications,
+  which come next.
+
 ## Check it
 
 ```bash

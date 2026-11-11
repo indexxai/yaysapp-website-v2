@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 module.exports = async () => {
-  const env = { ...process.env, STACK_MONGO_PORT: '27130', STACK_REDIS_PORT: '6430', STACK_API_PORT: '4130', STACK_DB: 'mobile_e2e' };
+  const env = { ...process.env, STACK_MONGO_PORT: '27130', STACK_REDIS_PORT: '6430', STACK_API_PORT: '4130', STACK_DB: 'mobile_e2e', STACK_LIVEKIT_PORT: '7990', STACK_RING_SECONDS: '6' };
   const child = spawn('node', [path.resolve(__dirname, '../../../infra/test-stack.mjs')], { env, stdio: 'ignore', detached: true });
   child.unref();
   fs.writeFileSync(path.join(os.tmpdir(), 'yays-mobile-stack.pid'), String(child.pid));

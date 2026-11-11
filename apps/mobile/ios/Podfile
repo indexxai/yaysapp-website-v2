@@ -1,3 +1,7 @@
+# LiveKit's WebRTC pod is published here (CocoaPods trunk stops taking new pods in December 2026); keep the CDN for the rest.
+source 'https://github.com/livekit/podspecs.git'
+source 'https://cdn.cocoapods.org/'
+
 # Resolve react_native_pods.rb with node to allow for hoisting
 require Pod::Executable.execute_command('node', ['-p',
   'require.resolve(

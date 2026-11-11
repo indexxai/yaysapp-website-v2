@@ -2,10 +2,14 @@ import UIKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
+import livekit_react_native
 
 @main
 class AppDelegate: RCTAppDelegate {
   override func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+    // Calls: LiveKit's WebRTC setup, before React Native starts.
+    LivekitReactNative.setup()
+
     self.moduleName = "YaysApp"
     self.dependencyProvider = RCTAppDependencyProvider()
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../ui/Text';
+import { CallButtons } from '../calls/Calls';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, attachmentLabel, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
 import { AttachSheet, MediaBody, MediaViewer, RecordingBar, useVoiceRecorder } from '../chat/MediaParts';
@@ -375,6 +376,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
             <Text testID="peer-status" numberOfLines={1} style={{ fontSize: 13, color: typing ? t['ember-ink'] : t['ink-soft'], fontWeight: typing ? '700' : '400' }}>{status}</Text>
           </View>
           </Pressable>
+          <CallButtons conversationId={id} canCall={c.canSend && !(group && c.group?.announcements)} live={c.call} />
         </View>
         {pin ? (
           <View testID="pinned" style={[styles.pinBar, { backgroundColor: t.ground, borderBottomColor: t.line }]}>
@@ -391,7 +393,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
             data={rows}
             keyExtractor={(r) => (r.kind === 'msg' ? r.m.key : r.key)}
             renderItem={({ item }) => item.kind === 'day' ? <DayLabel label={item.label} t={t} />
-              : item.m.type === 'system' && item.m.system?.kind === 'call' ? <CallLine m={item.m} />
+              : item.m.type === 'system' && item.m.system?.kind === 'call' ? <CallLine m={item.m} conversationId={id} canCall={c.canSend && !(group && c.group?.announcements)} />
               : item.m.type === 'system' ? <SystemLine m={item.m} />
               : <Bubble m={item.m} c={c} showName={item.showName} onLongPress={() => setSheet(item.m)}><MessageBody m={item.m} onOpen={() => setViewing(item.m)} /></Bubble>}
             onEndReached={() => void engine.loadOlder(id)}

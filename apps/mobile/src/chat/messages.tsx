@@ -7,6 +7,7 @@ import {
   type ConversationSummary, type SystemEvent, type ThreadItem, type Tick,
 } from '@yays/shared';
 import { useEngine } from '../lib/chat';
+import { useCalls } from '../calls/Calls';
 import { useTheme, type Theme } from '../lib/theme';
 import { Icon, type IconName } from '../ui/Icon';
 import { Oval } from '../ui/Oval';
@@ -59,10 +60,11 @@ export function SystemLine({ m }: { m: ThreadItem }) {
   );
 }
 
-/** A finished call: "Missed voice call · 12:30". */
-export function CallLine({ m }: { m: ThreadItem }) {
+/** A finished call: "Missed voice call · 12:30", with a button to call back. */
+export function CallLine({ m, conversationId, canCall }: { m: ThreadItem; conversationId: string; canCall: boolean }) {
   const t = useTheme();
   const engine = useEngine();
+  const calls = useCalls();
   const e = m.system as Extract<SystemEvent, { kind: 'call' }>;
   const mine = m.senderId === engine.me;
   const missed = !mine && e.outcome !== 'completed' && e.outcome !== 'declined';
@@ -73,6 +75,12 @@ export function CallLine({ m }: { m: ThreadItem }) {
         <Text style={{ fontWeight: '700', fontSize: 14, color: missed ? t['danger-ink'] : t.ink }}>{callText(e, mine)}</Text>
         <Text style={{ fontSize: 12, color: t['ink-soft'] }}>{clock(m.createdAt)}</Text>
       </View>
+      {canCall ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Call back (${e.media})`} disabled={!!calls.session} hitSlop={8}
+          onPress={() => void calls.start(conversationId, e.media).catch(() => undefined)} style={{ marginLeft: 6, padding: 4, opacity: calls.session ? 0.4 : 1 }}>
+          <Icon name={e.media === 'video' ? 'video' : 'phone'} size={18} color={t['ember-ink']} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
