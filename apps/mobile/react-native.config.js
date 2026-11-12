@@ -6,5 +6,9 @@ module.exports = {
   dependencies: {
     '@react-native-firebase/app': { platforms: { ios: null } },
     '@react-native-firebase/messaging': { platforms: { ios: null } },
+    // Ringing like a phone call: CallKit and VoIP pushes on iPhone; a full-screen call notification on Android.
+    'react-native-callkeep': { platforms: { android: null } },
+    'react-native-voip-push-notification': { platforms: { android: null } },
+    '@notifee/react-native': { platforms: { ios: null } },
   },
 };

@@ -55,6 +55,7 @@
 	<array>
 		<string>audio</string>
 		<string>remote-notification</string>
+		<string>voip</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>YaysApp uses the camera so you can take photos and videos to send in chats, and for video calls.</string>

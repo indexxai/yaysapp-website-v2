@@ -291,7 +291,9 @@ export const typingSchema = z.object({ conversationId: objectIdSchema, on: z.boo
 export const focusSchema = z.object({ conversationId: objectIdSchema.nullable(), visible: z.boolean() });
 export const pushSubscriptionSchema = z.object({ endpoint: z.string().url().max(2000).refine((u) => u.startsWith('https://') || u.startsWith('http://127.0.0.1') || u.startsWith('http://localhost'), 'Push endpoints must use https.'), keys: z.object({ p256dh: z.string().min(20).max(200), auth: z.string().min(8).max(100) }) });
 /** The phone app's push token: Firebase (Android) or Apple (iPhone); `sandbox` for debug builds of the iPhone app. */
-export const pushDeviceSchema = z.object({ platform: z.enum(['android', 'ios']), token: z.string().min(16).max(4096).regex(/^[A-Za-z0-9_:\-.]+$/, 'That is not a push token.'), sandbox: z.boolean().default(false) });
+export const pushDeviceSchema = z.object({ platform: z.enum(['android', 'ios']), token: z.string().min(16).max(4096).regex(/^[A-Za-z0-9_:\-.]+$/, 'That is not a push token.'), sandbox: z.boolean().default(false),
+  /** iPhone only: a PushKit (VoIP) token, for calls that ring like a phone call even when the phone is locked. */
+  voip: z.boolean().default(false) });
 export const presenceWatchSchema = z.object({ userIds: z.array(objectIdSchema).max(50) });
 export const openDirectSchema = z.object({ userId: objectIdSchema });
 const groupName = z.string().transform((v, ctx) => {
@@ -465,6 +467,12 @@ export const moderateSchema = z.object({ action: z.enum(['delete', 'remove', 'ke
 // ---- calls ----
 export const CALL_LIMITS = { participants: 32, ringSeconds: 45, linkName: 60 } as const;
 export type CallMedia = 'voice' | 'video';
+/**
+ * The phone's call screen (CallKit) names calls by UUID. A call's id (24 hex digits) fits in one, so the app and the
+ * server work it out the same way, and back again, without keeping a list.
+ */
+export const callUuid = (callId: string) => { const h = `${callId.toLowerCase()}00000000`; return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`; };
+export const callIdFromUuid = (uuid: string) => uuid.replace(/-/g, '').toLowerCase().slice(0, 24);
 export type CallKind = 'direct' | 'group' | 'link';
 export type CallStatus = 'ringing' | 'active' | 'ended';
 /**

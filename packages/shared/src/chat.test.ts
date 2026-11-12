@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { messageTextSchema, sendMessageSchema, textLength, tickFor } from './chat';
+import { callIdFromUuid, callUuid, messageTextSchema, sendMessageSchema, textLength, tickFor } from './chat';
 import { mergeMessages, uuid } from './engine';
 import { dayLabel, lastSeen, listTime } from './format';
 
@@ -69,4 +69,12 @@ test('group lines read naturally, with "You" for the reader', async () => {
   assert.equal(systemText({ kind: 'admin', userId: 'o', on: false }, 'a', n), 'Ali dismissed Omar as admin');
   assert.equal(systemText({ kind: 'settings', changes: { send: 'admins', approveNew: true } }, 'a', n), 'Ali changed the group settings: only admins can send messages; admins approve new members');
   assert.equal(systemText({ kind: 'joined', via: 'link' }, 'o', n), 'Omar joined using an invite link');
+});
+
+test('callUuid: a call id becomes the UUID the phone’s call screen uses, and back', () => {
+  const id = '65F0C0FFEE00000000ABCDEF';
+  const u = callUuid(id);
+  assert.equal(u, '65f0c0ff-ee00-0000-00ab-cdef00000000');
+  assert.match(u, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  assert.equal(callIdFromUuid(u.toUpperCase()), id.toLowerCase());
 });

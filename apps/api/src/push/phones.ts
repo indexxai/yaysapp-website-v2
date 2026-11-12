@@ -1,6 +1,7 @@
 import { readFileSync } from 'fs';
 import * as http2 from 'http2';
 import { importPKCS8, SignJWT } from 'jose';
+import { callUuid } from '@yays/shared';
 import type { Config } from '../config';
 import type { Logger } from '../common/logger';
 
@@ -11,7 +12,7 @@ import type { Logger } from '../common/logger';
 export type PhonePayload =
   | { type: 'message'; conversationId: string; messageId: string; title: string; body: string; tag: string; url: string }
   | { type: 'read'; conversationId: string; tag: string }
-  | { type: 'call'; callId: string; title: string; body: string; tag: string; url: string }
+  | { type: 'call'; callId: string; title: string; body: string; tag: string; url: string; media?: 'voice' | 'video'; caller?: string }
   | { type: 'call_end'; callId: string; tag: string };
 
 /** How long each kind is worth delivering: a message for a day, a ring only while it rings, the rest only now. */
@@ -20,7 +21,8 @@ const ttl = (p: PhonePayload) => (p.type === 'message' ? 86400 : p.type === 'cal
 const data = (p: PhonePayload): Record<string, string> => {
   const d: Record<string, string> = { type: p.type, tag: p.tag };
   if ('conversationId' in p) d.conversationId = p.conversationId;
-  if ('callId' in p) d.callId = p.callId;
+  if ('callId' in p) { d.callId = p.callId; d.uuid = callUuid(p.callId); }
+  if (p.type === 'call') { d.media = p.media ?? 'voice'; d.caller = p.caller ?? p.title; d.title = p.title; d.body = p.body; }
   if (p.type === 'message') d.messageId = p.messageId;
   return d;
 };
@@ -57,17 +59,21 @@ export class FcmSender {
     return j.access_token;
   }
 
-  /** The FCM message for one payload. Rings and messages show a notification; "read" and "call over" are silent. */
+  /**
+   * The FCM message for one payload. Messages show a notification; "read" and "call over" are silent. A ring is data
+   * only, sent at high priority, so the app itself shows the full-screen incoming call (a plain notification can't).
+   */
   static message(token: string, p: PhonePayload) {
-    const shows = p.type === 'message' || p.type === 'call';
+    const shows = p.type === 'message';
+    const urgent = shows || p.type === 'call';
     return {
       token, data: data(p),
       ...(shows ? { notification: { title: p.title, body: p.body } } : {}),
       android: {
-        priority: shows ? 'high' : 'normal', ttl: `${ttl(p)}s`,
+        priority: urgent ? 'high' : 'normal', ttl: `${ttl(p)}s`,
         // A newer push for the same chat replaces one still waiting; on the phone, it replaces the notification.
         collapse_key: ('conversationId' in p ? p.conversationId : p.callId).slice(0, 64),
-        ...(shows ? { notification: { channel_id: p.type === 'call' ? 'calls' : 'messages', tag: p.tag, ...(p.type === 'call' ? { default_sound: true } : {}) } } : {}),
+        ...(shows ? { notification: { channel_id: 'messages', tag: p.tag } } : {}),
       },
     };
   }
@@ -133,12 +139,25 @@ export class ApnsSender {
     };
   }
 
-  async send(token: string, p: PhonePayload, sandbox: boolean): Promise<'ok' | 'gone'> {
+  /**
+   * A VoIP push (PushKit) for a ring or its end: it wakes the app, which must show the call on the phone's call screen
+   * (CallKit) straight away. Only calls go this way; Apple stops VoIP pushes to apps that use them for anything else.
+   */
+  static voipRequest(p: Extract<PhonePayload, { type: 'call' | 'call_end' }>) {
+    return {
+      headers: { 'apns-push-type': 'voip', 'apns-priority': '10', 'apns-expiration': String(Math.floor(Date.now() / 1000) + ttl(p)) },
+      body: { aps: {}, ...data(p) },
+    };
+  }
+
+  async send(token: string, p: PhonePayload, sandbox: boolean, voip = false): Promise<'ok' | 'gone'> {
     const origin = this.host ?? (sandbox ? 'https://api.sandbox.push.apple.com' : 'https://api.push.apple.com');
-    const { headers, body } = ApnsSender.request(p);
+    if (voip && p.type !== 'call' && p.type !== 'call_end') throw new Error('VoIP pushes are for calls only');
+    const { headers, body } = voip ? ApnsSender.voipRequest(p as Extract<PhonePayload, { type: 'call' | 'call_end' }>) : ApnsSender.request(p);
+    const topic = voip ? `${this.topic}.voip` : this.topic;
     const auth = await this.token();
     const { status, reason } = await new Promise<{ status: number; reason?: string }>((resolve, reject) => {
-      const req = this.session(origin).request({ ':method': 'POST', ':path': `/3/device/${token}`, authorization: `bearer ${auth}`, 'apns-topic': this.topic, ...headers });
+      const req = this.session(origin).request({ ':method': 'POST', ':path': `/3/device/${token}`, authorization: `bearer ${auth}`, 'apns-topic': topic, ...headers });
       let status = 0, text = '';
       req.setTimeout(10_000, () => { req.close(); reject(new Error('APNs timed out')); });
       req.on('response', (h) => { status = Number(h[':status']); });

@@ -25,12 +25,12 @@ import type { ChatPrefDoc, ConversationDoc } from '../chat/chat.service';
  * Where one device gets notifications. A browser: its Web Push endpoint and keys. A phone: `kind` fcm (Android) or
  * apns (iPhone), with `endpoint` "fcm:<token>" or "apns:<token>"; `sandbox` for debug builds of the iPhone app.
  */
-export interface PushSubDoc { _id: string; userId: ObjectId; sid: string; endpoint: string; keys?: { p256dh: string; auth: string }; kind?: 'web' | 'fcm' | 'apns'; sandbox?: boolean; createdAt: Date; lastOkAt?: Date; userAgent?: string }
+export interface PushSubDoc { _id: string; userId: ObjectId; sid: string; endpoint: string; keys?: { p256dh: string; auth: string }; kind?: 'web' | 'fcm' | 'apns' | 'voip'; sandbox?: boolean; createdAt: Date; lastOkAt?: Date; userAgent?: string }
 
 export type PushPayload =
   | { type: 'message'; conversationId: string; messageId: string; title: string; body: string; tag: string; url: string }
   | { type: 'read'; conversationId: string; tag: string }
-  | { type: 'call'; callId: string; title: string; body: string; tag: string; url: string }
+  | { type: 'call'; callId: string; title: string; body: string; tag: string; url: string; media?: 'voice' | 'video'; caller?: string }
   | { type: 'call_end'; callId: string; tag: string };
 
 /** Where pushes go. "dev" keeps them in Redis so tests (and developers) can see what would have been sent. */
@@ -123,12 +123,12 @@ export class PushService {
   }
   async unsubscribe(userId: ObjectId, endpoint: string) { await this.subs.deleteOne({ _id: subId(endpoint), userId }); }
   /** The phone app's push token (Firebase on Android, Apple on iPhone). The same phone signing in again takes it over. */
-  async registerPhone(userId: ObjectId, sid: string, d: { platform: 'android' | 'ios'; token: string; sandbox: boolean }, userAgent?: string) {
-    const kind = d.platform === 'android' ? 'fcm' : 'apns';
+  async registerPhone(userId: ObjectId, sid: string, d: { platform: 'android' | 'ios'; token: string; sandbox: boolean; voip?: boolean }, userAgent?: string) {
+    const kind = d.platform === 'android' ? 'fcm' : d.voip ? 'voip' : 'apns';
     const endpoint = `${kind}:${d.token}`;
-    await this.subs.updateOne({ _id: subId(endpoint) }, { $set: { userId, sid, endpoint, kind, sandbox: kind === 'apns' && d.sandbox, userAgent: userAgent?.slice(0, 200) }, $unset: { keys: '' }, $setOnInsert: { createdAt: new Date() } }, { upsert: true });
+    await this.subs.updateOne({ _id: subId(endpoint) }, { $set: { userId, sid, endpoint, kind, sandbox: kind !== 'fcm' && d.sandbox, userAgent: userAgent?.slice(0, 200) }, $unset: { keys: '' }, $setOnInsert: { createdAt: new Date() } }, { upsert: true });
   }
-  async unregisterPhone(userId: ObjectId, token: string) { await this.subs.deleteMany({ _id: { $in: [subId(`fcm:${token}`), subId(`apns:${token}`)] }, userId }); }
+  async unregisterPhone(userId: ObjectId, token: string) { await this.subs.deleteMany({ _id: { $in: [subId(`fcm:${token}`), subId(`apns:${token}`), subId(`voip:${token}`)] }, userId }); }
   /** What this server can deliver to, for the apps to show (and for setup checks). */
   get phones() { return { android: this.delivery === 'dev' || !!this.fcm, ios: this.delivery === 'dev' || !!this.apns }; }
   /** A signed-out device stops getting notifications. */
@@ -204,7 +204,9 @@ export class PushService {
     const u = await this.users.findOne({ _id: userId }, { projection: { 'yc.notify': 1 } });
     if (u && inQuietHours(notifyOf(u as UserDoc))) return;
     const subs = await this.subs.find({ userId }).toArray();
-    await Promise.all(subs.map((s) => this.deliver(s, payload)));
+    // An iPhone with a VoIP token rings on the phone's call screen; its ordinary notification would ring a second time.
+    const callKit = new Set(subs.filter((s) => s.kind === 'voip').map((s) => s.sid));
+    await Promise.all(subs.filter((s) => !(s.kind === 'apns' && callKit.has(s.sid))).map((s) => this.deliver(s, payload)));
   }
   /** The call stopped ringing: take its notification away. */
   callEnded(userIds: ObjectId[], callId: string) {
@@ -217,10 +219,12 @@ export class PushService {
 
   /** Development records every push; otherwise each kind of device goes to its own service. */
   private async sendTo(s: PushSubDoc, payload: PushPayload): Promise<'ok' | 'gone' | 'off'> {
+    // VoIP tokens are for calls only (Apple requires every VoIP push to show a call).
+    if (s.kind === 'voip' && payload.type !== 'call' && payload.type !== 'call_end') return 'off';
     if (this.delivery === 'dev' || !s.kind || s.kind === 'web') return this.sender.send(s, payload);
     const token = s.endpoint.slice(s.kind.length + 1);
     if (s.kind === 'fcm') return this.fcm ? this.fcm.send(token, payload) : 'off';
-    return this.apns ? this.apns.send(token, payload, !!s.sandbox) : 'off';
+    return this.apns ? this.apns.send(token, payload, !!s.sandbox, s.kind === 'voip') : 'off';
   }
 
   private async deliver(s: PushSubDoc, payload: PushPayload) {

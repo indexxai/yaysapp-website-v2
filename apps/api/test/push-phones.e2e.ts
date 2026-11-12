@@ -8,6 +8,7 @@ import { cid, makeUser, sleep, type TUser } from './chat-helpers';
 
 const FCM_TOKEN = 'fcm-android-token-' + 'a'.repeat(40);
 const APNS_TOKEN = 'b'.repeat(64);
+const CALL = '65f0c0ffee00000000abcdef', UUID = '65f0c0ff-ee00-0000-00ab-cdef00000000';
 const say = (t: TestApp, u: TUser, c: string, text: string) => t.http.post(`/v1/conversations/${c}/messages`).set(u.auth).send({ clientId: cid(), text }).expect(200);
 
 describe('Phone notifications: registering the app', () => {
@@ -127,16 +128,18 @@ describe('Phone notifications: delivery to Firebase and Apple', () => {
     expect(tokenAsks).toBe(1);
   });
 
-  it('a call rings: the calls channel on Android, time-sensitive on iPhone', async () => {
+  it('a call rings: data only at high priority on Android (the app shows the full-screen call), time-sensitive on an iPhone without a VoIP token', async () => {
     fcmSent.length = 0; apnsSent.length = 0;
     // No LiveKit server in these tests: ring through the push service, as the calls service does.
     const { PUSH } = await import('../src/push/push.service');
     const svc = t.app.get(PUSH) as import('../src/push/push.service').PushService;
     const { ObjectId } = await import('mongodb');
-    await svc.callRing(new ObjectId(ali.id), { type: 'call', callId: 'call123', title: 'Sara', body: 'Incoming voice call', tag: 'call:call123', url: '/calls' });
+    await svc.callRing(new ObjectId(ali.id), { type: 'call', callId: CALL, title: 'Sara', body: 'Incoming video call', tag: `call:${CALL}`, url: '/calls', media: 'video', caller: 'Sara' });
     await wait(() => fcmSent.length === 1 && apnsSent.length === 1);
-    expect(fcmSent[0]!.message).toMatchObject({ notification: { title: 'Sara', body: 'Incoming voice call' }, data: { type: 'call', callId: 'call123' }, android: { priority: 'high', ttl: '45s', notification: { channel_id: 'calls' } } });
-    expect(apnsSent[0]!.body).toMatchObject({ aps: { alert: { title: 'Sara', body: 'Incoming voice call' }, 'interruption-level': 'time-sensitive' }, type: 'call', callId: 'call123' });
+    expect(fcmSent[0]!.message).toMatchObject({ data: { type: 'call', callId: CALL, uuid: UUID, media: 'video', caller: 'Sara', title: 'Sara', body: 'Incoming video call' }, android: { priority: 'high', ttl: '45s' } });
+    expect(fcmSent[0]!.message.notification).toBeUndefined();
+    expect((fcmSent[0]!.message.android as Record<string, unknown>).notification).toBeUndefined();
+    expect(apnsSent[0]!.body).toMatchObject({ aps: { alert: { title: 'Sara', body: 'Incoming video call' }, 'interruption-level': 'time-sensitive' }, type: 'call', callId: CALL });
   });
 
   it('a phone that dropped its token (uninstalled) is forgotten', async () => {
@@ -150,5 +153,40 @@ describe('Phone notifications: delivery to Firebase and Apple', () => {
     await wait(() => fcmSent.length === 2 && apnsSent.length === 2);
     for (let i = 0; i < 50 && (await subs()) !== 2; i++) await sleep(30);
     expect(await subs()).toBe(2);
+  });
+
+  it('an iPhone with a VoIP token: the ring and its end go by VoIP (CallKit), not as an alert; messages never use VoIP', async () => {
+    fcmSent.length = 0; apnsSent.length = 0;
+    const VOIP = 'd'.repeat(64), ALERT = 'e'.repeat(64);
+    await t.http.post('/v1/push/devices').set(sara.auth).send({ platform: 'ios', token: ALERT, sandbox: true }).expect(204);
+    await t.http.post('/v1/push/devices').set(sara.auth).send({ platform: 'ios', token: VOIP, sandbox: true, voip: true }).expect(204);
+    expect(await t.db.collection('yc_push_subscriptions').findOne({ endpoint: `voip:${VOIP}` })).toMatchObject({ kind: 'voip', sandbox: true });
+    const { PUSH } = await import('../src/push/push.service');
+    const svc = t.app.get(PUSH) as import('../src/push/push.service').PushService;
+    const { ObjectId } = await import('mongodb');
+    await svc.callRing(new ObjectId(sara.id), { type: 'call', callId: CALL, title: 'Ali', body: 'Incoming voice call', tag: `call:${CALL}`, url: '/calls', media: 'voice', caller: 'Ali' });
+    await wait(() => apnsSent.length === 1);
+    await sleep(200);
+    expect(apnsSent).toHaveLength(1); // not also the ordinary alert
+    expect(apnsSent[0]!.path).toBe(`/3/device/${VOIP}`);
+    expect(apnsSent[0]!.headers).toMatchObject({ 'apns-topic': 'com.indexx.yaysapp.voip', 'apns-push-type': 'voip', 'apns-priority': '10' });
+    expect(apnsSent[0]!.body).toMatchObject({ aps: {}, type: 'call', callId: CALL, uuid: UUID, media: 'voice', caller: 'Ali' });
+    // The call is over: CallKit takes it away.
+    apnsSent.length = 0;
+    svc.callEnded([new ObjectId(sara.id)], CALL);
+    await wait(() => apnsSent.length === 2);
+    const voip = apnsSent.find((x) => x.path.endsWith(VOIP))!;
+    expect(voip.headers['apns-push-type']).toBe('voip');
+    expect(voip.body).toMatchObject({ type: 'call_end', callId: CALL, uuid: UUID });
+    // A message goes to the ordinary token only.
+    apnsSent.length = 0;
+    const c = (await t.http.post('/v1/conversations/direct').set(ali.auth).send({ userId: sara.id }).expect(200)).body;
+    await say(t, ali, c.id, 'Call me back');
+    await wait(() => apnsSent.length >= 1);
+    await sleep(200);
+    expect(apnsSent.map((x) => x.path)).toEqual([`/3/device/${ALERT}`]);
+    // Dropping the VoIP token works like any other.
+    await t.http.delete('/v1/push/devices').set(sara.auth).send({ token: VOIP }).expect(204);
+    expect(await t.db.collection('yc_push_subscriptions').countDocuments({ endpoint: `voip:${VOIP}` })).toBe(0);
   });
 });

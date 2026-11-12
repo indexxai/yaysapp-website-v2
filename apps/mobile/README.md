@@ -54,8 +54,15 @@ Voice and video calls go through LiveKit, like on the web. The API needs `LIVEKI
   both. A real phone on your Wi-Fi needs your Mac's address: change `devUrl` in `src/lib/config.ts` to
   `http://<your Mac's IP>:4000`, and start LiveKit with `--bind 0.0.0.0` so the phone can reach it. LiveKit's address
   then follows the API's.
-- A call rings the phone while YaysApp is open. Ringing a phone that is locked or closed needs push notifications,
-  which come next.
+- **Ringing when YaysApp is closed or the phone is locked**, like a phone call:
+  - **iPhone**: the server sends a VoIP push and the call shows on the iPhone's own call screen (CallKit), with Answer
+    and Decline on the lock screen. It uses the same Apple key as notifications (`APNS_KEY_FILE` …); the app asks
+    for the VoIP token by itself. `Info.plist` has the "Voice over IP" background mode. Test on a real iPhone: the
+    simulator doesn't get VoIP pushes. (Apple doesn't allow CallKit in apps sold in mainland China.)
+  - **Android**: the server sends a data-only push and the app shows a full-screen call notification that rings until
+    answered or declined (Notifee), with Answer and Decline. It needs `google-services.json` (see Notifications).
+    Google Play asks calling apps to declare the full-screen permission (Play Console › App content).
+  - **After pulling this**: `cd ios && bundle exec pod install`, then rebuild (three new native packages).
 
 ### Google and Facebook sign-in
 

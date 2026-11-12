@@ -197,7 +197,7 @@ export class CallsService {
       for (const u of ring) {
         const v = views.get(u.toHexString())!;
         await this.push.callRing(u, {
-          type: 'call', callId: v.id, tag: `call:${v.id}`, url: `/calls?answer=${v.id}`,
+          type: 'call', callId: v.id, tag: `call:${v.id}`, url: `/calls?answer=${v.id}`, media: doc.media, caller: v.title,
           title: v.title, body: `${doc.kind === 'group' ? `${caller ? displayNameOf(caller).split(' ')[0] : 'Someone'} · ` : ''}Incoming ${doc.media} call`,
         });
       }

@@ -1,5 +1,6 @@
 import UIKit
 import UserNotifications
+import PushKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
@@ -12,6 +13,9 @@ class AppDelegate: RCTAppDelegate {
     LivekitReactNative.setup()
     // Notifications: tapping one, or one arriving while YaysApp is open, comes through here.
     UNUserNotificationCenter.current().delegate = self
+    // Calls ring on the phone's call screen (CallKit), woken by VoIP pushes even when YaysApp is closed.
+    RNCallKeep.setup(["appName": "YaysApp", "supportsVideo": true, "maximumCallGroups": "1", "maximumCallsPerCallGroup": "1", "includesCallsInRecents": false])
+    RNVoipPushNotificationManager.voipRegistration()
 
     self.moduleName = "YaysApp"
     self.dependencyProvider = RCTAppDependencyProvider()
@@ -55,6 +59,34 @@ class AppDelegate: RCTAppDelegate {
 #else
     Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif
+  }
+}
+
+// ---- Calls: VoIP pushes (PushKit) shown on the phone's call screen (CallKit) ----
+extension AppDelegate: PKPushRegistryDelegate {
+  /** The VoIP token: the app's JavaScript gives it to the server. */
+  func pushRegistry(_ registry: PKPushRegistry, didUpdate pushCredentials: PKPushCredentials, for type: PKPushType) {
+    RNVoipPushNotificationManager.didUpdate(pushCredentials, forType: type.rawValue)
+  }
+  func pushRegistry(_ registry: PKPushRegistry, didInvalidatePushTokenFor type: PKPushType) {}
+
+  /**
+   * A ring (or the end of one). Apple ends apps that don't show every VoIP push on the call screen straight away,
+   * so this happens here, before any JavaScript runs. The id is the call's own (see callUuid in @yays/shared).
+   */
+  func pushRegistry(_ registry: PKPushRegistry, didReceiveIncomingPushWith payload: PKPushPayload, for type: PKPushType, completion: @escaping () -> Void) {
+    let d = payload.dictionaryPayload
+    let uuid = (d["uuid"] as? String) ?? UUID().uuidString
+    let caller = (d["caller"] as? String) ?? "YaysApp"
+    let video = (d["media"] as? String) == "video"
+    RNVoipPushNotificationManager.didReceiveIncomingPush(with: payload, forType: type.rawValue)
+    RNCallKeep.reportNewIncomingCall(uuid, handle: caller, handleType: "generic", hasVideo: video, localizedCallerName: caller,
+                                     supportsHolding: false, supportsDTMF: false, supportsGrouping: false, supportsUngrouping: false,
+                                     fromPushKit: true, payload: d as? [String: Any], withCompletionHandler: completion)
+    // The call stopped ringing (answered elsewhere, missed, the caller hung up): take it off the screen.
+    if (d["type"] as? String) == "call_end" {
+      RNCallKeep.endCall(withUUID: uuid, reason: 2)
+    }
   }
 }
 

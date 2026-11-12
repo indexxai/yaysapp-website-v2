@@ -168,6 +168,9 @@ importers:
       '@livekit/react-native-webrtc':
         specifier: 144.1.2
         version: 144.1.2(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))
+      '@notifee/react-native':
+        specifier: 9.1.8
+        version: 9.1.8(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))
       '@react-native-async-storage/async-storage':
         specifier: 2.1.2
         version: 2.1.2(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))
@@ -216,6 +219,9 @@ importers:
       react-native-audio-recorder-player:
         specifier: 3.6.14
         version: 3.6.14(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0)
+      react-native-callkeep:
+        specifier: 4.3.16
+        version: 4.3.16(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))
       react-native-image-crop-picker:
         specifier: 0.51.1
         version: 0.51.1(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0)
@@ -237,6 +243,9 @@ importers:
       react-native-video:
         specifier: 6.19.3
         version: 6.19.3(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0)
+      react-native-voip-push-notification:
+        specifier: 3.3.3
+        version: 3.3.3(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -1896,6 +1905,11 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
+
+  '@notifee/react-native@9.1.8':
+    resolution: {integrity: sha512-Az/dueoPerJsbbjRxu8a558wKY+gONUrfoy3Hs++5OqbeMsR0dYe6P+4oN6twrLFyzAhEA1tEoZRvQTFDRmvQg==}
+    peerDependencies:
+      react-native: '*'
 
   '@nuxtjs/opencollective@0.3.2':
     resolution: {integrity: sha512-um0xL3fO7Mf4fDxcqx9KryrB7zgRM5JSlvGN5AGkP6JLM5XEKyjeAiPbNxdXVXQ16isuAhYpvP88NgL2BGd6aA==}
@@ -5626,6 +5640,11 @@ packages:
       react: '*'
       react-native: '*'
 
+  react-native-callkeep@4.3.16:
+    resolution: {integrity: sha512-aIxn02T5zW4jNPyzRdFGTWv6xD3Vy/1AkBMB6iYvWZEHWnfmgNGF0hELqg03Vbc2BNUhfqpu17aIydos+5Hurg==}
+    peerDependencies:
+      react-native: '>=0.40.0'
+
   react-native-image-crop-picker@0.51.1:
     resolution: {integrity: sha512-GIFRyXJgv1dPceKd/hraK9q9V38v45rSg2ONR6RiSePcOJemkHpc/PMU86pq6lWPilDYHSxbZmea2pNMk85ayw==}
     peerDependencies:
@@ -5669,6 +5688,11 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
+
+  react-native-voip-push-notification@3.3.3:
+    resolution: {integrity: sha512-cyWuI9//T1IQIq4RPq0QQe0NuEwIpnE0L98H2sUH4MjFsNMD/yNE4EJzEZN4cIwfPMZaASa0gQw6B1a7VwnkMA==}
+    peerDependencies:
+      react-native: '>=0.60.0'
 
   react-native@0.78.0:
     resolution: {integrity: sha512-3PO4tNvCN6BdAKcoY70v1sLfxYCmDR4KS1VTY+kIBKy5Qznp27QNxL7zBQjvS6Jp91gc8N82QbysQrfBlwg9gQ==}
@@ -8969,6 +8993,10 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.3
+
+  '@notifee/react-native@9.1.8(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))':
+    dependencies:
+      react-native: 0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)
 
   '@nuxtjs/opencollective@0.3.2':
     dependencies:
@@ -13747,6 +13775,10 @@ snapshots:
       react: 19.0.0
       react-native: 0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)
 
+  react-native-callkeep@4.3.16(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)):
+    dependencies:
+      react-native: 0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)
+
   react-native-image-crop-picker@0.51.1(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0):
     dependencies:
       react: 19.0.0
@@ -13788,6 +13820,10 @@ snapshots:
   react-native-video@6.19.3(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0):
     dependencies:
       react: 19.0.0
+      react-native: 0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)
+
+  react-native-voip-push-notification@3.3.3(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)):
+    dependencies:
       react-native: 0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)
 
   react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0):

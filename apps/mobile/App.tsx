@@ -22,6 +22,7 @@ import { TabBar, type TabName } from './src/ui/TabBar';
 import { CallLayer, CallsProvider } from './src/calls/Calls';
 import { CallsScreen } from './src/calls/CallsTab';
 import { useClearBadgeOnOpen, usePushNotifications, type PushData } from './src/lib/push';
+import { useNativeRinging } from './src/calls/ringing';
 import { CircleFormScreen, CirclesTab, DiscoverScreen, type CircleNav } from './src/circles/CirclesScreens';
 import { CircleScreen } from './src/circles/CircleScreen';
 import { ComposeScreen, PostScreen } from './src/circles/Posts';
@@ -50,6 +51,7 @@ const openFromPush = (d: PushData) => { if (d.type === 'message' && d.conversati
 function Notifications() {
   usePushNotifications(openFromPush);
   useClearBadgeOnOpen();
+  useNativeRinging();
   return null;
 }
 const Tab = createBottomTabNavigator<Record<TabName, undefined>>();

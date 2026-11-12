@@ -119,3 +119,49 @@ jest.mock('@react-native-community/push-notification-ios', () => {
   };
   return { __esModule: true, default: P };
 });
+// The phone's call screen (CallKit) and VoIP pushes: tests play the person tapping Answer / End, and Apple's push.
+jest.mock('react-native-callkeep', () => {
+  const handlers = {};
+  const CK = {
+    __handlers: handlers, __initial: [], __answered: [], __ended: [], __reportedEnd: [],
+    setup: jest.fn(async () => true),
+    addEventListener: jest.fn((type, fn) => { handlers[type] = fn; }),
+    removeEventListener: jest.fn((type) => { delete handlers[type]; }),
+    getInitialEvents: jest.fn(async () => CK.__initial),
+    clearInitialEvents: jest.fn(),
+    answerIncomingCall: jest.fn((uuid) => { CK.__answered.push(uuid); }),
+    endCall: jest.fn((uuid) => { CK.__ended.push(uuid); }),
+    reportEndCallWithUUID: jest.fn((uuid) => { CK.__reportedEnd.push(uuid); }),
+    __emit: (type, arg) => handlers[type] && handlers[type](arg),
+  };
+  return { __esModule: true, default: CK };
+});
+jest.mock('react-native-voip-push-notification', () => {
+  const handlers = {};
+  const V = {
+    RNVoipPushRemoteNotificationsRegisteredEvent: 'RNVoipPushRemoteNotificationsRegisteredEvent',
+    addEventListener: jest.fn((type, fn) => { handlers[type] = fn; }),
+    removeEventListener: jest.fn((type) => { delete handlers[type]; }),
+    registerVoipToken: jest.fn(),
+    onVoipNotificationCompleted: jest.fn(),
+    __emit: (type, arg) => handlers[type] && handlers[type](arg),
+  };
+  return { __esModule: true, default: V };
+});
+// Android's full-screen call notification (Notifee): records what's shown and taken away.
+jest.mock('@notifee/react-native', () => {
+  const N = {
+    __shown: [], __cancelled: [], __bg: null, __fg: null, __initial: null,
+    createChannel: jest.fn(async () => 'calls'),
+    displayNotification: jest.fn(async (n) => { N.__shown.push(n); return n.id; }),
+    cancelNotification: jest.fn(async (id) => { N.__cancelled.push(id); }),
+    onBackgroundEvent: jest.fn((fn) => { N.__bg = fn; }),
+    onForegroundEvent: jest.fn((fn) => { N.__fg = fn; return () => { N.__fg = null; }; }),
+    getInitialNotification: jest.fn(async () => N.__initial),
+  };
+  return {
+    __esModule: true, default: N,
+    AndroidImportance: { HIGH: 4 }, AndroidCategory: { CALL: 'call' }, AndroidVisibility: { PUBLIC: 1 },
+    EventType: { DISMISSED: 0, PRESS: 1, ACTION_PRESS: 2, DELIVERED: 3 },
+  };
+});
