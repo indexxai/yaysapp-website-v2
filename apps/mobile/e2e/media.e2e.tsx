@@ -39,7 +39,7 @@ const direct = async (a: U, b: U) => {
   await say(b, id, 'Hi');
   return id;
 };
-type Msg = { text: string; attachment?: { kind: string; name: string; url: string; durationMs?: number; waveform?: number[]; width?: number } };
+type Msg = { text: string; attachment?: { kind: string; name: string; url: string; durationMs?: number; waveform?: number[]; width?: number; height?: number; thumbUrl?: string | null } };
 const messages = async (u: U, conv: string) => (await call(`/v1/conversations/${conv}/messages?limit=50`, undefined, u.tokens.accessToken)).items as Msg[];
 const openChat = async (name: string) => fireEvent.press(await screen.findByLabelText(new RegExp(`^Chat with ${name}`)));
 
@@ -67,6 +67,24 @@ describe('Photos, voice notes and files on mobile, against the real API', () => 
     expect(await screen.findByTestId('media-viewer')).toBeTruthy();
     fireEvent.press(within(screen.getByTestId('media-viewer')).getByLabelText('Close'));
     await waitFor(() => expect(screen.queryByTestId('media-viewer')).toBeNull());
+  });
+
+  it('a video from the library: a still from it is sent as its preview, with its length', async () => {
+    const ali = await user('Ali'), sara = await user('Sara');
+    const conv = await direct(ali, sara);
+    const { createThumbnail } = jest.requireMock('react-native-create-thumbnail') as { createThumbnail: jest.Mock };
+    createThumbnail.mockResolvedValueOnce({ path: png(64, 36), size: 0, mime: 'image/jpeg', width: 640, height: 360 });
+    (ImagePicker.openPicker as jest.Mock).mockResolvedValueOnce([{ path: dataUrl('video/mp4', 'not really a video, but bytes all the same'), mime: 'video/mp4', width: 1280, height: 720, size: 0, duration: 4200, filename: 'run.mp4' }]);
+    launchAs(ali);
+    await openChat('Sara');
+    fireEvent.press(await screen.findByLabelText('Attach'));
+    fireEvent.press(within(await screen.findByTestId('attach-sheet')).getByLabelText('Photos and videos'));
+    await waitFor(async () => {
+      const got = (await messages(sara, conv)).find((m) => m.attachment?.kind === 'video');
+      expect(got?.attachment).toMatchObject({ name: 'run.mp4', width: 1280, height: 720, durationMs: 4200 });
+      expect(got!.attachment!.thumbUrl).toBeTruthy();
+    }, { timeout: 15000 });
+    expect(createThumbnail).toHaveBeenCalledWith(expect.objectContaining({ timeStamp: 500, format: 'jpeg', maxWidth: 640 }));
   });
 
   it('a voice note: record, see the timer, send; it arrives with its length and waveform', async () => {

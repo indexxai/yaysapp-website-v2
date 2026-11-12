@@ -165,3 +165,5 @@ jest.mock('@notifee/react-native', () => {
     EventType: { DISMISSED: 0, PRESS: 1, ACTION_PRESS: 2, DELIVERED: 3 },
   };
 });
+// Video stills: none unless a test hands one over (createThumbnail.mockResolvedValueOnce).
+jest.mock('react-native-create-thumbnail', () => ({ createThumbnail: jest.fn(async () => { throw new Error('no thumbnail in tests'); }) }));

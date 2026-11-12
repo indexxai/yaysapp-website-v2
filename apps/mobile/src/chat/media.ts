@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import ImagePicker, { type Image as PickedImage, type Video as PickedVideo } from 'react-native-image-crop-picker';
+import { createThumbnail } from 'react-native-create-thumbnail';
 import { keepLocalCopy, pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { ApiError, baseMime, kindFor, type AttachmentKind, type FileToSend, type Uploader } from '@yays/shared';
 
@@ -32,14 +33,28 @@ const isCancel = (e: unknown) => (e as { code?: string })?.code === 'E_PICKER_CA
 /** What a picker gives back, ready for engine.sendFile. */
 export type Picked = Omit<FileToSend, 'caption' | 'replyToId'>;
 
+/**
+ * A still from half a second into a video, up to 640px, as the preview everyone sees before playing it (the same
+ * as the web makes). Without one the video shows as a plain box; it's never worth failing the send over.
+ */
+export async function videoThumb(path: string): Promise<{ thumb: PhoneFile; localThumbUrl: string; width: number; height: number } | null> {
+  try {
+    const t = await createThumbnail({ url: path, timeStamp: 500, format: 'jpeg', maxWidth: 640, maxHeight: 640, cacheName: `yays-thumb-${Date.now()}` });
+    const uri = /^[a-z]+:/i.test(t.path) ? t.path : `file://${t.path}`;
+    return { thumb: await phoneFile(uri, 'image/jpeg'), localThumbUrl: uri, width: t.width, height: t.height };
+  } catch { return null; }
+}
+
 async function fromPicker(p: PickedImage | PickedVideo): Promise<Picked> {
   const mime = baseMime(p.mime);
   const kind: AttachmentKind = mime.startsWith('video/') ? 'video' : 'image';
   const file = await phoneFile(p.path, mime);
+  const still = kind === 'video' ? await videoThumb(p.path) : null;
   return {
     file, kind, name: p.filename ?? nameFrom(p.path, kind === 'video' ? 'video.mp4' : 'photo.jpg'),
-    width: p.width || undefined, height: p.height || undefined,
+    width: p.width || still?.width || undefined, height: p.height || still?.height || undefined,
     ...(kind === 'video' && 'duration' in p && p.duration ? { durationMs: Math.round(p.duration) } : {}),
+    ...(still ? { thumb: still.thumb, localThumbUrl: still.localThumbUrl } : {}),
     localUrl: p.path,
   };
 }

@@ -185,7 +185,7 @@ export function HelpScreen({ onBack, openChat }: { onBack: () => void; openChat:
         </Card>
         <Card pad={false}>
           <LinkRow left={<IconOval icon="flag" size={36} />} title="Report a problem" sub="Tell us what went wrong; we add your phone’s details" onPress={() => setReporting(true)} />
-          <LinkRow left={<IconOval icon="document" size={36} />} title="Terms and Privacy Policy" onPress={() => openSite(`${config.webUrl}/terms`)} right={<Icon name="external" size={16} color={t['ink-faint']} />} />
+          <LinkRow left={<IconOval icon="document" size={36} />} title="Terms and Privacy Policy" onPress={() => openSite(`${config.siteUrl}/terms`)} right={<Icon name="external" size={16} color={t['ink-faint']} />} />
         </Card>
         <Text style={{ textAlign: 'center', fontSize: 12, color: t['ink-soft'] }}>YaysApp for {Platform.OS === 'ios' ? 'iPhone' : 'Android'} · version {config.appVersion}</Text>
       </ScrollView>

@@ -49,6 +49,12 @@ class AppDelegate: RCTAppDelegate {
     RCTLinkingManager.application(app, open: url, options: options)
   }
 
+  // ---- Links to the web app that open YaysApp (Associated Domains: invites, circles, posts, events) ----
+  @objc(application:continueUserActivity:restorationHandler:)
+  func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+    RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
+  }
+
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     self.bundleURL()
   }

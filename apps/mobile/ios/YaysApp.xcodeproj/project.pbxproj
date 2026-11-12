@@ -358,6 +358,7 @@
 				PRODUCT_NAME = YaysApp;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_OBJC_BRIDGING_HEADER = "YaysApp/YaysApp-Bridging-Header.h";
+				CODE_SIGN_ENTITLEMENTS = YaysApp/YaysApp.entitlements;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
@@ -385,6 +386,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.indexx.yaysapp;
 				PRODUCT_NAME = YaysApp;
 				SWIFT_OBJC_BRIDGING_HEADER = "YaysApp/YaysApp-Bridging-Header.h";
+				CODE_SIGN_ENTITLEMENTS = YaysApp/YaysApp.entitlements;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};

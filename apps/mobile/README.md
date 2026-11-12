@@ -90,6 +90,23 @@ private circles take join requests. Owners also get Members (mute, remove) and R
 edit the circle's settings. Posts that promise profits or ask for money are caught before they go, as on the web.
 Nothing native is added: no rebuild needed for this one.
 
+### Links that open the app
+
+Group invites (`web.yaysapp.com/join/…`), circle invites (`/c/…`), circles, posts and events (`/circles…`) open
+YaysApp when it's installed, and invite codes (`/?ref=…`) count for whoever shared them. The same paths work on
+`yaysapp://`. A link opened before signing in waits until the person is signed in.
+
+- **iPhone**: `ios/YaysApp/YaysApp.entitlements` has Associated Domains for `web.yaysapp.com` (and the push
+  entitlement). In Xcode › Signing & Capabilities they show as Associated Domains and Push Notifications.
+- **Android**: App Links for the same paths (`AndroidManifest.xml`).
+- **The web app** serves the files Apple and Google check (`/.well-known/apple-app-site-association` and
+  `/.well-known/assetlinks.json`) once it has `APPLE_TEAM_ID` and `ANDROID_CERT_SHA256` (see `apps/web/.env.example`).
+  For Android, use both fingerprints: your upload key (`cd android && ./gradlew signingReport`) and Google Play's app
+  signing key (Play Console › Test and release › App integrity).
+
+Production addresses (`src/lib/config.ts`) are the ones the public site uses: the API at `api.yaysapp.com`, the web
+app at `web.yaysapp.com`, the site at `yaysapp.com`.
+
 ### Catch up in a chat
 
 The sparkles button in a chat's header asks Jack's AI for a short summary of the chat. It asks once per chat first
@@ -134,6 +151,9 @@ pnpm test:e2e             # the app against a real API, MongoDB and Redis (start
 ```
 
 ## Fonts and art
+
+Videos sent from the phone carry a still from the video as their preview (`react-native-create-thumbnail`), as on the
+web. After pulling this: `bundle exec pod install` and rebuild.
 
 Outfit (headings) and Nunito Sans (text) are in `assets/fonts`, one file per weight. They're already added to the
 iOS and Android projects; after adding or renaming a font, run `npx react-native-asset`. Always use `Text` and

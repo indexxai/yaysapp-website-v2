@@ -33,10 +33,13 @@ import { IndexxScreen, WalletScreen } from './src/explore/Wallet';
 import { BtcyScreen, ProductsScreen, type Tab as ProductTab } from './src/explore/Products';
 import { JackScreen } from './src/explore/Jack';
 import { PopupHost } from './src/explore/Popups';
+import { JoinInviteScreen } from './src/screens/JoinInvite';
+import { useLinks, type LinkTarget } from './src/lib/links';
 import type { MeProfile } from '@yays/shared';
 
 export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined;
   Discover: undefined; NewCircle: undefined; CircleSettings: { id: string }; Circle: { id: string; tab?: 'feed' | 'events' | 'chats' | 'about' }; Compose: { circleId: string }; Post: { id: string }; Event: { id: string }; EventForm: { circleId: string; eventId?: string };
+  JoinInvite: { kind: 'group' | 'circle'; code: string };
   Jack: undefined; Earn: undefined; History: undefined; Invite: undefined; Wallet: undefined; Indexx: undefined; Btcy: undefined; Products: { tab?: ProductTab }; Help: undefined;
 };
 const Stack = createNativeStackNavigator<Routes>();
@@ -60,6 +63,14 @@ const exploreNav = (nav: Nav): ExploreNav => ({
   ai: () => nav.navigate('Jack'), earn: () => nav.navigate('Earn'), wallet: () => nav.navigate('Wallet'), invite: () => nav.navigate('Invite'), help: () => nav.navigate('Help'),
   btcy: () => nav.navigate('Btcy'), product: (tab) => nav.navigate('Products', { tab }), indexx: () => nav.navigate('Indexx'),
 });
+/** A link that opens the app (an invite, a circle, a post, an event): there, once the screens are ready. */
+const openLink = (l: Exclude<LinkTarget, { to: 'ref' }>, tries = 0) => {
+  if (!navRef.isReady()) { if (tries < 25) setTimeout(() => openLink(l, tries + 1), 200); return; }
+  if (l.to === 'join') navRef.navigate('JoinInvite', { kind: l.kind, code: l.code });
+  else if (l.to === 'circle') navRef.navigate('Circle', { id: l.id });
+  else if (l.to === 'post') navRef.navigate('Post', { id: l.id });
+  else navRef.navigate('Event', { id: l.id });
+};
 /** Where a launch pop-up's button goes. */
 const openFromPopup = (where: 'ai' | 'btcy' | 'indexx' | 'earn') => { if (navRef.isReady()) navRef.navigate(({ ai: 'Jack', btcy: 'Btcy', indexx: 'Indexx', earn: 'Earn' } as const)[where]); };
 const circleNav = (nav: Nav): CircleNav => ({
@@ -85,6 +96,8 @@ function Tabs({ me }: { me: MeProfile }) {
 function Root() {
   const s = useSession();
   const t = useTheme();
+  // Links that open the app wait until the person is signed in with a profile.
+  useLinks(s.state.status === 'signedIn' && !!s.state.me.id && !s.state.me.pending.includes('profile'), openLink);
   if (s.state.status === 'loading') return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.ground }}><ActivityIndicator color={t.ember} /></View>;
   if (s.state.status === 'signedIn' && !s.state.me.id) {
     // First launch after sign-in with no network and nothing saved yet.
@@ -120,6 +133,8 @@ function Root() {
             <Stack.Screen name="MessageInfo">{({ route }) => <MessageInfoScreen {...route.params} />}</Stack.Screen>
             <Stack.Screen name="Profile">{({ navigation }) => <SettingsScreen openDevices={() => navigation.navigate('Devices')} />}</Stack.Screen>
             <Stack.Screen name="Devices" component={DevicesScreen} />
+            <Stack.Screen name="JoinInvite" options={{ headerShown: false }}>{({ navigation, route }) => <JoinInviteScreen kind={route.params.kind} code={route.params.code} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs'))}
+              openChat={(id) => navigation.replace('Chat', { id })} openCircle={(id) => navigation.replace('Circle', { id })} />}</Stack.Screen>
             <Stack.Screen name="Jack" options={{ headerShown: false }}>{({ navigation }) => <JackScreen me={me!} onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
             <Stack.Screen name="Earn" options={{ headerShown: false }}>{({ navigation }) => <EarnScreen me={me!} onBack={() => navigation.goBack()} nav={{
               history: () => navigation.navigate('History'), invite: () => navigation.navigate('Invite'), wallet: () => navigation.navigate('Wallet'), ai: () => navigation.navigate('Jack'), btcy: () => navigation.navigate('Btcy'), indexx: () => navigation.navigate('Indexx'),

@@ -46,6 +46,17 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="yaysapp" />
         </intent-filter>
+        <!-- Links to the web app open YaysApp (Android App Links). The web app serves /.well-known/assetlinks.json with
+             this app's signing fingerprints (ANDROID_CERT_SHA256), so Android opens them without asking. -->
+        <intent-filter android:autoVerify="true">
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.DEFAULT" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" android:host="web.yaysapp.com" />
+            <data android:pathPrefix="/join/" />
+            <data android:pathPrefix="/c/" />
+            <data android:pathPrefix="/circles" />
+        </intent-filter>
       </activity>
     </application>
 </manifest>

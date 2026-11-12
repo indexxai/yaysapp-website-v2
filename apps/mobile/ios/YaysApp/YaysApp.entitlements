@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Notifications and VoIP pushes (Xcode › Signing & Capabilities › Push Notifications). "production" in App Store builds is set by Xcode when it signs them. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- Links to the web app open YaysApp (invites, circles, posts, events). The web app serves /.well-known/apple-app-site-association. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:web.yaysapp.com</string>
+	</array>
+</dict>
+</plist>
