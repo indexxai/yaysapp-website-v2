@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../ui/Text';
 import { CallButtons } from '../calls/Calls';
+import { CatchUp } from '../chat/CatchUp';
 import { clearChat } from '../lib/push';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, attachmentLabel, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
@@ -304,6 +305,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
   const [editing, setEditing] = useState<ThreadItem | null>(null);
   const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
   const [viewing, setViewing] = useState<ThreadItem | null>(null);
+  const [catchUp, setCatchUp] = useState(false);
   useEffect(() => { clearChat(id); }, [id]); // its notifications, on iPhone
   useEffect(() => {
     engine.open(id).catch((e) => setError(e instanceof ApiError && e.status === 404 ? 'This chat does not exist or you are not in it.' : 'Could not load this chat. Check your connection.'));
@@ -378,6 +380,9 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
             <Text testID="peer-status" numberOfLines={1} style={{ fontSize: 13, color: typing ? t['ember-ink'] : t['ink-soft'], fontWeight: typing ? '700' : '400' }}>{status}</Text>
           </View>
           </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Catch up" accessibilityState={{ selected: catchUp }} testID="catch-up" onPress={() => setCatchUp((v) => !v)} hitSlop={8}>
+            <Icon name="sparkles" size={22} color={catchUp ? t['ember-ink'] : t['ink-soft']} />
+          </Pressable>
           <CallButtons conversationId={id} canCall={c.canSend && !(group && c.group?.announcements)} live={c.call} />
         </View>
         {pin ? (
@@ -386,6 +391,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
             <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: t.ink }}><Text style={{ fontWeight: '700' }}>Pinned{c.pins.length > 1 ? ` (${c.pins.length})` : ''}: </Text>{pin.text || 'Message'}</Text>
           </View>
         ) : null}
+        {catchUp ? <CatchUp c={c} onClose={() => setCatchUp(false)} /> : null}
         <ConnectionNotice />
         {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

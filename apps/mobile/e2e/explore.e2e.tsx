@@ -228,4 +228,27 @@ describe('Explore on mobile, against the real API', () => {
     expect(await screen.findByTestId('thread', {}, { timeout: 10000 })).toBeTruthy();
     expect((await screen.findAllByText(/My check-in didn’t add INEX/, {}, T)).length).toBeGreaterThan(0);
   });
+
+  it('Catch up in a chat: Jack asks first, then summarises; it remembers the yes, and it can be turned off', async () => {
+    const sara = await user('Sara'), amara = await user('Amara');
+    const conv = (await call('/v1/conversations/direct', { userId: amara.id }, as(sara))).id as string;
+    await say(amara, conv, 'That dinner was great!');
+    await say(amara, conv, 'Same place next Friday?');
+    launchAs(sara);
+    fireEvent.press(await screen.findByLabelText(/^Chat with Amara/, {}, T));
+    fireEvent.press(await screen.findByTestId('catch-up', {}, T));
+    const ask = await screen.findByTestId('catchup-consent', {}, T);
+    expect(within(ask).getByText('Not sent: photos, voice notes, phone numbers')).toBeTruthy();
+    fireEvent.press(within(ask).getByLabelText('Allow and summarise'));
+    const card = await screen.findByTestId('catchup', {}, T);
+    expect(await within(card).findByText(/Summary of \d+ messages?/, {}, T)).toBeTruthy();
+    expect((await call(`/v1/ai/consent/${conv}`, undefined, as(sara))).consent).toBe(true);
+    // Again: no question this time.
+    fireEvent.press(within(card).getByLabelText('Close summary'));
+    fireEvent.press(screen.getByTestId('catch-up'));
+    expect(await within(await screen.findByTestId('catchup', {}, T)).findByText(/Summary of/, {}, T)).toBeTruthy();
+    expect(screen.queryByTestId('catchup-consent')).toBeNull();
+    fireEvent.press(within(screen.getByTestId('catchup')).getByLabelText('Stop letting Jack read this chat'));
+    await waitFor(async () => expect((await call(`/v1/ai/consent/${conv}`, undefined, as(sara))).consent).toBe(false), T);
+  });
 });

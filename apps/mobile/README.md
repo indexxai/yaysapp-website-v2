@@ -90,6 +90,12 @@ private circles take join requests. Owners also get Members (mute, remove) and R
 edit the circle's settings. Posts that promise profits or ask for money are caught before they go, as on the web.
 Nothing native is added: no rebuild needed for this one.
 
+### Catch up in a chat
+
+The sparkles button in a chat's header asks Jack's AI for a short summary of the chat. It asks once per chat first
+(text, names and times are sent; photos, voice notes and phone numbers are not), and can be turned off from the
+summary. As on the web, there is no money in chats.
+
 ### Explore
 
 The Explore tab: Jack's AI (chat, web answers with sources, documents and pictures, sent to a chat if you like),
