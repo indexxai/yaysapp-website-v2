@@ -75,6 +75,14 @@ The sign-in screen has **Facebook** and **Google** under the phone number, as in
   `FACEBOOK_APP_SECRET`), opens Facebook in a sign-in browser and comes back on `yaysapp://`. Facebook signs in only
   accounts that linked it (Settings › Social accounts on the web).
 
+### Circles
+
+The Circles tab works as on the web: your circles and coming events, Discover (search, categories, featured), and
+each circle's Feed, Events, Chats and About. Members post (text and up to 4 photos), like, comment, report and RSVP;
+private circles take join requests. Owners also get Members (mute, remove) and Review (approve, settle reports), and
+edit the circle's settings. Posts that promise profits or ask for money are caught before they go, as on the web.
+Nothing native is added: no rebuild needed for this one.
+
 ### Notifications
 
 Messages and calls notify the phone when YaysApp isn't open. Android uses Firebase Cloud Messaging; iPhone uses

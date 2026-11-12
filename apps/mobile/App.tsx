@@ -22,9 +22,15 @@ import { TabBar, type TabName } from './src/ui/TabBar';
 import { CallLayer, CallsProvider } from './src/calls/Calls';
 import { CallsScreen } from './src/calls/CallsTab';
 import { useClearBadgeOnOpen, usePushNotifications, type PushData } from './src/lib/push';
+import { CircleFormScreen, CirclesTab, DiscoverScreen, type CircleNav } from './src/circles/CirclesScreens';
+import { CircleScreen } from './src/circles/CircleScreen';
+import { ComposeScreen, PostScreen } from './src/circles/Posts';
+import { EventFormScreen, EventScreen } from './src/circles/Events';
 import type { MeProfile } from '@yays/shared';
 
-export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined };
+export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined;
+  Discover: undefined; NewCircle: undefined; CircleSettings: { id: string }; Circle: { id: string; tab?: 'feed' | 'events' | 'chats' | 'about' }; Compose: { circleId: string }; Post: { id: string }; Event: { id: string }; EventForm: { circleId: string; eventId?: string };
+};
 const Stack = createNativeStackNavigator<Routes>();
 /** For the call screens, which sit above the navigator: "Message" on a ringing call opens its chat. */
 const navRef = createNavigationContainerRef<Routes>();
@@ -41,6 +47,9 @@ function Notifications() {
 }
 const Tab = createBottomTabNavigator<Record<TabName, undefined>>();
 type Nav = NativeStackNavigationProp<Routes>;
+const circleNav = (nav: Nav): CircleNav => ({
+  openCircle: (id) => nav.push('Circle', { id }), openDiscover: () => nav.navigate('Discover'), openNew: () => nav.navigate('NewCircle'), openEvent: (id) => nav.push('Event', { id }),
+});
 
 /** Chats, Calls, Circles, Explore and Me, with the bar from the design. */
 function Tabs({ me }: { me: MeProfile }) {
@@ -51,7 +60,7 @@ function Tabs({ me }: { me: MeProfile }) {
     <Tab.Navigator screenOptions={{ headerShown: false }} tabBar={(p) => <TabBar {...p} badges={{ Chats: { n: unread, label: `${unread} unread chat${unread === 1 ? '' : 's'}` }, Calls: { n: s.missedCalls, label: `${s.missedCalls} missed call${s.missedCalls === 1 ? '' : 's'}` } }} />}>
       <Tab.Screen name="Chats">{() => <ChatListScreen me={me} openChat={(id) => nav.navigate('Chat', { id })} openNewChat={() => nav.navigate('NewChat')} openNewGroup={() => nav.navigate('NewGroup')} openSearch={() => nav.navigate('Search')} openArchived={() => nav.navigate('Archived')} />}</Tab.Screen>
       <Tab.Screen name="Calls">{() => <CallsScreen openChat={(id) => nav.navigate('Chat', { id })} />}</Tab.Screen>
-      <Tab.Screen name="Circles">{() => <ComingScreen title="Circles" art="hype" icon="people" lines={['Communities for the things you love: posts, events and people near you.', 'Circles already work on YaysApp for the web.']} />}</Tab.Screen>
+      <Tab.Screen name="Circles">{() => <CirclesTab nav={circleNav(nav)} />}</Tab.Screen>
       <Tab.Screen name="Explore">{() => <ComingScreen title="Explore" art="explorer" icon="compass" lines={['Jack’s AI, daily check-in, INEX rewards, your wallet and the Indexx products.', 'All of it already works on YaysApp for the web.']} />}</Tab.Screen>
       <Tab.Screen name="Me">{() => <MeScreen me={me} open={(r) => nav.navigate(r)} />}</Tab.Screen>
     </Tab.Navigator>
@@ -96,6 +105,19 @@ function Root() {
             <Stack.Screen name="MessageInfo">{({ route }) => <MessageInfoScreen {...route.params} />}</Stack.Screen>
             <Stack.Screen name="Profile">{({ navigation }) => <SettingsScreen openDevices={() => navigation.navigate('Devices')} />}</Stack.Screen>
             <Stack.Screen name="Devices" component={DevicesScreen} />
+            <Stack.Screen name="Discover" options={{ headerShown: false }}>{({ navigation }) => <DiscoverScreen nav={circleNav(navigation)} onBack={() => navigation.goBack()} />}</Stack.Screen>
+            <Stack.Screen name="NewCircle" options={{ headerShown: false, presentation: 'modal' }}>{({ navigation }) => <CircleFormScreen onBack={() => navigation.goBack()} onSaved={(c) => navigation.replace('Circle', { id: c.id })} />}</Stack.Screen>
+            <Stack.Screen name="CircleSettings" options={{ headerShown: false, presentation: 'modal' }}>{({ navigation, route }) => <CircleFormScreen id={route.params.id} onBack={() => navigation.goBack()} onSaved={() => navigation.goBack()} />}</Stack.Screen>
+            <Stack.Screen name="Circle" options={{ headerShown: false }}>{({ navigation, route }) => <CircleScreen id={route.params.id} tab={route.params.tab} me={me!} nav={{
+              back: () => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs')), compose: () => navigation.navigate('Compose', { circleId: route.params.id }),
+              newEvent: () => navigation.navigate('EventForm', { circleId: route.params.id }), openPost: (id) => navigation.push('Post', { id }), openEvent: (id) => navigation.push('Event', { id }),
+              openChat: (id) => navigation.navigate('Chat', { id }), editCircle: () => navigation.navigate('CircleSettings', { id: route.params.id }), discover: () => navigation.navigate('Discover'),
+            }} />}</Stack.Screen>
+            <Stack.Screen name="Compose" options={{ headerShown: false, presentation: 'modal' }}>{({ navigation, route }) => <ComposeScreen circleId={route.params.circleId} me={me!} onBack={() => navigation.goBack()} onPosted={() => navigation.goBack()} onEvent={() => navigation.replace('EventForm', { circleId: route.params.circleId })} />}</Stack.Screen>
+            <Stack.Screen name="Post" options={{ headerShown: false }}>{({ navigation, route }) => <PostScreen id={route.params.id} me={me!} onBack={() => navigation.goBack()} openCircle={(id) => navigation.push('Circle', { id })} />}</Stack.Screen>
+            <Stack.Screen name="Event" options={{ headerShown: false }}>{({ navigation, route }) => <EventScreen id={route.params.id} me={me!} onBack={() => navigation.goBack()} openCircle={(id) => navigation.push('Circle', { id, tab: 'events' })} openEdit={(circleId, eventId) => navigation.navigate('EventForm', { circleId, eventId })} />}</Stack.Screen>
+            <Stack.Screen name="EventForm" options={{ headerShown: false, presentation: 'modal' }}>{({ navigation, route }) => <EventFormScreen circleId={route.params.circleId} eventId={route.params.eventId} onBack={() => navigation.goBack()}
+              onSaved={(e) => (route.params.eventId ? navigation.goBack() : navigation.replace('Event', { id: e.id }))} />}</Stack.Screen>
           </>
         )}
       </Stack.Navigator>
