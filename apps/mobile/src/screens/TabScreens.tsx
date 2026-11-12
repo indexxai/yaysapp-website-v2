@@ -25,20 +25,6 @@ export function TabPage({ title, art, right, children, testID }: { title: string
   );
 }
 
-/** Circles and Explore until they're built in the app: what's coming, and that it works on the web now. */
-export function ComingScreen({ title, art, icon, lines }: { title: string; art: ArtName; icon: IconName; lines: string[] }) {
-  const t = useTheme();
-  return (
-    <TabPage title={title} art={art} testID={`coming-${title}`}>
-      <View style={[styles.card, { backgroundColor: t.raised, alignItems: 'center', paddingVertical: 28 }]}>
-        <Oval width={72} fill={t['ember-wash']}><Icon name={icon} size={30} color={t['ember-ink']} /></Oval>
-        <Text style={[styles.cardTitle, { color: t.ink }]}>Coming to the app next</Text>
-        {lines.map((l) => <Text key={l} style={{ color: t['ink-soft'], fontSize: 14, lineHeight: 21, textAlign: 'center' }}>{l}</Text>)}
-      </View>
-    </TabPage>
-  );
-}
-
 function Row({ icon, label, sub, onPress, danger, testID }: { icon: IconName; label: string; sub?: string; onPress: () => void; danger?: boolean; testID?: string }) {
   const t = useTheme();
   return (
@@ -55,7 +41,7 @@ function Row({ icon, label, sub, onPress, danger, testID }: { icon: IconName; la
 }
 
 /** Me: who you are, then your settings. */
-export function MeScreen({ me, open }: { me: MeProfile; open: (screen: 'Profile' | 'Devices') => void }) {
+export function MeScreen({ me, open }: { me: MeProfile; open: (screen: 'Profile' | 'Devices' | 'Indexx' | 'Help') => void }) {
   const t = useTheme();
   const s = useSession();
   const logOut = () => Alert.alert('Log out of YaysApp?', 'You can sign in again any time with your phone or email.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Log out', style: 'destructive', onPress: () => void s.signOut() }]);
@@ -73,6 +59,8 @@ export function MeScreen({ me, open }: { me: MeProfile; open: (screen: 'Profile'
       <View style={[styles.card, { backgroundColor: t.raised, padding: 0, overflow: 'hidden' }]}>
         <Row icon="person-circle" label="Profile" sub="Name, photo, username, about" onPress={() => open('Profile')} />
         <Row icon="devices" label="Linked devices" sub="Phones and browsers signed in" onPress={() => open('Devices')} />
+        <Row icon="link" label="Indexx account" sub="BTCY, EMMM, ShoperPal, Wall Street and the wallet" onPress={() => open('Indexx')} />
+        <Row icon="help" label="Help and support" sub="AI answers, then a person" onPress={() => open('Help')} />
         <Row icon="logout" label="Log out" onPress={logOut} danger />
       </View>
     </TabPage>

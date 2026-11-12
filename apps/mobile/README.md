@@ -83,6 +83,18 @@ private circles take join requests. Owners also get Members (mute, remove) and R
 edit the circle's settings. Posts that promise profits or ask for money are caught before they go, as on the web.
 Nothing native is added: no rebuild needed for this one.
 
+### Explore
+
+The Explore tab: Jack's AI (chat, web answers with sources, documents and pictures, sent to a chat if you like),
+the daily check-in, Earn (tasks, bonuses, INEX history, invites), the Wallet (INEX, BTCY Nuggets, USDXX and Indexx
+Exchange; withdraw INEX to the exchange), BTCY and the other Indexx products, and Help (Jack answers first, then
+a person). The check-in or a bonus pops up once a day as the app opens. Indexx account and Help are also on the Me tab.
+
+- In development the API's stand-ins answer: `INDEXX_DRIVER=dev` signs in to Indexx with any password except
+  `wrong-password`, and `AI_DRIVER=dev` gives sample answers and plain sample pictures. For real data set
+  `INDEXX_DRIVER=live` and an AI key (`OPENROUTER_API_KEY` or `OPENAI_API_KEY`) in `apps/api/.env`.
+- Nothing native is added.
+
 ### Notifications
 
 Messages and calls notify the phone when YaysApp isn't open. Android uses Firebase Cloud Messaging; iPhone uses
