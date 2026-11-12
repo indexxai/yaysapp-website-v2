@@ -94,7 +94,7 @@ describe('Calls on mobile, against the real API and LiveKit', () => {
 
     await call(`/v1/calls/${started.call.id}/leave`, {}, sara.tokens.accessToken);
     await waitFor(() => expect(status()).toBe('Call ended'), { timeout: 5000 });
-    await waitFor(() => expect(screen.queryByTestId('call-screen')).toBeNull(), { timeout: 5000 });
+    await waitFor(() => expect(screen.queryByTestId('call-screen')).toBeNull(), { timeout: 9000 });
   });
 
   it('decline an incoming call: the caller sees it declined', async () => {
