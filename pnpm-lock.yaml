@@ -162,6 +162,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@bam.tech/react-native-image-resizer':
+        specifier: 3.0.11
+        version: 3.0.11(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0)
       '@livekit/react-native':
         specifier: 2.12.0
         version: 2.12.0(@livekit/react-native-webrtc@144.1.2(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)))(livekit-client@2.22.4(@types/dom-mediacapture-record@1.0.22))(react-dom@19.0.0(react@19.0.0))(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0)(tslib@2.8.1)
@@ -1239,6 +1242,13 @@ packages:
   '@babel/types@7.29.11':
     resolution: {integrity: sha512-WCsemW40Cpc6gouC1SrY6PBaZ+oLRlEVY9XBvZBI7il/HyUrb2nJ505wE1MHEFyDZNnrWDEuy4jL50WVHfTTSQ==}
     engines: {node: '>=6.9.0'}
+
+  '@bam.tech/react-native-image-resizer@3.0.11':
+    resolution: {integrity: sha512-J/vAe51uPhJafT0uAIQI3gziqVs4Tnw32bHau/+I7AukSs4YxLXIaOVF6EChZ9ZFu+fLxvVrRTbHKDf+1YoXag==}
+    engines: {node: '>= 16.0.0'}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
@@ -8150,6 +8160,11 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.11
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@bam.tech/react-native-image-resizer@3.0.11(react-native@0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0))(react@19.0.0)':
+    dependencies:
+      react: 19.0.0
+      react-native: 0.78.0(@babel/core@7.29.7)(@babel/preset-env@7.29.7(@babel/core@7.29.7))(@react-native-community/cli-server-api@15.0.1)(@types/react@19.3.0)(react@19.0.0)
 
   '@bcoe/v8-coverage@0.2.3': {}
 

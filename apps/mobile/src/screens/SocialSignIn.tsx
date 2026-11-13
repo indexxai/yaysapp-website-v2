@@ -14,7 +14,7 @@ import { Screen } from './Screen';
 // ---------------------------------------------------------------------------------------------------------------
 // Sign in with Google or Facebook, under the phone form ("or"). Google: Google's own sign-in sheet gives an ID
 // token the API checks. Facebook: Facebook's page opens in a sign-in browser and comes back to yaysapp://.
-// Facebook never makes an account: it works once it's linked to one (Settings › Social accounts on the web).
+// Facebook never makes an account: it works once it's linked to one (Me › Social accounts, or Settings on the web).
 // ---------------------------------------------------------------------------------------------------------------
 const msg = (e: unknown, f: string) => (e instanceof ApiError || e instanceof Error ? e.message : f);
 type Done = (r: AuthResult) => void;
@@ -47,9 +47,9 @@ function devGoogleToken(email: string, name: string) {
   return `dev.${out}`;
 }
 
-/** Facebook's page in a sign-in browser (or the phone's browser), back at yaysapp://auth/facebook?… */
-async function facebookReturn(url: string): Promise<string | null> {
-  const back = `${config.scheme}://auth/facebook`;
+/** Facebook's page in a sign-in browser (or the phone's browser), back at yaysapp://<path>?… (sign-in or linking). */
+export async function facebookReturn(url: string, path = 'auth/facebook'): Promise<string | null> {
+  const back = `${config.scheme}://${path}`;
   try {
     const { InAppBrowser } = require('react-native-inappbrowser-reborn') as typeof import('react-native-inappbrowser-reborn');
     if (await InAppBrowser.isAvailable()) {
@@ -109,7 +109,7 @@ export function SocialSignIn({ onDone, onEmail }: { onDone: Done; onEmail?: () =
         {showGoogle ? <OvalButton icon="google" label="Google" size="lg" loading={busy === 'google'} disabled={!!busy} onPress={google} /> : null}
         {onEmail ? <OvalButton icon="mail" label="Email" size="lg" disabled={!!busy} onPress={onEmail} /> : null}
       </View>
-      <Text style={{ fontSize: 12, lineHeight: 17, color: t['ink-soft'], textAlign: 'center' }}>Facebook works once you’ve linked it in Settings › Social accounts on YaysApp Web. New here? Start with your phone number.</Text>
+      <Text style={{ fontSize: 12, lineHeight: 17, color: t['ink-soft'], textAlign: 'center' }}>Facebook works once you’ve linked it in Me › Social accounts. New here? Start with your phone number.</Text>
       {devGoogle ? <DevGoogle onClose={() => setDevGoogle(false)} onToken={(tok) => { setDevGoogle(false); void run('google', async () => finish(await (await api()).google(tok))); }} /> : null}
       {notLinked !== null ? <NotLinked name={notLinked} onClose={(to) => { setNotLinked(null); if (to === 'email') onEmail?.(); }} /> : null}
     </>
@@ -147,7 +147,7 @@ function NotLinked({ name, onClose }: { name: string; onClose: (to: 'phone' | 'e
             <Oval width={84} fill={t['warning-wash']}><Icon name="facebook" size={36} color={t['warning-ink']} /></Oval>
             <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 26, lineHeight: 32, color: t.ink, textAlign: 'center' }}>This Facebook isn’t linked yet</Text>
             <Text style={{ fontSize: 15, lineHeight: 22, color: t['ink-soft'], textAlign: 'center' }}>
-              No YaysApp account uses {name ? <Text style={{ fontWeight: '700', color: t.ink }}>{name}</Text> : 'this account'} on Facebook. Sign in with your phone number, then link Facebook in Settings › Social accounts.
+              No YaysApp account uses {name ? <Text style={{ fontWeight: '700', color: t.ink }}>{name}</Text> : 'this account'} on Facebook. Sign in with your phone number, then link Facebook in Me › Social accounts.
             </Text>
             <View style={{ flexDirection: 'row', gap: 32, marginTop: 8 }}>
               <OvalButton icon="phone" label="Sign in with phone" size="lg" onPress={() => onClose('phone')} />

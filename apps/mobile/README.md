@@ -80,7 +80,8 @@ The sign-in screen has **Facebook** and **Google** under the phone number, as in
   On the API: `GOOGLE_DRIVER=google` and `GOOGLE_CLIENT_IDS=<web id>,<iOS id>`.
 - **Facebook** needs nothing in the app. It uses the API's Facebook settings (`FACEBOOK_DRIVER`, `FACEBOOK_APP_ID`,
   `FACEBOOK_APP_SECRET`), opens Facebook in a sign-in browser and comes back on `yaysapp://`. Facebook signs in only
-  accounts that linked it (Settings › Social accounts on the web).
+  accounts that linked it (Me › Social accounts on the phone, or Settings › Social accounts on the web). Linking
+  from the phone comes back on `yaysapp://settings/facebook`.
 
 ### Circles
 
@@ -124,6 +125,20 @@ a person). The check-in or a bonus pops up once a day as the app opens. Indexx a
   `wrong-password`, and `AI_DRIVER=dev` gives sample answers and plain sample pictures. For real data set
   `INDEXX_DRIVER=live` and an AI key (`OPENROUTER_API_KEY` or `OPENAI_API_KEY`) in `apps/api/.env`.
 - Nothing native is added.
+
+### Me and settings
+
+The Me tab has the same settings as the web: **Profile and account** (name, photo, username, about, number, email,
+two-step PIN, download your data, delete the account, your socials as others see them), **Privacy** (last seen,
+photo, about, groups, read receipts, unknown callers, blocked people), **Notifications** (previews, groups, sound,
+quiet hours, and a link to the phone's own settings when notifications are off), **Appearance and chats** (light,
+dark or follow the phone; message text size; export a chat as text through the share sheet), **Starred messages**,
+**Storage and data**, **Linked devices**, **Indexx account**, **Social accounts** and **Help**. Theme, text size and
+sound are saved to the account, so the phone and the web match. A contact's socials show on their contact info when
+they share them with you.
+
+Photos sent from the phone also send a small preview (up to 480px, like the web), made with
+`@bam.tech/react-native-image-resizer`; run `pod install` after pulling.
 
 ### Notifications
 

@@ -1,9 +1,13 @@
 import { useColorScheme } from 'react-native';
 import tokens from '@yays/tokens';
+import { usePrefs } from './prefs';
 
 export type Theme = typeof tokens.color.light & { scheme: 'light' | 'dark' };
+/** Light or dark: the account's choice (Me › Appearance), or the phone's own setting when it's "Follow system". */
 export function useTheme(): Theme {
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const system = useColorScheme();
+  const { theme } = usePrefs();
+  const scheme = theme === 'system' ? (system === 'dark' ? 'dark' : 'light') : theme;
   return { ...tokens.color[scheme], scheme };
 }
 export const space = tokens.space;

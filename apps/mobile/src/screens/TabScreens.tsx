@@ -41,7 +41,8 @@ function Row({ icon, label, sub, onPress, danger, testID }: { icon: IconName; la
 }
 
 /** Me: who you are, then your settings. */
-export function MeScreen({ me, open }: { me: MeProfile; open: (screen: 'Profile' | 'Devices' | 'Indexx' | 'Help') => void }) {
+export type MeRoute = 'Profile' | 'Privacy' | 'NotificationSettings' | 'Appearance' | 'Starred' | 'Storage' | 'Devices' | 'Indexx' | 'Socials' | 'Help';
+export function MeScreen({ me, open }: { me: MeProfile; open: (screen: MeRoute) => void }) {
   const t = useTheme();
   const s = useSession();
   const logOut = () => Alert.alert('Log out of YaysApp?', 'You can sign in again any time with your phone or email.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Log out', style: 'destructive', onPress: () => void s.signOut() }]);
@@ -57,10 +58,20 @@ export function MeScreen({ me, open }: { me: MeProfile; open: (screen: 'Profile'
         <Icon name="edit" size={18} color={t['ember-ink']} />
       </Pressable>
       <View style={[styles.card, { backgroundColor: t.raised, padding: 0, overflow: 'hidden' }]}>
-        <Row icon="person-circle" label="Profile" sub="Name, photo, username, about" onPress={() => open('Profile')} />
+        <Row icon="key" label="Profile and account" sub="Name, photo, number, two-step" onPress={() => open('Profile')} />
+        <Row icon="lock" label="Privacy" sub="Last seen, read receipts, blocked" onPress={() => open('Privacy')} />
+        <Row icon="bell" label="Notifications" sub="Previews, sound, quiet hours" onPress={() => open('NotificationSettings')} />
+        <Row icon="palette" label="Appearance and chats" sub="Theme, text size, export a chat" onPress={() => open('Appearance')} />
+        <Row icon="star" label="Starred messages" sub="Messages you saved" onPress={() => open('Starred')} />
+        <Row icon="database" label="Storage and data" sub="What chats take up, this phone’s copy" onPress={() => open('Storage')} />
+      </View>
+      <View style={[styles.card, { backgroundColor: t.raised, padding: 0, overflow: 'hidden' }]}>
         <Row icon="devices" label="Linked devices" sub="Phones and browsers signed in" onPress={() => open('Devices')} />
         <Row icon="link" label="Indexx account" sub="BTCY, EMMM, ShoperPal, Wall Street and the wallet" onPress={() => open('Indexx')} />
+        <Row icon="globe" label="Social accounts" sub="Show your socials on your profile" onPress={() => open('Socials')} />
         <Row icon="help" label="Help and support" sub="AI answers, then a person" onPress={() => open('Help')} />
+      </View>
+      <View style={[styles.card, { backgroundColor: t.raised, padding: 0, overflow: 'hidden' }]}>
         <Row icon="logout" label="Log out" onPress={logOut} danger />
       </View>
     </TabPage>

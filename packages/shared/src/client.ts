@@ -366,7 +366,7 @@ export class YaysClient {
   removeSocial(network: SocialNetwork) { return this.request<SocialsView>('DELETE', `/v1/me/socials/${network}`); }
   socialVisibility(visibility: 'everyone' | 'contacts' | 'nobody') { return this.request<SocialsView>('PUT', '/v1/me/socials', { visibility }); }
   /** Where to send the browser to link Facebook (Facebook's own page, or the dev stand-in). */
-  linkFacebook(login: boolean) { return this.request<{ url: string }>('POST', '/v1/me/socials/facebook/start', { login }); }
+  linkFacebook(login: boolean, returnTo: 'web' | 'app' = 'web') { return this.request<{ url: string }>('POST', '/v1/me/socials/facebook/start', { login, returnTo }); }
   facebookLogin(on: boolean) { return this.request<SocialsView>('PUT', '/v1/me/socials/facebook/login', { on }); }
   unlinkFacebook() { return this.request<SocialsView>('DELETE', '/v1/me/socials/facebook'); }
   /** Sign in with Facebook: where to send the browser. It comes back to /sign-in with a ticket. */

@@ -16,13 +16,13 @@ const look = (t: Theme, v: Variant) => ({
 })[v];
 
 /** The only button in YaysApp: icon in the brand oval, label underneath. */
-export function OvalButton({ icon, label, onPress, size = 'md', variant = 'primary', loading, disabled, testID }:
-  { icon: IconName; label: string; onPress?: () => void; size?: keyof typeof SIZES; variant?: Variant; loading?: boolean; disabled?: boolean; testID?: string }) {
+export function OvalButton({ icon, label, onPress, size = 'md', variant = 'primary', loading, disabled, testID, accessibilityLabel }:
+  { icon: IconName; label: string; onPress?: () => void; size?: keyof typeof SIZES; variant?: Variant; loading?: boolean; disabled?: boolean; testID?: string; /** When the short label needs more words to make sense on its own (“Remove” → “Remove Instagram”). */ accessibilityLabel?: string }) {
   const t = useTheme();
   const s = SIZES[size], c = look(t, variant);
   const off = disabled || loading;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!off, busy: !!loading }} onPress={off ? undefined : onPress} testID={testID}
+    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? label} accessibilityState={{ disabled: !!off, busy: !!loading }} onPress={off ? undefined : onPress} testID={testID}
       style={({ pressed }) => [styles.btn, { opacity: off ? 0.45 : 1, transform: [{ scale: pressed ? 0.94 : 1 }] }]} hitSlop={8}>
       <Oval width={s.w} fill={c.fill}>{loading ? <ActivityIndicator color={c.ink} size="small" /> : <Icon name={icon} size={s.icon} color={c.ink} />}</Oval>
       <Text style={[styles.btnLabel, { color: c.label, fontSize: size === 'lg' || size === 'xl' ? 14 : 13 }]} numberOfLines={2}>{label}</Text>

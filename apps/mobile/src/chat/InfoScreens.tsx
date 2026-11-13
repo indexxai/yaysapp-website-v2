@@ -11,6 +11,7 @@ import { Avatar, Banner, Field, OvalButton } from '../ui/kit';
 import { Oval } from '../ui/Oval';
 import { Text } from '../ui/Text';
 import { errText } from './messages';
+import { UserSocials } from '../settings/Socials';
 
 const H1 = { fontFamily: 'Outfit', fontSize: 30, lineHeight: 36, fontWeight: '800' as const };
 
@@ -199,6 +200,7 @@ export function ChatInfoScreen({ id, openChat, openAddMembers, onLeft }: { id: s
             {p.username ? <Text style={{ color: t['ink-soft'], fontSize: 15 }}>@{p.username}</Text> : null}
             {p.about ? <Text style={{ color: t.ink, fontSize: 15, textAlign: 'center' }}>{p.about}</Text> : null}
           </View>
+          <UserSocials userId={p.id} />
           {notice ? <Banner tone={notice.tone}>{notice.text}</Banner> : null}
           {shared}
           {chatRows}

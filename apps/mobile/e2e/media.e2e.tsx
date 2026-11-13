@@ -69,6 +69,24 @@ describe('Photos, voice notes and files on mobile, against the real API', () => 
     await waitFor(() => expect(screen.queryByTestId('media-viewer')).toBeNull());
   });
 
+  it('a big photo also sends a small preview (480px), which chats show until it is opened', async () => {
+    const ali = await user('Ali'), sara = await user('Sara');
+    const conv = await direct(ali, sara);
+    const resizer = (jest.requireMock('@bam.tech/react-native-image-resizer') as { default: { createResizedImage: jest.Mock } }).default;
+    resizer.createResizedImage.mockResolvedValueOnce({ uri: png(48, 32), path: '', name: 'thumb.jpg', size: 0, width: 48, height: 32 });
+    (ImagePicker.openPicker as jest.Mock).mockResolvedValueOnce([{ path: png(1600, 1200), mime: 'image/png', width: 1600, height: 1200, size: 0, filename: 'hills.png' }]);
+    launchAs(ali);
+    await openChat('Sara');
+    fireEvent.press(await screen.findByLabelText('Attach'));
+    fireEvent.press(within(await screen.findByTestId('attach-sheet')).getByLabelText('Photos and videos'));
+    await waitFor(async () => {
+      const got = (await messages(sara, conv)).find((m) => m.attachment?.kind === 'image');
+      expect(got?.attachment).toMatchObject({ name: 'hills.png', width: 1600, height: 1200 });
+      expect(got!.attachment!.thumbUrl).toBeTruthy();
+    }, { timeout: 15000 });
+    expect(resizer.createResizedImage).toHaveBeenCalledWith(expect.any(String), 480, 480, 'JPEG', 72, 0, undefined, false, expect.objectContaining({ onlyScaleDown: true }));
+  });
+
   it('a video from the library: a still from it is sent as its preview, with its length', async () => {
     const ali = await user('Ali'), sara = await user('Sara');
     const conv = await direct(ali, sara);

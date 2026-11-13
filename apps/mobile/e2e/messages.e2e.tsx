@@ -22,7 +22,7 @@ const messages = async (u: U, conv: string) => (await call(`/v1/conversations/${
 const openChat = async (name: string) => fireEvent.press(await screen.findByLabelText(new RegExp(`^Chat with ${name}`)));
 /** Long-presses a message by its text (in its own bubble, not in a reply quote of it). */
 const longPress = async (text: string) => {
-  const bubble = await waitFor(() => [...screen.queryAllByTestId('msg-theirs'), ...screen.queryAllByTestId('msg-mine')].find((b) => within(b).queryAllByText(text).some((x) => !within(b).queryByTestId('reply-quote') || !within(within(b).getByTestId('reply-quote')).queryByText(text))) ?? (() => { throw new Error(`no message "${text}"`); })());
+  const bubble = await waitFor(() => [...screen.queryAllByTestId('msg-theirs'), ...screen.queryAllByTestId('msg-mine')].find((b) => within(b).queryAllByText(text).some(() => !within(b).queryByTestId('reply-quote') || !within(within(b).getByTestId('reply-quote')).queryByText(text))) ?? (() => { throw new Error(`no message "${text}"`); })());
   fireEvent(within(bubble).getAllByText(text).at(-1)!, 'longPress');
 };
 /** Answers the next Alert by pressing the button with this text. */

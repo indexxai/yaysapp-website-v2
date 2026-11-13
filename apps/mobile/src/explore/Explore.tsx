@@ -6,7 +6,7 @@ import { ApiError, INDEXX_LINKS, type ExploreView, type MeProfile } from '@yays/
 import { api } from '../lib/api';
 import { config } from '../lib/config';
 import { font, useTheme } from '../lib/theme';
-import { Icon, type IconName } from '../ui/Icon';
+import { Icon } from '../ui/Icon';
 import { Banner as ErrorBanner, Field, OvalButton } from '../ui/kit';
 import { LineArt } from '../ui/LineArt';
 import { Text, TextInput } from '../ui/Text';

@@ -85,7 +85,7 @@ export class FacebookService {
     await this.redis.set(`fb:s:${state}`, JSON.stringify(p), 'EX', STATE_SECONDS);
     return { url: this.fb.authUrl(state, this.callbackUrl()) };
   }
-  startLink(me: ObjectId, login: boolean) { if (!this.fb.available) throw AppError.validation('Facebook isn’t set up on this server yet.'); return this.begin({ purpose: 'link', uid: me.toHexString(), login }); }
+  startLink(me: ObjectId, login: boolean, app = false) { if (!this.fb.available) throw AppError.validation('Facebook isn’t set up on this server yet.'); return this.begin({ purpose: 'link', uid: me.toHexString(), login, ...(app ? { app: true } : {}) }); }
   startLogin(device: DeviceInput, app = false) { if (!this.fb.available) throw AppError.validation('Facebook sign-in isn’t set up on this server yet.'); return this.begin({ purpose: 'login', device, ...(app ? { app: true } : {}) }); }
 
   /** Facebook sent the browser back here. Returns where the browser goes next, in the web app. */

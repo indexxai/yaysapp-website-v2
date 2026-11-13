@@ -111,3 +111,4 @@ export function useClearBadgeOnOpen() {
     return () => sub.remove();
   }, []);
 }
+export const notificationsAllowed = () => allowed(false).catch(() => false);

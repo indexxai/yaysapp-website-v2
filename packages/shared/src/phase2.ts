@@ -251,7 +251,7 @@ export interface SocialsView {
   /** Only in answers about me: whether Facebook linking is set up on this server. */
   facebookAvailable?: boolean;
 }
-export const facebookStartSchema = z.object({ login: z.boolean().default(true) });
+export const facebookStartSchema = z.object({ login: z.boolean().default(true), /** 'app': come back to the phone app (yaysapp://settings/facebook?…). */ returnTo: z.enum(['web', 'app']).default('web') });
 export const facebookLoginSchema = z.object({ on: z.boolean() });
 export const facebookFinishSchema = z.object({ ticket: z.string().min(16).max(128) });
 export const socialSchema = z.object({ network: z.enum(SOCIAL_NETWORKS), handle: z.string().trim().min(1, 'Add your username.').max(60).regex(/^@?[A-Za-z0-9._-]+$/, 'Use just the username, like @sara.') });

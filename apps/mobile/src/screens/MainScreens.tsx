@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 import { Text } from '../ui/Text';
 import { ApiError, type DeviceSession } from '@yays/shared';
 import { api } from '../lib/api';
@@ -15,23 +15,6 @@ export function ProfileSetupScreen() {
   const s = useSession();
   if (s.state.status !== 'signedIn') return null;
   return <Screen title="Set up your profile" lead="This is how friends will see you in chats."><ProfileForm me={s.state.me} submitLabel="Continue" onSaved={s.setMe} /></Screen>;
-}
-
-export function SettingsScreen({ openDevices }: { openDevices: () => void }) {
-  const s = useSession();
-  const [saved, setSaved] = useState(false);
-  if (s.state.status !== 'signedIn') return null;
-  const me = s.state.me;
-  return (
-    <Screen title="Settings">
-      {saved ? <Banner tone="success">Saved. Changes show on your other devices too.</Banner> : null}
-      <ProfileForm key={me.username ?? ''} me={me} submitLabel="Save" onSaved={(m) => { s.setMe(m); setSaved(true); }} />
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
-        <OvalButton icon="devices" label="Linked devices" variant="secondary" onPress={openDevices} />
-        <OvalButton icon="logout" label="Log out" variant="danger" onPress={() => Alert.alert('Log out of YaysApp?', 'You can sign in again any time with your phone or email.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Log out', style: 'destructive', onPress: () => void s.signOut() }])} />
-      </View>
-    </Screen>
-  );
 }
 
 export function DevicesScreen() {

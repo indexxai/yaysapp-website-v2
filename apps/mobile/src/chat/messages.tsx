@@ -9,6 +9,7 @@ import {
 import { useEngine } from '../lib/chat';
 import { useCalls } from '../calls/Calls';
 import { useTheme, type Theme } from '../lib/theme';
+import { useTextScale } from '../lib/prefs';
 import { Icon, type IconName } from '../ui/Icon';
 import { Oval } from '../ui/Oval';
 import { Text } from '../ui/Text';
@@ -99,6 +100,7 @@ function ReplyQuote({ r, mine, t }: { r: NonNullable<ThreadItem['replyTo']>; min
 /** One message. Long-press for the menu; a failed one offers Retry. */
 export function Bubble({ m, c, showName, onLongPress, children }: { m: ThreadItem; c: ConversationSummary; showName: boolean; onLongPress: () => void; children?: React.ReactNode }) {
   const t = useTheme();
+  const k = useTextScale();
   const engine = useEngine();
   const mine = m.senderId === engine.me;
   const failed = m.tick === 'failed';
@@ -121,13 +123,13 @@ export function Bubble({ m, c, showName, onLongPress, children }: { m: ThreadIte
         {m.deleted ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Icon name="slash" size={14} color={mine ? ink : t['ink-soft']} />
-            <Text style={{ fontStyle: 'italic', fontSize: 15, color: mine ? ink : t['ink-soft'] }}>{mine ? 'You deleted this message' : 'This message was deleted'}</Text>
+            <Text style={{ fontStyle: 'italic', fontSize: 15 * k, color: mine ? ink : t['ink-soft'] }}>{mine ? 'You deleted this message' : 'This message was deleted'}</Text>
           </View>
         ) : (
           <>
             {children}
             {m.text && m.type !== 'poll' ? (
-              <Text style={{ fontSize: 16, lineHeight: 22, color: ink }}>
+              <Text testID="msg-text" style={{ fontSize: 16 * k, lineHeight: 22 * k, color: ink }}>
                 {withMentions(m.text, (m.mentions ?? []).map((u) => engine.nameOf(u))).map((part, i) => part.mention
                   ? <Text key={i} style={{ fontWeight: '800', color: mine ? ink : t['ember-ink'] }}>{part.text}</Text>
                   : <Text key={i}>{part.text}</Text>)}

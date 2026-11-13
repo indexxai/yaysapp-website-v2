@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import ImagePicker, { type Image as PickedImage, type Video as PickedVideo } from 'react-native-image-crop-picker';
 import { createThumbnail } from 'react-native-create-thumbnail';
+import ImageResizer from '@bam.tech/react-native-image-resizer';
 import { keepLocalCopy, pick, isErrorWithCode, errorCodes } from '@react-native-documents/picker';
 import { ApiError, baseMime, kindFor, type AttachmentKind, type FileToSend, type Uploader } from '@yays/shared';
 
@@ -45,14 +46,27 @@ export async function videoThumb(path: string): Promise<{ thumb: PhoneFile; loca
   } catch { return null; }
 }
 
+/**
+ * A small copy of a photo (up to 480px, like the web's) that chats show until someone opens the full one, so a chat
+ * full of photos loads quickly. Skipped when it wouldn't be smaller, or when making it fails.
+ */
+export async function imageThumb(path: string, size: number): Promise<{ thumb: PhoneFile; localThumbUrl: string } | null> {
+  try {
+    const r = await ImageResizer.createResizedImage(path, 480, 480, 'JPEG', 72, 0, undefined, false, { mode: 'contain', onlyScaleDown: true });
+    const thumb = await phoneFile(r.uri, 'image/jpeg');
+    return thumb.size > 0 && thumb.size < size && thumb.size <= 512 * 1024 ? { thumb, localThumbUrl: r.uri } : null;
+  } catch { return null; }
+}
+
 async function fromPicker(p: PickedImage | PickedVideo): Promise<Picked> {
   const mime = baseMime(p.mime);
   const kind: AttachmentKind = mime.startsWith('video/') ? 'video' : 'image';
   const file = await phoneFile(p.path, mime);
-  const still = kind === 'video' ? await videoThumb(p.path) : null;
+  const video = kind === 'video' ? await videoThumb(p.path) : null;
+  const still = video ?? (kind === 'image' ? await imageThumb(p.path, file.size) : null);
   return {
     file, kind, name: p.filename ?? nameFrom(p.path, kind === 'video' ? 'video.mp4' : 'photo.jpg'),
-    width: p.width || still?.width || undefined, height: p.height || still?.height || undefined,
+    width: p.width || video?.width || undefined, height: p.height || video?.height || undefined,
     ...(kind === 'video' && 'duration' in p && p.duration ? { durationMs: Math.round(p.duration) } : {}),
     ...(still ? { thumb: still.thumb, localThumbUrl: still.localThumbUrl } : {}),
     localUrl: p.path,

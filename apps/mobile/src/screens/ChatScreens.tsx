@@ -5,7 +5,7 @@ import { CallButtons } from '../calls/Calls';
 import { CatchUp } from '../chat/CatchUp';
 import { clearChat } from '../lib/push';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, attachmentLabel, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
+import { ApiError, DELETE_FOR_EVERYONE_MINUTES, MAX_FORWARD_TARGETS, MAX_TEXT, messagePreview, systemText, textLength, tickFor, type ConversationSummary, type MeProfile, type MessageInfo, type PublicProfile, type ReportReason, type ThreadItem } from '@yays/shared';
 import { AttachSheet, MediaBody, MediaViewer, RecordingBar, useVoiceRecorder } from '../chat/MediaParts';
 import { fromCamera, pickFiles, pickMedia, type Picked } from '../chat/media';
 import { MentionList, PollCard } from '../chat/PollParts';

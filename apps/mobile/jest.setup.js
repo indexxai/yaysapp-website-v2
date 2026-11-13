@@ -166,4 +166,6 @@ jest.mock('@notifee/react-native', () => {
   };
 });
 // Video stills: none unless a test hands one over (createThumbnail.mockResolvedValueOnce).
+// Photo previews: none unless a test makes one.
+jest.mock('@bam.tech/react-native-image-resizer', () => ({ __esModule: true, default: { createResizedImage: jest.fn(async () => { throw new Error('no resizing in tests'); }) } }));
 jest.mock('react-native-create-thumbnail', () => ({ createThumbnail: jest.fn(async () => { throw new Error('no thumbnail in tests'); }) }));

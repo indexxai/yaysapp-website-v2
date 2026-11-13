@@ -25,7 +25,8 @@ export class FacebookController {
   @Post('me/socials/facebook/start') @HttpCode(200) @UseGuards(AuthGuard)
   async startLink(@Auth() a: AuthCtx, @Body() b: unknown) {
     await this.limiter.hit(`fblink:${a.userId}`, 10, 3600);
-    return this.fb.startLink(a.userId, parse(facebookStartSchema, b).login);
+    const v = parse(facebookStartSchema, b);
+    return this.fb.startLink(a.userId, v.login, v.returnTo === 'app');
   }
   @Put('me/socials/facebook/login') @UseGuards(AuthGuard)
   async login(@Auth() a: AuthCtx, @Body() b: unknown) { await this.fb.setLogin(a.userId, parse(facebookLoginSchema, b).on); return this.view(a.userId); }

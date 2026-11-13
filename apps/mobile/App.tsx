@@ -11,7 +11,11 @@ import { SessionProvider, useSession } from './src/lib/session';
 import { useTheme } from './src/lib/theme';
 import { WelcomeScreen } from './src/screens/WelcomeScreen';
 import { SignInScreen } from './src/screens/SignInScreen';
-import { DevicesScreen, ProfileSetupScreen, SettingsScreen } from './src/screens/MainScreens';
+import { DevicesScreen, ProfileSetupScreen } from './src/screens/MainScreens';
+import { AccountScreen } from './src/settings/Account';
+import { NotificationsScreen, PrivacyScreen } from './src/settings/Privacy';
+import { AppearanceScreen, StarredScreen, StorageScreen } from './src/settings/Chats';
+import { SocialsScreen } from './src/settings/Socials';
 import { ArchivedScreen, ChatListScreen, ChatScreen, ForwardScreen, MessageInfoScreen, NewChatScreen } from './src/screens/ChatScreens';
 import { ChatProvider, useChatState } from './src/lib/chat';
 import { MeScreen } from './src/screens/TabScreens';
@@ -37,7 +41,7 @@ import { JoinInviteScreen } from './src/screens/JoinInvite';
 import { useLinks, type LinkTarget } from './src/lib/links';
 import type { MeProfile } from '@yays/shared';
 
-export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined;
+export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined; Privacy: undefined; NotificationSettings: undefined; Appearance: undefined; Starred: undefined; Storage: undefined; Socials: undefined;
   Discover: undefined; NewCircle: undefined; CircleSettings: { id: string }; Circle: { id: string; tab?: 'feed' | 'events' | 'chats' | 'about' }; Compose: { circleId: string }; Post: { id: string }; Event: { id: string }; EventForm: { circleId: string; eventId?: string };
   JoinInvite: { kind: 'group' | 'circle'; code: string };
   Jack: undefined; Earn: undefined; History: undefined; Invite: undefined; Wallet: undefined; Indexx: undefined; Btcy: undefined; Products: { tab?: ProductTab }; Help: undefined;
@@ -131,7 +135,13 @@ function Root() {
             <Stack.Screen name="NewPoll">{({ navigation, route }) => <NewPollScreen conversationId={route.params.conversationId} onDone={() => navigation.goBack()} />}</Stack.Screen>
             <Stack.Screen name="Forward">{({ navigation, route }) => <ForwardScreen {...route.params} onDone={(to) => (to ? navigation.replace('Chat', { id: to }) : navigation.goBack())} />}</Stack.Screen>
             <Stack.Screen name="MessageInfo">{({ route }) => <MessageInfoScreen {...route.params} />}</Stack.Screen>
-            <Stack.Screen name="Profile">{({ navigation }) => <SettingsScreen openDevices={() => navigation.navigate('Devices')} />}</Stack.Screen>
+            <Stack.Screen name="Profile" options={{ headerShown: false }}>{({ navigation }) => <AccountScreen me={me!} onBack={() => navigation.goBack()} openSocials={() => navigation.navigate('Socials')} />}</Stack.Screen>
+            <Stack.Screen name="Privacy" options={{ headerShown: false }}>{({ navigation }) => <PrivacyScreen me={me!} onBack={() => navigation.goBack()} />}</Stack.Screen>
+            <Stack.Screen name="NotificationSettings" options={{ headerShown: false }}>{({ navigation }) => <NotificationsScreen me={me!} onBack={() => navigation.goBack()} />}</Stack.Screen>
+            <Stack.Screen name="Appearance" options={{ headerShown: false }}>{({ navigation }) => <AppearanceScreen me={me!} onBack={() => navigation.goBack()} />}</Stack.Screen>
+            <Stack.Screen name="Starred" options={{ headerShown: false }}>{({ navigation }) => <StarredScreen me={me!} onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
+            <Stack.Screen name="Storage" options={{ headerShown: false }}>{({ navigation }) => <StorageScreen onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
+            <Stack.Screen name="Socials" options={{ headerShown: false }}>{({ navigation }) => <SocialsScreen onBack={() => navigation.goBack()} />}</Stack.Screen>
             <Stack.Screen name="Devices" component={DevicesScreen} />
             <Stack.Screen name="JoinInvite" options={{ headerShown: false }}>{({ navigation, route }) => <JoinInviteScreen kind={route.params.kind} code={route.params.code} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs'))}
               openChat={(id) => navigation.replace('Chat', { id })} openCircle={(id) => navigation.replace('Circle', { id })} />}</Stack.Screen>

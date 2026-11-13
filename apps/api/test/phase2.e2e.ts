@@ -376,6 +376,9 @@ describe('Facebook: link, sign in, show on profile', () => {
     const s3 = (await t.http.post('/v1/auth/facebook/start').send({ device: phone, returnTo: 'app' }).expect(200)).body;
     expect(await viaFacebook(s3.url, null)).toBe('yaysapp://auth/facebook?fb=cancelled');
     expect((await t.http.post('/v1/auth/facebook/start').send({ device: phone, returnTo: 'elsewhere' })).status).toBe(400);
+    // Linking from the phone's settings comes back to the app too.
+    const l = (await t.http.post('/v1/me/socials/facebook/start').set(amara.auth).send({ login: false, returnTo: 'app' }).expect(200)).body;
+    expect(await viaFacebook(l.url, null)).toBe('yaysapp://settings/facebook?fb=cancelled');
   });
 
   it('signs in with a linked Facebook, with the PIN when two-step is on', async () => {

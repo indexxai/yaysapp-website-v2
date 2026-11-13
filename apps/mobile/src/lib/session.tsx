@@ -2,9 +2,11 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { ApiError, DEFAULT_APP_PREFS, DEFAULT_NOTIFICATIONS, DEFAULT_PRIVACY, type AuthResult, type MeProfile } from '@yays/shared';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, onSignedOut, tokenStore } from './api';
+import { setLocalPrefs } from './prefs';
 
 const ME_KEY = 'yays.me';
-const remember = (me: MeProfile | null) => { void (me ? AsyncStorage.setItem(ME_KEY, JSON.stringify(me)) : AsyncStorage.removeItem(ME_KEY)).catch(() => undefined); };
+const remember = (me: MeProfile | null) => {
+  setLocalPrefs(me ? me.preferences : DEFAULT_APP_PREFS); void (me ? AsyncStorage.setItem(ME_KEY, JSON.stringify(me)) : AsyncStorage.removeItem(ME_KEY)).catch(() => undefined); };
 const recall = async () => { try { return JSON.parse((await AsyncStorage.getItem(ME_KEY)) ?? 'null') as MeProfile | null; } catch { return null; } };
 
 type State = { status: 'loading' } | { status: 'signedOut' } | { status: 'signedIn'; me: MeProfile; offline?: boolean };
@@ -21,6 +23,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       else {
         // Offline at launch: open with the profile from last time, so chats and the unsent queue still work.
         const cached = await recall();
+        if (cached) setLocalPrefs(cached.preferences);
         setState((s) => (s.status === 'signedIn' ? { ...s, offline: true } : { status: 'signedIn', offline: true, me: cached ?? placeholderMe }));
       }
     }
