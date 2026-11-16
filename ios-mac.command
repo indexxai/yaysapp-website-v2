@@ -65,10 +65,11 @@ if ! curl -s --max-time 3 http://localhost:8081/status | grep -q packager-status
 fi
 
 # ---- build, install, open ----
+# Signed "to run locally" (no Apple team needed): the keychain, where sign-in is kept, needs a signed app.
 step "Building the iPhone app (the first time takes 5–15 minutes)"
 cd apps/mobile/ios
 xcodebuild -workspace YaysApp.xcworkspace -scheme YaysApp -configuration Debug -sdk iphonesimulator \
-  -destination "id=$UDID" -derivedDataPath build CODE_SIGNING_ALLOWED=NO -quiet \
+  -destination "id=$UDID" -derivedDataPath build CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= -quiet \
   || fail "The iPhone build failed (see the lines above)."
 APP="$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' | head -1)"
 cd "$ROOT"
