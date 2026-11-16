@@ -19,8 +19,12 @@ command -v pnpm >/dev/null || npm install -g pnpm@10 || corepack enable pnpm
 # ---- Docker ----
 step "Starting Docker"
 command -v docker >/dev/null || fail "Docker isn't installed. Install Docker Desktop from docker.com (or OrbStack), then run this again."
+echo "docker: $(command -v docker) · apps: $(ls /Applications 2>/dev/null | grep -iE 'docker|orbstack|rancher|podman' | tr '\n' ' ') · colima: $(command -v colima)"
 if ! docker info >/dev/null 2>&1; then
-  open -a Docker 2>/dev/null || open -a OrbStack 2>/dev/null || true
+  if [ -d /Applications/Docker.app ]; then open -a Docker
+  elif [ -d /Applications/OrbStack.app ]; then open -a OrbStack
+  elif command -v colima >/dev/null; then colima start
+  fi
   for _ in $(seq 1 90); do docker info >/dev/null 2>&1 && break; sleep 2; done
   docker info >/dev/null 2>&1 || fail "Docker didn't start. Open Docker Desktop, wait until it says it's running, then run this again."
 fi
