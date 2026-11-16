@@ -32,3 +32,4 @@ android-run.log*
 api-run.log
 metro-run.log
 emulator.log
+backend-run.log*
