@@ -33,3 +33,4 @@ api-run.log
 metro-run.log
 emulator.log
 backend-run.log*
+ios-run.log*
