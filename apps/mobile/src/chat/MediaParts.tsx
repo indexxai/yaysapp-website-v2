@@ -161,6 +161,9 @@ export function MediaViewer({ m, onClose }: { m: ThreadItem | null; onClose: () 
 }
 
 /** "+" in the message box: photos and videos, the camera, or a file. */
+/** iOS won't open the photo picker or camera while this sheet is still sliding away, so wait for it to go. */
+const PICK_DELAY_MS = 450;
+
 export function AttachSheet({ open, poll, onClose, onPick }: { open: boolean; poll?: boolean; onClose: () => void; onPick: (what: 'media' | 'camera' | 'video' | 'file' | 'poll') => void }) {
   const t = useTheme();
   const insets = useSafeAreaInsets();
@@ -174,7 +177,7 @@ export function AttachSheet({ open, poll, onClose, onPick }: { open: boolean; po
       <Pressable accessibilityLabel="Close" style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }} onPress={onClose} />
       <View testID="attach-sheet" style={{ backgroundColor: t.ground, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingTop: 18, paddingBottom: Math.max(insets.bottom, 18), flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', rowGap: 16 }}>
         {items.map(([icon, label, what]) => (
-          <Pressable key={what} accessibilityRole="button" accessibilityLabel={label} onPress={() => { onClose(); onPick(what); }} style={{ alignItems: 'center', gap: 8, width: 84 }}>
+          <Pressable key={what} accessibilityRole="button" accessibilityLabel={label} onPress={() => { onClose(); setTimeout(() => onPick(what), Platform.OS === 'ios' ? PICK_DELAY_MS : 0); }} style={{ alignItems: 'center', gap: 8, width: 84 }}>
             <Oval width={56} fill={t['ember-wash']}><Icon name={icon} size={24} color={t['ember-ink']} /></Oval>
             <Text style={{ fontFamily: 'Outfit', fontWeight: '700', fontSize: 12, color: t.ink, textAlign: 'center' }}>{label}</Text>
           </Pressable>
