@@ -1,4 +1,10 @@
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { createApp } from './app';
+
+// Settings from apps/api/.env when it's there (local development). Variables already set, as on a server, win.
+const envFile = path.resolve(__dirname, '../.env');
+if (existsSync(envFile)) (process as unknown as { loadEnvFile: (p: string) => void }).loadEnvFile(envFile);
 
 createApp()
   .then(async ({ app, config, log, shutdown }) => {
