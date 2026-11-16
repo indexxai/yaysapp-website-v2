@@ -39,7 +39,7 @@ pnpm --filter @yays/tokens build >/dev/null && pnpm --filter @yays/shared build 
 step "Building the Android app (the first time takes 5–15 minutes)"
 APK=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 STAMP="$(mktemp)"
-if ! ( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain --no-problems-report ); then
+if ! ( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain ); then
   # Some Gradle versions fail while writing their report after the app is built; a fresh app file means it worked.
   [ "$APK" -nt "$STAMP" ] || fail "The Android build failed (see the lines above)."
   echo "(Gradle reported an error after the app was built; carrying on.)"
