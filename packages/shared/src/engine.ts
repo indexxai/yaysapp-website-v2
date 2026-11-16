@@ -645,13 +645,15 @@ export class ChatEngine {
 
   /** Uploads a file, then queues its message like any other. Returns its clientId. */
   sendFile(conversationId: string, f: FileToSend): string {
+    // Pickers can report fractional sizes (an iPhone photo 1366.7 pixels high); the server takes whole pixels.
+    const whole = (n?: number) => (n ? Math.round(n) || undefined : undefined);
     const max = MEDIA_LIMITS[f.kind];
     if (f.file.size > max) throw new ApiError(400, 'validation_failed', `${f.name} is ${formatBytes(f.file.size)}. The limit is ${formatBytes(max)}.`);
     if (!f.file.size) throw new ApiError(400, 'validation_failed', `${f.name} is empty.`);
     const clientId = uuid();
     const u: Upload = {
       clientId, conversationId, createdAt: new Date().toISOString(), kind: f.kind, name: f.name, size: f.file.size, mime: baseMime(f.file.type || 'application/octet-stream'),
-      caption: (f.caption ?? '').trim(), replyToId: f.replyToId, width: f.width, height: f.height, durationMs: f.durationMs, waveform: f.waveform,
+      caption: (f.caption ?? '').trim(), replyToId: f.replyToId, width: whole(f.width), height: whole(f.height), durationMs: f.durationMs === undefined ? undefined : Math.round(f.durationMs), waveform: f.waveform,
       localUrl: f.localUrl, localThumbUrl: f.localThumbUrl, sent: 0, status: 'uploading', order: ++this.uploadCount,
     };
     this.uploadFiles.set(clientId, f);

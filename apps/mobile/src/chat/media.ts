@@ -66,7 +66,8 @@ async function fromPicker(p: PickedImage | PickedVideo): Promise<Picked> {
   const still = video ?? (kind === 'image' ? await imageThumb(p.path, file.size) : null);
   return {
     file, kind, name: p.filename ?? nameFrom(p.path, kind === 'video' ? 'video.mp4' : 'photo.jpg'),
-    width: p.width || video?.width || undefined, height: p.height || video?.height || undefined,
+    // iPhone pickers can report fractional sizes (1366.7); the server wants whole pixels.
+    width: Math.round(p.width || video?.width || 0) || undefined, height: Math.round(p.height || video?.height || 0) || undefined,
     ...(kind === 'video' && 'duration' in p && p.duration ? { durationMs: Math.round(p.duration) } : {}),
     ...(still ? { thumb: still.thumb, localThumbUrl: still.localThumbUrl } : {}),
     localUrl: p.path,

@@ -74,7 +74,8 @@ describe('Photos, voice notes and files on mobile, against the real API', () => 
     const conv = await direct(ali, sara);
     const resizer = (jest.requireMock('@bam.tech/react-native-image-resizer') as { default: { createResizedImage: jest.Mock } }).default;
     resizer.createResizedImage.mockResolvedValueOnce({ uri: png(48, 32), path: '', name: 'thumb.jpg', size: 0, width: 48, height: 32 });
-    (ImagePicker.openPicker as jest.Mock).mockResolvedValueOnce([{ path: png(1600, 1200), mime: 'image/png', width: 1600, height: 1200, size: 0, filename: 'hills.png' }]);
+    // iPhone pickers can report a fractional height (1199.7); it goes out as whole pixels.
+    (ImagePicker.openPicker as jest.Mock).mockResolvedValueOnce([{ path: png(1600, 1200), mime: 'image/png', width: 1600, height: 1199.7, size: 0, filename: 'hills.png' }]);
     launchAs(ali);
     await openChat('Sara');
     fireEvent.press(await screen.findByLabelText('Attach'));
