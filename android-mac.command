@@ -48,6 +48,12 @@ echo "BUILD_OK" >> "$LOG.steps"
 
 # ---- server: MongoDB, Redis, LiveKit, API ----
 [ -f apps/api/.env ] || cp apps/api/.env.example apps/api/.env
+# The database, Redis and the call server, installed once with Homebrew (as start-mac.command does).
+if command -v brew >/dev/null; then
+  command -v mongod >/dev/null || { step "Installing MongoDB (once)"; brew tap mongodb/brew && brew install mongodb-community || fail "Installing MongoDB failed."; }
+  command -v redis-server >/dev/null || { step "Installing Redis (once)"; brew install redis || fail "Installing Redis failed."; }
+  command -v livekit-server >/dev/null || { step "Installing LiveKit for calls (once)"; brew install livekit || true; }
+fi
 step "Starting MongoDB and Redis"
 pnpm infra:up || fail "MongoDB/Redis didn't start. Double-click start-mac.command once (it installs them), then this again."
 pids=()
