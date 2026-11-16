@@ -50,6 +50,15 @@ adb devices
 # A real phone reaches this Mac's API and Metro through USB.
 adb reverse tcp:4000 tcp:4000 >/dev/null 2>&1; adb reverse tcp:8081 tcp:8081 >/dev/null 2>&1; adb reverse tcp:7880 tcp:7880 >/dev/null 2>&1
 
+# ---- which port Metro uses: 8081, unless something else already has it ----
+METRO_PORT=8081
+if nc -z 127.0.0.1 8081 2>/dev/null && ! curl -s --max-time 3 http://localhost:8081/status | grep -q packager-status:running; then
+  echo "Port 8081 is taken by another program:"; lsof -nP -iTCP:8081 -sTCP:LISTEN 2>/dev/null | head -3
+  METRO_PORT=8088
+  echo "Metro will use port $METRO_PORT instead."
+fi
+echo "METRO_PORT=$METRO_PORT" >> "$LOG.steps"
+
 # ---- build the app ----
 step "Building the Android app (the first time takes 5–15 minutes)"
 APK=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
@@ -57,7 +66,7 @@ STAMP="$(mktemp)"
 # Only for this phone's processor: a much smaller app, which fits on an emulator.
 ABI="$(adb shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')"
 echo "Building for $ABI"
-if ! ( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain ${ABI:+-PreactNativeArchitectures=$ABI} ); then
+if ! ( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain ${ABI:+-PreactNativeArchitectures=$ABI} -PreactNativeDevServerPort=$METRO_PORT ); then
   # Some Gradle versions fail while writing their report after the app is built; a fresh app file means it worked.
   [ "$APK" -nt "$STAMP" ] || fail "The Android build failed (see the lines above)."
   echo "(Gradle reported an error after the app was built; carrying on.)"
@@ -86,11 +95,12 @@ else
 fi
 
 # ---- Metro, then install and open ----
-if ! nc -z 127.0.0.1 8081 2>/dev/null; then
-  step "Starting Metro (serves the app's code)"
-  ( cd apps/mobile && pnpm start > ../../metro-run.log 2>&1 ) & pids+=($!)
-  for _ in $(seq 1 60); do nc -z 127.0.0.1 8081 2>/dev/null && break; sleep 1; done
+if ! curl -s --max-time 3 "http://localhost:$METRO_PORT/status" | grep -q packager-status:running; then
+  step "Starting Metro on port $METRO_PORT (serves the app's code)"
+  ( cd apps/mobile && pnpm start --port "$METRO_PORT" > ../../metro-run.log 2>&1 ) & pids+=($!)
+  for _ in $(seq 1 90); do curl -s --max-time 2 "http://localhost:$METRO_PORT/status" | grep -q packager-status:running && break; sleep 1; done
 fi
+adb reverse tcp:$METRO_PORT tcp:$METRO_PORT >/dev/null 2>&1
 [ ${#pids[@]} -gt 0 ] && for _ in $(seq 1 90); do curl -sf -o /dev/null http://localhost:4000/v1/health && break; sleep 2; done
 step "Installing and opening YaysApp"
 adb install -r "$APK" || fail "Installing the app failed."
