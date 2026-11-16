@@ -26,3 +26,9 @@ AuthKey_*.p8
 *.p8
 *firebase-adminsdk*.json
 firebase-service-account*.json
+
+# android-mac.command logs
+android-run.log*
+api-run.log
+metro-run.log
+emulator.log
