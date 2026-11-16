@@ -353,6 +353,7 @@ export function EventFormScreen({ circleId, eventId, onBack, onSaved }: { circle
   if (e === undefined && !error) return <SafeAreaView style={{ flex: 1, backgroundColor: t.surface, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={t.ember} /></SafeAreaView>;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="event-form">
+      <LineArt name="lantern" place="center" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Header back="Cancel" onBack={onBack} title={e ? (ended ? 'Recording and slides' : 'Edit event') : 'New event'} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">

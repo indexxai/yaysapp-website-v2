@@ -9,6 +9,7 @@ import { useTheme } from '../lib/theme';
 import { Icon, type IconName } from '../ui/Icon';
 import { Avatar, Banner, Field, OvalButton } from '../ui/kit';
 import { Oval } from '../ui/Oval';
+import { LineArt } from '../ui/LineArt';
 import { Text } from '../ui/Text';
 import { errText } from './messages';
 import { UserSocials } from '../settings/Socials';
@@ -58,6 +59,7 @@ export function NewGroupScreen({ onCreated }: { onCreated: (id: string) => void 
   };
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <LineArt name="hype" place="center" />
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
         <Text accessibilityRole="header" style={[H1, { color: t.ink }]}>New group</Text>
         {error ? <Banner>{error}</Banner> : null}
@@ -87,6 +89,7 @@ export function AddMembersScreen({ id, onDone }: { id: string; onDone: () => voi
   };
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <LineArt name="explorer" place="center" />
       <View style={{ paddingHorizontal: 20, gap: 12 }}>
         <Text accessibilityRole="header" style={[H1, { color: t.ink }]}>Add members</Text>
         {error ? <Banner>{error}</Banner> : null}
@@ -193,6 +196,7 @@ export function ChatInfoScreen({ id, openChat, openAddMembers, onLeft }: { id: s
     const p = c.peer!;
     return (
       <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }} testID="contact-info">
+      <LineArt name="selfie" place="center" />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
           <View style={{ alignItems: 'center', gap: 6, paddingVertical: 8 }}>
             <Avatar name={p.displayName} photoUrl={p.photoUrl} size={96} />
@@ -247,6 +251,7 @@ export function ChatInfoScreen({ id, openChat, openAddMembers, onLeft }: { id: s
   };
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }} testID="group-info">
+      <LineArt name="hype" place="center" />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
         <View style={{ alignItems: 'center', gap: 6, paddingVertical: 8 }}>
           <Avatar name={c.group?.name ?? 'Group'} photoUrl={c.group?.photoUrl} size={96} />

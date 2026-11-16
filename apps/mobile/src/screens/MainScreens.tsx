@@ -14,7 +14,7 @@ import { Screen } from './Screen';
 export function ProfileSetupScreen() {
   const s = useSession();
   if (s.state.status !== 'signedIn') return null;
-  return <Screen title="Set up your profile" lead="This is how friends will see you in chats."><ProfileForm me={s.state.me} submitLabel="Continue" onSaved={s.setMe} /></Screen>;
+  return <Screen art="selfie" title="Set up your profile" lead="This is how friends will see you in chats."><ProfileForm me={s.state.me} submitLabel="Continue" onSaved={s.setMe} /></Screen>;
 }
 
 export function DevicesScreen() {
@@ -29,7 +29,7 @@ export function DevicesScreen() {
     try { await fn(); setMsg({ tone: 'success', text: ok }); await load(); } catch (e) { setMsg({ tone: 'danger', text: e instanceof ApiError ? e.message : 'That did not work. Try again.' }); } finally { setBusy(null); }
   };
   return (
-    <Screen title="Linked devices" lead="Use YaysApp on your phone, the web and other devices. Log out any you don't recognise.">
+    <Screen art="gear" title="Linked devices" lead="Use YaysApp on your phone, the web and other devices. Log out any you don't recognise.">
       {msg ? <Banner tone={msg.tone}>{msg.text}</Banner> : null}
       <View style={{ backgroundColor: t.raised, borderRadius: 24, overflow: 'hidden' }}>
         {list?.map((d, i) => (

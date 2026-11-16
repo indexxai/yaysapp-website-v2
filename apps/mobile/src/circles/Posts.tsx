@@ -248,6 +248,7 @@ export function ComposeScreen({ circleId, me, onBack, onPosted, onEvent }: { cir
   const left = CIRCLE_LIMITS.post - text.length;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="compose-screen">
+      <LineArt name="snap" place="center" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 }}>
           <OvalButton icon="close" label="Cancel" size="sm" variant="secondary" onPress={onBack} />

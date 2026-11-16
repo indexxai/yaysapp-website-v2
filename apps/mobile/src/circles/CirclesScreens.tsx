@@ -222,6 +222,7 @@ export function CircleFormScreen({ id, onBack, onSaved }: { id?: string; onBack:
   if (!loaded) return <SafeAreaView style={{ flex: 1, backgroundColor: t.surface, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={t.ember} /></SafeAreaView>;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="circle-form">
+      <LineArt name="gear" place="center" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Header back="Cancel" onBack={onBack} title={id ? 'Circle settings' : 'Start a circle'} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">

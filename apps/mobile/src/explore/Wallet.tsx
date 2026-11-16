@@ -206,6 +206,7 @@ export function IndexxScreen({ me, onBack }: { me: MeProfile; onBack: () => void
   const d = s.data;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="indexx-screen">
+      <LineArt name="coins" place="center" />
       <Header back="Back" onBack={onBack} title="Indexx account" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 30, gap: 12 }} keyboardShouldPersistTaps="handled">
         {msg ? <ErrorBanner tone={msg.tone}>{msg.text}</ErrorBanner> : null}

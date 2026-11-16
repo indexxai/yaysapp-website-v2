@@ -3,11 +3,13 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 're
 import { Text } from '../ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { font, useTheme } from '../lib/theme';
+import { LineArt, type ArtName } from '../ui/LineArt';
 
-export function Screen({ title, lead, children, background = 'ground', header }: { title?: string; lead?: ReactNode; children: ReactNode; background?: 'ground' | 'surface'; header?: ReactNode }) {
+export function Screen({ title, lead, children, background = 'ground', header, art = 'chat' }: { title?: string; lead?: ReactNode; children: ReactNode; background?: 'ground' | 'surface'; header?: ReactNode; /** The big faded picture behind the screen. */ art?: ArtName }) {
   const t = useTheme();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t[background] }}>
+      <LineArt name={art} place="center" />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {header}

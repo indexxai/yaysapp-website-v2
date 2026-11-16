@@ -23,15 +23,26 @@ export const ART_NAMES = Object.keys(ART) as ArtName[];
 
 /**
  * Behind the content, never in front: put it first in its container. Same opacity as the web (about 0.2).
- * Defaults to the bottom right corner, partly off screen, like the designs.
+ * Defaults to the bottom right corner, partly off screen, like the designs. `place="center"` draws it big and faint
+ * in the middle of the screen instead, for screens whose content leaves open space (forms, lists, info pages).
  */
-export function LineArt({ name, height = 300, opacity = 0.2, ink, style }: { name: ArtName; height?: number; opacity?: number; ink?: string; style?: StyleProp<ImageStyle> }) {
+export function LineArt({ name, height, opacity, ink, style, place = 'corner' }: { name: ArtName; height?: number; opacity?: number; ink?: string; style?: StyleProp<ImageStyle>; place?: 'corner' | 'center' }) {
   const t = useTheme();
   const a = ART[name];
+  if (place === 'center') {
+    const h = height ?? 520;
+    return (
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }]} accessible={false} importantForAccessibility="no-hide-descendants">
+        <Image source={a.src} resizeMode="contain"
+          style={[{ height: h, width: h * a.ratio, maxWidth: '96%', opacity: opacity ?? (t.scheme === 'dark' ? 0.12 : 0.09), tintColor: ink ?? t.ember }, style]} />
+      </View>
+    );
+  }
+  const h = height ?? 300;
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill} accessible={false} importantForAccessibility="no-hide-descendants">
       <Image source={a.src} resizeMode="contain"
-        style={[{ position: 'absolute', right: -30, bottom: 90, height, width: height * a.ratio, opacity, tintColor: ink ?? t.ember }, style]} />
+        style={[{ position: 'absolute', right: -30, bottom: 90, height: h, width: h * a.ratio, opacity: opacity ?? 0.2, tintColor: ink ?? t.ember }, style]} />
     </View>
   );
 }

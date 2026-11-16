@@ -142,7 +142,7 @@ function NotLinked({ name, onClose }: { name: string; onClose: (to: 'phone' | 'e
   return (
     <Modal visible animationType="slide" onRequestClose={() => onClose('phone')}>
       <View testID="facebook-not-linked" style={{ flex: 1, backgroundColor: t.surface }}>
-        <Screen title="" lead={null}>
+        <Screen art="hype" title="" lead={null}>
           <View style={{ alignItems: 'center', gap: 18, paddingTop: 30 }}>
             <Oval width={84} fill={t['warning-wash']}><Icon name="facebook" size={36} color={t['warning-ink']} /></Oval>
             <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 26, lineHeight: 32, color: t.ink, textAlign: 'center' }}>This Facebook isn’t linked yet</Text>

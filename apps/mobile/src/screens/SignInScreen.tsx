@@ -59,7 +59,7 @@ export function SignInScreen({ onDone }: { onDone: (r: AuthResult) => void }) {
   }
   if (step.s === 'signup-email') {
     return (
-      <Screen title="Add your email" lead="If you used YaysApp before, enter the email from that account and we'll bring your chats over. We'll send it a code first.">
+      <Screen art="reader" title="Add your email" lead="If you used YaysApp before, enter the email from that account and we'll bring your chats over. We'll send it a code first.">
         {error ? <Banner>{error}</Banner> : null}
         <EmailForm busy={busy} onSubmit={(email) => run(async () => { const r = await (await api()).startSignupEmail(step.signupToken, email); sent(r); setStep({ ...step, s: 'signup-code', email, sent: r }); })} />
       </Screen>
@@ -123,7 +123,7 @@ function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack
   useEffect(() => { if (code.length === 6 && last.current !== code && !busy) { last.current = code; onSubmit(code); } }, [code, busy, onSubmit]);
   useEffect(() => { if (error) { setCode(''); last.current = ''; } }, [error]);
   return (
-    <Screen title={title} lead={<>We sent a 6-digit code to <Text style={{ fontWeight: '700' }}>{sentTo}</Text>.</>}>
+    <Screen art="lantern" title={title} lead={<>We sent a 6-digit code to <Text style={{ fontWeight: '700' }}>{sentTo}</Text>.</>}>
       {error ? <Banner>{error}</Banner> : null}
       <Field label="6-digit code" value={code} onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad"
         textContentType="oneTimeCode" autoComplete="sms-otp" maxLength={6} editable={!busy} autoFocus />

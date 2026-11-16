@@ -51,6 +51,7 @@ export function ChatListScreen({ me, openChat, openNewChat, openNewGroup, openSe
   const archivedUnread = archived.filter(hasUnread).length;
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <LineArt name="chat" place="center" />
       <View style={styles.listHead}>
         <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Chats</Text>
         <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -112,6 +113,7 @@ export function ArchivedScreen({ me, openChat }: { me: MeProfile; openChat: (id:
   const rows = s.order.map((id) => s.conversations[id]).filter((c): c is ConversationSummary => !!c && c.archived);
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <LineArt name="lantern" place="center" />
       <Text accessibilityRole="header" style={[styles.h1, { color: t.ink, paddingHorizontal: 20, paddingBottom: 8 }]}>Archived</Text>
       {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
       <FlatList data={rows} keyExtractor={(c) => c.id}
@@ -184,6 +186,7 @@ export function ForwardScreen({ conversationId, messageId, onDone }: { conversat
   };
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <LineArt name="chat" place="center" />
       <View style={{ paddingHorizontal: 20, paddingBottom: 8, gap: 4 }}>
         <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Forward to</Text>
         <Text style={{ color: t['ink-soft'], fontSize: 14 }}>Pick up to {MAX_FORWARD_TARGETS} chats{picked.length ? ` · ${picked.length} picked` : ''}.</Text>
@@ -235,6 +238,7 @@ export function MessageInfoScreen({ conversationId, messageId }: { conversationI
   );
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground }}>
+      <LineArt name="reader" place="center" />
       <ScrollView contentContainerStyle={{ padding: 20, gap: 18 }}>
         <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>Message info</Text>
         {error ? <Banner>{error}</Banner> : null}
@@ -264,6 +268,7 @@ export function NewChatScreen({ onOpened }: { onOpened: (id: string) => void }) 
   };
   return (
     <SafeAreaView edges={['bottom', 'left', 'right']} style={{ flex: 1, backgroundColor: t.ground, padding: 20, gap: 16 }}>
+      <LineArt name="selfie" place="center" />
       <Text accessibilityRole="header" style={[styles.h1, { color: t.ink }]}>New chat</Text>
       <Field label="Find someone" value={q} onChangeText={(v) => { setQ(v); setError(null); }} placeholder="@username, phone or email" autoCapitalize="none" autoCorrect={false}
         returnKeyType="search" onSubmitEditing={() => void search()} error={error} hint="Exact matches only. Their phone and email stay private." />
@@ -395,6 +400,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
         <ConnectionNotice />
         {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <LineArt name="chat" place="center" />
           <FlatList
             testID="thread"
             inverted
