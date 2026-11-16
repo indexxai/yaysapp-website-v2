@@ -28,30 +28,25 @@ class AppDelegate: RCTAppDelegate {
   }
 
   // ---- Notifications (Apple's push service), passed on to the app's JavaScript ----
-  // RCTAppDelegate implements only app launch, so these are new methods (not overrides), named for Objective-C.
-  @objc(application:didRegisterForRemoteNotificationsWithDeviceToken:)
-  func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+  // RCTAppDelegate already has these (empty or default), so ours override them.
+  override func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
     RNCPushNotificationIOS.didRegisterForRemoteNotifications(withDeviceToken: deviceToken)
   }
-  @objc(application:didFailToRegisterForRemoteNotificationsWithError:)
-  func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+  override func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
     RNCPushNotificationIOS.didFailToRegisterForRemoteNotificationsWithError(error as NSError)
   }
   /** Silent pushes ("read on another device", "the call stopped ringing"). */
-  @objc(application:didReceiveRemoteNotification:fetchCompletionHandler:)
-  func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+  override func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
     RNCPushNotificationIOS.didReceiveRemoteNotification(userInfo, fetchCompletionHandler: completionHandler)
   }
 
   // ---- yaysapp:// links (Facebook sign-in comes back this way) ----
-  @objc(application:openURL:options:)
-  func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+  override func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
     RCTLinkingManager.application(app, open: url, options: options)
   }
 
   // ---- Links to the web app that open YaysApp (Associated Domains: invites, circles, posts, events) ----
-  @objc(application:continueUserActivity:restorationHandler:)
-  func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
+  override func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
     RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
   }
 
