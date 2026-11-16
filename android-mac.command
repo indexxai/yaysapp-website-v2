@@ -35,11 +35,29 @@ step "Installing packages"
 pnpm install || fail "pnpm install failed (see above)."
 pnpm --filter @yays/tokens build >/dev/null && pnpm --filter @yays/shared build >/dev/null || fail "Building the shared code failed."
 
+# ---- a phone: plugged in, or an emulator ----
+step "Finding an Android phone or emulator"
+adb start-server >/dev/null 2>&1
+if ! adb devices | grep -q "device$"; then
+  AVD="$(emulator -list-avds 2>/dev/null | head -1)"
+  [ -n "$AVD" ] || fail "There's no emulator yet. In Android Studio: Device Manager › + › Create Virtual Device (a Pixel), then run this again."
+  echo "Opening the emulator $AVD"
+  emulator -avd "$AVD" > emulator.log 2>&1 &
+  adb wait-for-device
+  for _ in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break; sleep 2; done
+fi
+adb devices
+# A real phone reaches this Mac's API and Metro through USB.
+adb reverse tcp:4000 tcp:4000 >/dev/null 2>&1; adb reverse tcp:8081 tcp:8081 >/dev/null 2>&1; adb reverse tcp:7880 tcp:7880 >/dev/null 2>&1
+
 # ---- build the app ----
 step "Building the Android app (the first time takes 5–15 minutes)"
 APK=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
 STAMP="$(mktemp)"
-if ! ( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain ); then
+# Only for this phone's processor: a much smaller app, which fits on an emulator.
+ABI="$(adb shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')"
+echo "Building for $ABI"
+if ! ( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain ${ABI:+-PreactNativeArchitectures=$ABI} ); then
   # Some Gradle versions fail while writing their report after the app is built; a fresh app file means it worked.
   [ "$APK" -nt "$STAMP" ] || fail "The Android build failed (see the lines above)."
   echo "(Gradle reported an error after the app was built; carrying on.)"
@@ -66,21 +84,6 @@ elif command -v mongod >/dev/null && command -v redis-server >/dev/null; then
 else
   echo "MongoDB isn't installed, so the API isn't started here. Start your own on port 4000; the app connects to it."
 fi
-
-# ---- a phone: plugged in, or an emulator ----
-step "Finding an Android phone or emulator"
-adb start-server >/dev/null 2>&1
-if ! adb devices | grep -q "device$"; then
-  AVD="$(emulator -list-avds 2>/dev/null | head -1)"
-  [ -n "$AVD" ] || fail "There's no emulator yet. In Android Studio: Device Manager › + › Create Virtual Device (a Pixel), then run this again."
-  echo "Opening the emulator $AVD"
-  emulator -avd "$AVD" > emulator.log 2>&1 &
-  adb wait-for-device
-  for _ in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break; sleep 2; done
-fi
-adb devices
-# A real phone reaches this Mac's API and Metro through USB.
-adb reverse tcp:4000 tcp:4000 >/dev/null 2>&1; adb reverse tcp:8081 tcp:8081 >/dev/null 2>&1; adb reverse tcp:7880 tcp:7880 >/dev/null 2>&1
 
 # ---- Metro, then install and open ----
 if ! nc -z 127.0.0.1 8081 2>/dev/null; then
