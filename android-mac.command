@@ -37,7 +37,13 @@ pnpm --filter @yays/tokens build >/dev/null && pnpm --filter @yays/shared build 
 
 # ---- build the app ----
 step "Building the Android app (the first time takes 5–15 minutes)"
-( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain ) || fail "The Android build failed (see the lines above)."
+APK=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+STAMP="$(mktemp)"
+if ! ( cd apps/mobile/android && ./gradlew :app:assembleDebug --console=plain --no-problems-report ); then
+  # Some Gradle versions fail while writing their report after the app is built; a fresh app file means it worked.
+  [ "$APK" -nt "$STAMP" ] || fail "The Android build failed (see the lines above)."
+  echo "(Gradle reported an error after the app was built; carrying on.)"
+fi
 echo "BUILD_OK" >> "$LOG.steps"
 
 # ---- server: MongoDB, Redis, LiveKit, API ----
@@ -78,7 +84,7 @@ if ! nc -z 127.0.0.1 8081 2>/dev/null; then
 fi
 for _ in $(seq 1 90); do curl -sf -o /dev/null http://localhost:4000/v1/health && break; sleep 2; done
 step "Installing and opening YaysApp"
-adb install -r apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk || fail "Installing the app failed."
+adb install -r "$APK" || fail "Installing the app failed."
 PKG="$(grep -m1 applicationId apps/mobile/android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')"
 adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
 echo "RUNNING" >> "$LOG.steps"
