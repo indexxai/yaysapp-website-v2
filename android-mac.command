@@ -48,23 +48,23 @@ echo "BUILD_OK" >> "$LOG.steps"
 
 # ---- server: MongoDB, Redis, LiveKit, API ----
 [ -f apps/api/.env ] || cp apps/api/.env.example apps/api/.env
-# The database, Redis and the call server, installed once with Homebrew (as start-mac.command does).
-if command -v brew >/dev/null; then
-  command -v mongod >/dev/null || { step "Installing MongoDB (once)"; brew tap mongodb/brew && brew install mongodb-community || fail "Installing MongoDB failed."; }
-  command -v redis-server >/dev/null || { step "Installing Redis (once)"; brew install redis || fail "Installing Redis failed."; }
-  command -v livekit-server >/dev/null || { step "Installing LiveKit for calls (once)"; brew install livekit || true; }
-fi
-step "Starting MongoDB and Redis"
-pnpm infra:up || fail "MongoDB/Redis didn't start. Double-click start-mac.command once (it installs them), then this again."
+# The server is optional here: if MongoDB isn't installed (or an API is already running), the app still opens,
+# and talks to whatever API runs on this Mac at port 4000.
 pids=()
 stop() { echo; step "Stopping"; for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; pkill -f "livekit-server --dev" 2>/dev/null || true; exit 0; }
 trap stop INT TERM HUP
-if command -v livekit-server >/dev/null && ! nc -z 127.0.0.1 7880 2>/dev/null; then
-  livekit-server --dev --bind 0.0.0.0 > infra/.data/livekit.log 2>&1 & pids+=($!)
-fi
-if ! curl -sf -o /dev/null http://localhost:4000/v1/health; then
+if curl -sf -o /dev/null http://localhost:4000/v1/health; then
+  echo "An API is already running on port 4000."
+elif command -v mongod >/dev/null && command -v redis-server >/dev/null; then
+  step "Starting MongoDB and Redis"
+  pnpm infra:up || fail "MongoDB/Redis didn't start (see above)."
+  if command -v livekit-server >/dev/null && ! nc -z 127.0.0.1 7880 2>/dev/null; then
+    livekit-server --dev --bind 0.0.0.0 > infra/.data/livekit.log 2>&1 & pids+=($!)
+  fi
   step "Starting the API on http://localhost:4000"
   pnpm --filter @yays/api dev > api-run.log 2>&1 & pids+=($!)
+else
+  echo "MongoDB isn't installed, so the API isn't started here. Start your own on port 4000; the app connects to it."
 fi
 
 # ---- a phone: plugged in, or an emulator ----
@@ -88,7 +88,7 @@ if ! nc -z 127.0.0.1 8081 2>/dev/null; then
   ( cd apps/mobile && pnpm start > ../../metro-run.log 2>&1 ) & pids+=($!)
   for _ in $(seq 1 60); do nc -z 127.0.0.1 8081 2>/dev/null && break; sleep 1; done
 fi
-for _ in $(seq 1 90); do curl -sf -o /dev/null http://localhost:4000/v1/health && break; sleep 2; done
+[ ${#pids[@]} -gt 0 ] && for _ in $(seq 1 90); do curl -sf -o /dev/null http://localhost:4000/v1/health && break; sleep 2; done
 step "Installing and opening YaysApp"
 adb install -r "$APK" || fail "Installing the app failed."
 PKG="$(grep -m1 applicationId apps/mobile/android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')"
