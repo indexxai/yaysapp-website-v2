@@ -40,8 +40,8 @@ export function ExploreScreen({ me, nav }: { me: MeProfile; nav: ExploreNav }) {
   const x = useLoad(() => api().then((a) => a.explore()));
   const ix = useLoad(() => api().then((a) => a.indexx()));
   const points = useLoad(() => api().then((a) => a.points()));
-  // Back from Earn, the wallet or a product: the numbers are fresh.
-  useFocusEffect(useCallback(() => { void checkin.reload(); void points.reload(); }, [])); // eslint-disable-line react-hooks/exhaustive-deps
+  // Back from Earn, the wallet or a product: the numbers are fresh, and so is the Indexx sign-in (done or ended there).
+  useFocusEffect(useCallback(() => { void checkin.reload(); void points.reload(); void ix.reload(); void x.reload(); }, [])); // eslint-disable-line react-hooks/exhaustive-deps
   const shown = useMemo(() => { const s = q.trim().toLowerCase(); return s ? PRODUCTS.filter((p) => `${p.name} ${p.sub}`.toLowerCase().includes(s)) : PRODUCTS; }, [q]);
   const c = checkin.data;
   const openProduct = (id: ProductId) => (id === 'btcy' ? nav.btcy() : id === 'academy' ? undefined : nav.product(id));

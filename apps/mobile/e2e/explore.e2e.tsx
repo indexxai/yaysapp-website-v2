@@ -125,6 +125,25 @@ describe('Explore on mobile, against the real API', () => {
     await waitFor(() => expect(within(prod).getByTestId('ws-stocks').props.children).toBe('1'), T);
   });
 
+  it('signing in to Indexx on a product page: back on Explore, the sign-in card is gone and the live lines show', async () => {
+    const omar = await user('Omar');
+    const email = ixEmail(omar, 'omar');
+    launchAs(omar);
+    const ex = await goExplore();
+    await within(ex).findByTestId('indexx-sign-in', {}, T);
+    fireEvent.press(within(ex).getByLabelText(/^EMMM,/));
+    const prod = await screen.findByTestId('products-screen');
+    const card = await within(prod).findByTestId('indexx-sign-in', {}, T);
+    fireEvent.changeText(within(card).getByLabelText('Indexx email'), email);
+    fireEvent.changeText(within(card).getByLabelText('Indexx password'), 'my-indexx-pass');
+    fireEvent.press(within(card).getByLabelText('Sign in to Indexx'));
+    await waitFor(() => expect(within(prod).getByTestId('emmm-open').props.children).toBe('1'), T);
+    fireEvent.press(within(prod).getByLabelText('Explore'));
+    const back = await screen.findByTestId('explore-screen');
+    await waitFor(() => expect(within(back).queryByTestId('indexx-sign-in')).toBeNull(), T);
+    await waitFor(() => expect(within(back).getByTestId('live-emmm').props.children).toBe('1 open · 1 settled this month'), T);
+  });
+
   it('the wallet: balances from Indexx; withdraw INEX to the exchange with a confirmation; it shows as Completed', async () => {
     const sara = await user('Sara');
     const email = ixEmail(sara, 'sara');
