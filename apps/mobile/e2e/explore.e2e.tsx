@@ -156,6 +156,8 @@ describe('Explore on mobile, against the real API', () => {
     const w = await screen.findByTestId('wallet-screen');
     await waitFor(() => expect(within(w).getByTestId('card-exchange')).toBeTruthy(), T);
     expect(within(within(w).getByTestId('card-inex')).getByText('60')).toBeTruthy();
+    expect(within(w).getByText('INEX on Indexx · ready to withdraw')).toBeTruthy();
+    expect(await within(w).findByTestId('earned-in-yaysapp', {}, T)).toBeTruthy();
     expect(within(w).getByText('$47.50')).toBeTruthy();
     expect(within(within(w).getByTestId('card-exchange')).getByText('$1.73')).toBeTruthy();
     expect(await within(w).findByText('Nothing yet. INEX you withdraw to Indexx Exchange shows here.', {}, T)).toBeTruthy();

@@ -21,6 +21,8 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
   const t = useTheme();
   const wallet = useLoad(() => api().then((a) => a.wallet()));
   const ix = useLoad(() => api().then((a) => a.indexx()));
+  // What this account earned in YaysApp (Earn). The card above it is the INEX Indexx holds, which is what withdraws.
+  const earned = useLoad(() => api().then((a) => a.points()));
   const [history, setHistory] = useState<WithdrawalsPage | null>(null);
   const [hidden, setHidden] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -30,7 +32,7 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
   const linked = !!w?.linked;
   const loadHistory = async (skip = 0) => { try { const p = await (await api()).withdrawals(skip); setHistory((h) => (skip && h ? { items: [...h.items, ...p.items], hasMore: p.hasMore } : p)); } catch { /* shown as empty */ } };
   useEffect(() => { if (linked) void loadHistory(); }, [linked]);
-  const refresh = async () => { await wallet.reload(); await loadHistory(); };
+  const refresh = async () => { await wallet.reload(); await loadHistory(); void earned.reload(); };
   const show = (s: string) => (hidden ? '•••' : s);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="wallet-screen">
@@ -47,9 +49,10 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
         {w ? (
           <View style={{ borderRadius: 26, padding: 20, gap: 4, backgroundColor: '#211b16', overflow: 'hidden' }} testID="card-inex">
             <View style={{ position: 'absolute', width: 220, height: 200, borderRadius: 200, top: -110, right: -70, backgroundColor: '#ffffff', opacity: 0.06 }} />
-            <Text style={{ fontSize: 13, color: '#ffffffcc' }}>INEX balance · earned in YaysApp</Text>
+            <Text style={{ fontSize: 13, color: '#ffffffcc' }}>INEX on Indexx · ready to withdraw</Text>
             <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 38, lineHeight: 46, color: '#fff' }}>{w.inex ? show(num(w.inex.balance)) : '—'}</Text>
             <Text style={{ fontSize: 12, color: '#ffffffcc' }}>{linked ? 'Withdraw to your Indexx Exchange INEX wallet' : 'Sign in to Indexx to withdraw'}</Text>
+            {earned.data ? <Text style={{ fontSize: 12, color: '#ffffffcc' }} testID="earned-in-yaysapp">Earned in YaysApp: {show(num(earned.data.balance))} INEX (see Earn)</Text> : null}
             <View style={{ flexDirection: 'row', gap: 22, marginTop: 12 }}>
               <OvalButton icon="upload" label="Withdraw" size="sm" disabled={!linked} onPress={() => { setDone(null); setWithdrawing(true); }} />
               {linked ? <OvalButton icon="refresh" label="Refresh" size="sm" variant="secondary" onPress={() => void refresh()} /> : null}
@@ -58,7 +61,7 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
         ) : null}
         {w ? (
           <Card title="Balances" pad={false}>
-            <Row left={<IconOval icon="star" tone="ember" />} name="INEX" sub={w.inex?.source ?? 'Earned in YaysApp'} amount={w.inex ? show(num(w.inex.balance)) : '—'} note="INEX" />
+            <Row left={<IconOval icon="star" tone="ember" />} name="INEX" sub={w.inex?.source ?? 'Your Indexx INEX balance'} amount={w.inex ? show(num(w.inex.balance)) : '—'} note="INEX" />
             <Row left={<Logo src={BRAND.btcy} size={40} />} name="BTCY Nuggets" sub={w.nuggets?.source ?? 'From BTCY mining'} amount={w.nuggets ? show(num(w.nuggets.balance, 2)) : '—'} note="nuggets" />
             <Row left={<Logo src={BRAND.usdxx} size={40} />} name="USDXX" sub={w.usdxx?.source ?? 'Indexx Pay'} amount={w.usdxx ? show(money(w.usdxx.usd ?? w.usdxx.balance)) : '—'} note="available" />
             <Row left={<Logo src={BRAND.exchange} size={40} />} name="Indexx Exchange" sub={linked && !w.exchange ? 'Couldn’t read it right now' : 'Read-only · open the app to trade'} amount={w.exchange ? show(money(w.exchange.totalUsd)) : '—'} note="est. value" testID="card-exchange" />
@@ -150,7 +153,7 @@ function WithdrawSheet({ onClose, onDone, onSignedOut }: { onClose: () => void; 
           <Text style={{ color: t['ink-soft'] }}>It arrives in</Text>
           <Text style={{ fontWeight: '700', color: t.ink }}>{quote?.destination ?? 'Indexx Exchange INEX wallet'}</Text>
         </View>
-        <Facts rows={[['Fee', 'None'], ['Left in YaysApp', quote ? `${num(quote.balance - confirm.amount)} INEX` : '—']]} />
+        <Facts rows={[['Fee', 'None'], ['Left on Indexx', quote ? `${num(quote.balance - confirm.amount)} INEX` : '—']]} />
         <Text style={{ fontSize: 12, lineHeight: 17, color: t['ink-soft'] }}>Withdrawals can’t be undone. If the exchange can’t take it, your INEX comes back.</Text>
         {error ? <ErrorBanner>{error}</ErrorBanner> : null}
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>

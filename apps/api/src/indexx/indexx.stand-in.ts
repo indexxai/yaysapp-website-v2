@@ -133,7 +133,7 @@ export function standInIndexx(db: Db): typeof fetch {
     if (path === '/yays/wallet/summary') {
       const assets = a.exchange.filter((x) => x.balance > 0).map((x) => ({ ...x, usd: x.price == null ? null : Math.round(x.balance * x.price * 100) / 100 }));
       return ok({
-        inex: { balance: a.inex, source: 'Earned in YaysApp' },
+        inex: { balance: a.inex, source: 'Your Indexx INEX balance' },
         nuggets: { balance: a.nuggets, source: 'From BTCY mining' },
         usdxx: { balance: a.usdxx, usd: a.usdxx, source: 'Indexx Pay' },
         exchange: a.down.includes('exchange') ? null : { totalUsd: Math.round(assets.reduce((n, x) => n + (x.usd ?? 0), 0) * 100) / 100, assets, partial: assets.some((x) => x.usd == null), readOnly: true },

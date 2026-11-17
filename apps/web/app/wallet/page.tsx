@@ -46,7 +46,7 @@ export default function WalletPage() {
         <div className="p2-grid p2-grid--wallet">
           <div className="p2-col" style={{ gap: 16, minWidth: 0 }}>
             <div className="p2-assets">
-              <Asset name="INEX" amount={w?.inex ? num(w.inex.balance) : '—'} sub={w?.inex?.source ?? 'Earned in YaysApp'} icon testId="card-inex" />
+              <Asset name="INEX" amount={w?.inex ? num(w.inex.balance) : '—'} sub={w?.inex?.source ?? 'Your Indexx INEX balance'} icon testId="card-inex" />
               <Asset name="BTCY Nuggets" amount={w?.nuggets ? num(w.nuggets.balance, 2) : '—'} sub={w?.nuggets?.source ?? 'From BTCY mining'} logo="/brand/products/btcy.png" />
               <Asset name="USDXX" amount={w?.usdxx ? money(w.usdxx.usd ?? w.usdxx.balance) : '—'} sub={w?.usdxx?.source ?? 'Indexx Pay'} logo="/brand/products/usdxx.png" />
               <Asset name="Indexx Exchange" amount={w?.exchange ? money(w.exchange.totalUsd) : '—'} sub={w?.linked && !w.exchange ? 'Couldn’t read it right now' : 'Read-only'} logo="/brand/products/exchange.png" testId="card-exchange" />
@@ -190,7 +190,7 @@ function Withdraw({ w, onDone, onSignedOut }: { w: WalletView; onDone: (r: Withd
             <Icon name="arrow-down" size={18} />
             <div><span className="muted">It arrives in</span><strong>Indexx Exchange INEX wallet</strong></div>
           </div>
-          <dl className="p2-dl"><dt>Fee</dt><dd>None</dd><dt>Left in YaysApp</dt><dd>{quote ? `${num(quote.balance - confirm.amount)} INEX` : '—'}</dd></dl>
+          <dl className="p2-dl"><dt>Fee</dt><dd>None</dd><dt>Left on Indexx</dt><dd>{quote ? `${num(quote.balance - confirm.amount)} INEX` : '—'}</dd></dl>
           <p className="muted p2-small" style={{ margin: 0 }}>Withdrawals can’t be undone. If the exchange can’t take it, your INEX comes back.</p>
           {error && <Banner>{error}</Banner>}
           <div className="row center"><OvalButton icon="close" label="Cancel" variant="ghost" disabled={busy} onClick={() => setConfirm(null)} /><OvalButton icon="check" label={error ? 'Try again' : 'Withdraw'} size="lg" loading={busy} onClick={() => void go()} /></div>
