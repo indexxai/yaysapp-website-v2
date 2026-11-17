@@ -82,7 +82,7 @@ export function PostCard({ p, c, onChange, onGone, onOpen, full }: { p: CirclePo
       {p.status === 'live' ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
           <Act icon="heart" label={String(p.likes)} on={p.liked} a11y={p.liked ? 'Unlike' : 'Like'} disabled={!member} onPress={like} />
-          <Act icon="chat" label={`${p.comments} comment${p.comments === 1 ? '' : 's'}`} a11y={`${p.comments} comments`} onPress={full ? undefined : onOpen} />
+          <Act icon="chat" label={`${p.comments} comment${p.comments === 1 ? '' : 's'}`} a11y={`${p.comments} comment${p.comments === 1 ? '' : 's'}`} onPress={full ? undefined : onOpen} />
           <View style={{ flex: 1 }} />
           <Act icon="share" label="Share" a11y="Share post" onPress={() => void Share.share({ message: `${p.text ? `${p.text.slice(0, 120)}\n` : ''}${postLink(p.id)}` }).catch(() => undefined)} />
         </View>
