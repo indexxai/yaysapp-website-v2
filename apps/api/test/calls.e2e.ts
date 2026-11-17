@@ -66,6 +66,8 @@ describe('Calls', () => {
     expect(ah).toMatchObject({ id: j.call.id, direction: 'out', result: 'answered', media: 'video', title: 'Sara', peerId: sara.id });
     expect(sh).toMatchObject({ direction: 'in', result: 'answered', title: 'Ali', peerId: ali.id });
     expect(ah.durationSec).toBeGreaterThanOrEqual(1);
+    // Sara answered: the call line isn't unread for her (only Ali's hello before the call is).
+    expect(((await t.http.get(`/v1/conversations/${c}`).set(sara.auth).expect(200)).body as ConversationSummary).unread).toBe(1);
     // Over is over.
     await t.http.post(`/v1/calls/${j.call.id}/accept`).set(sara.auth).expect(410);
   });
@@ -98,6 +100,7 @@ describe('Calls', () => {
     expect(msgs.filter((m) => m.type === 'system').map((m) => (m.system as { outcome: string }).outcome)).toEqual(['declined', 'missed']);
     const list = (await t.http.get(`/v1/conversations/${c}`).set(omar.auth).expect(200)).body as ConversationSummary;
     expect(list.lastMessage?.system).toMatchObject({ kind: 'call', outcome: 'missed' });
+    expect(list.unread).toBe(3); // the hello, then the declined and the missed call: both still need a look
     await t.http.post('/v1/calls/seen').set(omar.auth).expect(204);
     expect((await history(omar)).missed).toBe(0);
   });

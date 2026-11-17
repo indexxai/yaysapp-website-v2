@@ -406,7 +406,8 @@ export class ChatService {
       if (!member) receipts[me.toHexString()] = { deliveredSeq: my?.deliveredSeq ?? 0, readSeq: my?.readSeq ?? 0 };
       const lastSeq = visibleLast(c);
       const readFrom = Math.max(my?.readSeq ?? 0, my?.fromSeq ?? 0);
-      const unread = lastSeq > readFrom ? await this.msgs.countDocuments({ convId: c._id, seq: { $gt: readFrom, $lte: lastSeq }, senderId: { $ne: me }, hiddenFor: { $ne: me } }, { limit: UNREAD_CAP }) : 0;
+      // A call that was answered isn't news to anyone in the chat: only missed (or declined) calls count as unread.
+      const unread = lastSeq > readFrom ? await this.msgs.countDocuments({ convId: c._id, seq: { $gt: readFrom, $lte: lastSeq }, senderId: { $ne: me }, hiddenFor: { $ne: me }, 'system.outcome': { $ne: 'completed' } }, { limit: UNREAD_CAP }) : 0;
       const mentioned = unread > 0 && c.kind === 'group' && !!(await this.msgs.findOne({ convId: c._id, seq: { $gt: readFrom, $lte: lastSeq }, mentions: me, deletedAt: { $exists: false } }, { projection: { _id: 1 } }));
       const last = lastMsgs[i];
       const peerId = c.kind === 'direct' ? c.members.find((m) => !m.equals(me)) : undefined;
