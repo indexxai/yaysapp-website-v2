@@ -222,6 +222,10 @@ function CallScreen({ session }: { session: CallSession }) {
 
   const remoteVideo = view.kind === 'direct' ? remotes.find((p) => camTrack(p)) : undefined;
   const myVideo = camTrack(room.localParticipant);
+  // Tiles are for group calls. One to one, it's the other person: their video full screen, or their photo while
+  // their camera is off, with you in the corner whenever your camera is on.
+  const tiles = anyVideo && view.kind !== 'direct';
+  const headTitle = !!remoteVideo || tiles;
   return (
     <Modal visible animationType="slide" statusBarTranslucent onRequestClose={() => session.setMinimized(true)}>
       <StatusBar barStyle="light-content" />
@@ -232,9 +236,9 @@ function CallScreen({ session }: { session: CallSession }) {
           <View style={[styles.head, remoteVideo ? styles.scrim : null]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Minimise call" onPress={() => session.setMinimized(true)} hitSlop={12} style={styles.headBtn}><Icon name="chevron-down" size={22} color={C.ink} /></Pressable>
             <View style={{ flex: 1, alignItems: 'center' }}>
-              <Text style={{ color: C.soft, fontSize: 13, fontFamily: font.display, fontWeight: '700' }}>YaysApp {view.kind === 'group' ? 'group ' : ''}{view.media} call</Text>
-              {anyVideo ? <Text numberOfLines={1} style={{ color: C.ink, fontSize: 17, fontWeight: '800', fontFamily: font.display }}>{view.title}</Text> : null}
-              {anyVideo ? <Text testID="call-status" style={{ color: C.soft, fontSize: 13 }}>{subtitle}</Text> : null}
+              <Text style={{ color: C.soft, fontSize: 13, fontFamily: font.display, fontWeight: '700' }}>YaysApp {view.kind === 'group' ? 'group ' : ''}{anyVideo ? 'video' : view.media} call</Text>
+              {headTitle ? <Text numberOfLines={1} style={{ color: C.ink, fontSize: 17, fontWeight: '800', fontFamily: font.display }}>{view.title}</Text> : null}
+              {headTitle ? <Text testID="call-status" style={{ color: C.soft, fontSize: 13 }}>{subtitle}</Text> : null}
             </View>
             <View style={{ width: 40 }} />
           </View>
@@ -242,7 +246,7 @@ function CallScreen({ session }: { session: CallSession }) {
           {weak ? <View style={styles.chip}><Icon name="alert-triangle" size={14} color={C.ink} /><Text style={{ color: C.ink, fontSize: 13 }}>Weak connection. Video lowered to keep the call going.</Text></View> : null}
 
           {remoteVideo ? <View style={{ flex: 1 }} />
-            : anyVideo ? (
+            : tiles ? (
               <ScrollView contentContainerStyle={styles.grid}>
                 {everyone.map((p) => {
                   const v = camTrack(p);
@@ -270,7 +274,7 @@ function CallScreen({ session }: { session: CallSession }) {
             )}
 
           {/* You, in the corner of a one-to-one video call. */}
-          {remoteVideo && myVideo ? <View testID="local-video" style={styles.selfie}><VideoView videoTrack={myVideo} objectFit="cover" mirror={session.frontCamera} zOrder={1} style={StyleSheet.absoluteFillObject} /></View> : null}
+          {view.kind === 'direct' && myVideo ? <View testID="local-video" style={styles.selfie}><VideoView videoTrack={myVideo} objectFit="cover" mirror={session.frontCamera} zOrder={1} style={StyleSheet.absoluteFillObject} /></View> : null}
 
           <View style={styles.controls}>
             <RoundButton icon={session.speaker ? 'volume' : 'volume-off'} label={session.speaker ? 'Speaker on' : 'Speaker'} pressed={session.speaker} fill={session.speaker ? '#ffffff' : C.raised} ink={session.speaker ? C.bg : C.ink} onPress={() => void session.toggleSpeaker()} disabled={!live} />

@@ -86,6 +86,9 @@ describe('Calls on mobile, against the real API and LiveKit', () => {
     // My camera is on; a video call uses the loudspeaker.
     await waitFor(() => expect(lastRoom().localParticipant.isCameraEnabled).toBe(true));
     await waitFor(() => expect(audio.__outputs.selected.at(-1)).toBe('speaker'));
+    // Before Sara's camera is on: her photo in the middle and me in the corner, not two small tiles.
+    expect(await screen.findByTestId('local-video')).toBeTruthy();
+    expect(screen.queryAllByTestId('call-tile')).toHaveLength(0);
     // Sara's phone joins the room with her camera on: she fills the screen, I'm in the corner.
     act(() => { lastRoom().__join(sara.id, { video: true }); });
     expect(await screen.findByTestId('local-video')).toBeTruthy();
