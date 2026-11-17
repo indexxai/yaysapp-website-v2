@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, Switch, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Pressable, RefreshControl, ScrollView, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { CIRCLE_CATEGORIES, CIRCLE_CATEGORY_LABEL, CIRCLE_LIMITS, type CircleCard, type CircleCategory, type CircleDiscover, type CircleView, type MyCircles } from '@yays/shared';
@@ -223,7 +223,7 @@ export function CircleFormScreen({ id, onBack, onSaved }: { id?: string; onBack:
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="circle-form">
       <LineArt name="gear" place="center" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <Header back="Cancel" onBack={onBack} title={id ? 'Circle settings' : 'Start a circle'} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
           {!id ? <Text style={{ color: t['ink-soft'], fontSize: 14, lineHeight: 20 }}>A feed, events and chats for your group. You’ll be the owner.</Text> : null}

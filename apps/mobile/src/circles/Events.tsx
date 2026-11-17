@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Switch, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CIRCLE_LIMITS, CIRCLE_TIMES, type CircleComment, type CircleEvent, type CircleView, type CreateEventInput, type EventMode, type MeProfile } from '@yays/shared';
 import { api } from '../lib/api';
@@ -92,7 +92,7 @@ export function EventScreen({ id, me, onBack, openCircle, openEdit }: { id: stri
   const money = c.category === 'crypto' || c.category === 'ai';
   return (
     <View style={{ flex: 1, backgroundColor: t.surface }} testID="event-screen">
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerStyle={{ paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
           <Banner height={150}>
             <LineArt name="lantern" height={140} ink="#ffffff" opacity={0.6} style={{ right: 24, bottom: -10 }} />
@@ -354,7 +354,7 @@ export function EventFormScreen({ circleId, eventId, onBack, onSaved }: { circle
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="event-form">
       <LineArt name="lantern" place="center" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <Header back="Cancel" onBack={onBack} title={e ? (ended ? 'Recording and slides' : 'Edit event') : 'New event'} />
         <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }} keyboardShouldPersistTaps="handled">
           {!e && c ? <Text style={{ color: t['ink-soft'], fontSize: 14 }}>In {c.name}. You’ll be the host.</Text> : null}

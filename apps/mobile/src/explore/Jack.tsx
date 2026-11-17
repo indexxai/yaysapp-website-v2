@@ -99,7 +99,7 @@ export function JackScreen({ me, onBack, openChat }: { me: MeProfile; onBack: ()
             : <><Bar done={quota.used} of={quota.limit} width="40%" /><Text style={{ flex: 1, fontSize: 12, color: t['ink-soft'], textAlign: 'right' }}><Text style={{ fontWeight: '800', color: t.ink }}>{quota.used} of {quota.limit}</Text> free messages today</Text></>}
         </View>
       ) : null}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView ref={scroll} contentContainerStyle={{ padding: 12, gap: 10, flexGrow: 1 }} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })} keyboardShouldPersistTaps="handled" testID="ai-thread">
           {!chat && !pending ? (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingVertical: 20 }} testID="ai-hello">

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, Share, View, type TextInput as RNTextInput } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Pressable, ScrollView, Share, View, type TextInput as RNTextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ImagePicker from 'react-native-image-crop-picker';
 import {
@@ -249,7 +249,7 @@ export function ComposeScreen({ circleId, me, onBack, onPosted, onEvent }: { cir
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="compose-screen">
       <LineArt name="snap" place="center" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 }}>
           <OvalButton icon="close" label="Cancel" size="sm" variant="secondary" onPress={onBack} />
           <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 20, color: t.ink, marginBottom: 20 }}>New post</Text>
@@ -377,7 +377,7 @@ export function PostScreen({ id, me, onBack, openCircle }: { id: string; me: MeP
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="post-screen">
       <LineArt name="reader" height={240} style={{ left: -36, right: undefined, bottom: 96 }} />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <Header back="Feed" onBack={onBack} title="Post" />
         {gone ? <State icon="trash" title="Post deleted" actions={<OvalButton icon="arrow-left" label="Back" size="lg" onPress={onBack} />} />
           : error ? <State icon="link" tone="plain" title="This post isn’t available">{error}</State>

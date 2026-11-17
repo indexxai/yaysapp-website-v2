@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { font, useTheme } from '../lib/theme';
@@ -10,7 +10,7 @@ export function Screen({ title, lead, children, background = 'ground', header, a
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t[background] }}>
       <LineArt name={art} place="center" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {header}
           {title ? <Text accessibilityRole="header" style={[styles.title, { color: t.ink }]}>{title}</Text> : null}

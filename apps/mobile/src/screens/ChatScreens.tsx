@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../ui/Text';
 import { CallButtons } from '../calls/Calls';
 import { CatchUp } from '../chat/CatchUp';
@@ -399,7 +399,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
         {catchUp ? <CatchUp c={c} onClose={() => setCatchUp(false)} /> : null}
         <ConnectionNotice />
         {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
-        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior="padding">
           <LineArt name="chat" place="center" />
           <FlatList
             testID="thread"
