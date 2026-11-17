@@ -70,6 +70,8 @@ describe('Explore on mobile, against the real API', () => {
     await call('/v1/rewards/referrals/use', { code }, as(hamza));
     const conv = (await call('/v1/conversations/direct', { userId: sara.id }, as(hamza))).id as string;
     await say(hamza, conv, 'Hi Sara!');
+    // The invite reward is paid just after Hamza's first message: wait for it before opening Earn.
+    await waitFor(async () => expect((await call('/v1/rewards/points', undefined, as(sara))).balance).toBe(110), T);
     fireEvent.press(within(screen.getByTestId('explore-screen')).getAllByLabelText('Earn')[0]!);
     const earn = await screen.findByTestId('earn-screen');
     await waitFor(() => expect(within(earn).getByTestId('points-balance').props.children).toBe('110'), T);
@@ -171,6 +173,12 @@ describe('Explore on mobile, against the real API', () => {
     expect(await within(w).findByText('25 INEX is on its way to your Indexx Exchange INEX wallet.', {}, T)).toBeTruthy();
     await waitFor(() => expect(within(within(w).getByTestId('card-inex')).getByText('35')).toBeTruthy(), T);
     expect(await within(w).findByText('Completed', {}, T)).toBeTruthy();
+    // Hide: no amount is left on screen, the withdrawal and the coins on the exchange included.
+    fireEvent.press(within(w).getByLabelText('Hide'));
+    await waitFor(() => expect(within(w).queryByText('25 INEX')).toBeNull(), T);
+    expect(within(w).queryByText(/^\d[\d.,]* ·/)).toBeNull();
+    fireEvent.press(within(w).getByLabelText('Show'));
+    expect(await within(w).findByText('25 INEX', {}, T)).toBeTruthy();
     // The Indexx account screen (from Me): signed in, and signing out shows the sign-in again.
     fireEvent.press(within(w).getByLabelText('Explore'));
     fireEvent.press(await screen.findByTestId('tab-Me'));

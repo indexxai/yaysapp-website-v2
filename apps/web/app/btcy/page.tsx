@@ -55,7 +55,7 @@ export default function BtcyPage() {
               </div>
             </div>
             <section className="p2-card p2-card--pad" aria-labelledby="week">
-              <div className="p2-col"><h2 id="week">Nuggets mined, last 7 days</h2><span className="muted p2-small">Total {num(b.last7Days.total, 2)} · today’s bar fills in when the running session ends</span></div>
+              <div className="p2-col"><h2 id="week">Nuggets mined, last 7 days</h2><span className="muted p2-small">Total {num(b.last7Days.total, 2)}{b.mining.active ? ' · today’s bar fills in when the running session ends' : ''}</span></div>
               <div className="p2-bars" role="img" aria-label={`Nuggets mined each day, ${num(b.last7Days.total, 2)} in total`}>
                 {days.map((d, i) => <div key={d.date}><span style={{ height: `${Math.round(((d.nuggets ?? 0) / max) * 120)}px`, background: i === days.length - 1 ? 'var(--ember)' : 'var(--ember-light)' }} title={num(d.nuggets, 4)} /><span>{d.label}</span></div>)}
               </div>

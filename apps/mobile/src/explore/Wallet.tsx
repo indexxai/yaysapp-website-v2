@@ -68,7 +68,7 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
           <Card title="On Indexx Exchange" pad={false}>
             {w.exchange.assets.map((a) => (
               <View key={`${a.symbol}-${a.network}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 }}>
-                <View style={{ flex: 1 }}><Text style={{ fontWeight: '700', color: t.ink }}>{a.symbol}</Text><Text style={{ fontSize: 12, color: t['ink-soft'] }}>{num(a.balance, 2)}{a.network ? ` · ${a.network}` : ''} · {money(a.price)}</Text></View>
+                <View style={{ flex: 1 }}><Text style={{ fontWeight: '700', color: t.ink }}>{a.symbol}</Text><Text style={{ fontSize: 12, color: t['ink-soft'] }}>{show(num(a.balance, 2))}{a.network ? ` · ${a.network}` : ''} · {money(a.price)}</Text></View>
                 <Text style={{ fontFamily: font.display, fontWeight: '800', color: t.ink }}>{show(money(a.usd))}</Text>
               </View>
             ))}
@@ -82,7 +82,7 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
               <View key={x.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
                 <IconOval icon="upload" size={36} tone="muted" />
                 <View style={{ flex: 1, gap: 3 }}><Text style={{ fontWeight: '700', color: t.ink, fontSize: 14 }}>To Indexx Exchange</Text><View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}><Tag kind={STATUS[x.status]?.tone ?? 'muted'}>{STATUS[x.status]?.label ?? x.status}</Tag><Text style={{ fontSize: 12, color: t['ink-soft'] }}>{when(x.createdAt)}</Text></View></View>
-                <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 14, color: x.status === 'failed' ? t['ink-soft'] : t.ink, textDecorationLine: x.status === 'failed' ? 'line-through' : 'none' }}>{num(x.amount)} INEX</Text>
+                <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 14, color: x.status === 'failed' ? t['ink-soft'] : t.ink, textDecorationLine: x.status === 'failed' ? 'line-through' : 'none' }}>{show(num(x.amount))} INEX</Text>
               </View>
             ))}
             {history?.hasMore ? <View style={{ alignItems: 'center', paddingBottom: 12 }}><OvalButton icon="chevron-down" label="Show more" size="sm" variant="ghost" onPress={() => void loadHistory(history.items.length)} /></View> : null}
@@ -181,7 +181,7 @@ function WithdrawSheet({ onClose, onDone, onSignedOut }: { onClose: () => void; 
         <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 20, color: t['ember-ink'] }}>{current?.eligible ? num(n) : '—'}</Text>
       </View>
       <Facts rows={[['Rate', '1 INEX = 1 INEX on the exchange'], ['Minimum', quote ? `${num(quote.minimum)} INEX` : '—'], ...(quote?.dailyMax != null ? [['Daily limit', `${num(quote.dailyMax)} INEX`], ['Left today', `${num(quote.remainingToday)} INEX`]] as Array<[string, string]> : [])]} />
-      <View style={{ alignItems: 'center' }}><OvalButton icon="upload" label={current?.eligible ? `Withdraw ${num(n)} INEX` : 'Withdraw'} size="xl" disabled={!current?.eligible} onPress={() => { setError(null); setConfirm({ amount: n, key: newKey() }); }} /></View>
+      <View style={{ alignItems: 'center' }}><OvalButton icon="upload" label={current?.eligible ? `Withdraw ${num(n)}` : 'Withdraw'} accessibilityLabel={current?.eligible ? `Withdraw ${num(n)} INEX` : 'Withdraw'} size="xl" disabled={!current?.eligible} onPress={() => { setError(null); setConfirm({ amount: n, key: newKey() }); }} /></View>
     </Sheet>
   );
 }

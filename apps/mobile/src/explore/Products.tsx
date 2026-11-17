@@ -53,7 +53,7 @@ export function BtcyScreen({ me, onBack, invite }: { me: MeProfile; onBack: () =
             </View>
             <Card>
               <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 16, color: t.ink }}>Nuggets mined, last 7 days</Text>
-              <Text style={{ fontSize: 12, color: t['ink-soft'] }}>Total {num(b.last7Days.total, 2)} · today’s bar fills in when the running session ends</Text>
+              <Text style={{ fontSize: 12, color: t['ink-soft'] }}>Total {num(b.last7Days.total, 2)}{b.mining.active ? ' · today’s bar fills in when the running session ends' : ''}</Text>
               <View accessibilityLabel={`Nuggets mined each day, ${num(b.last7Days.total, 2)} in total`} style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 140, paddingTop: 8 }}>
                 {days.map((d, i) => (
                   <View key={d.date} style={{ alignItems: 'center', gap: 6, flex: 1 }}>
