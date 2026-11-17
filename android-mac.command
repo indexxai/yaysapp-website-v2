@@ -48,7 +48,7 @@ if ! adb devices | grep -q "device$"; then
 fi
 adb devices
 # A real phone reaches this Mac's API and Metro through USB.
-adb reverse tcp:4000 tcp:4000 >/dev/null 2>&1; adb reverse tcp:8081 tcp:8081 >/dev/null 2>&1; adb reverse tcp:7880 tcp:7880 >/dev/null 2>&1
+adb reverse tcp:4000 tcp:4000 >/dev/null 2>&1; adb reverse tcp:8081 tcp:8081 >/dev/null 2>&1; adb reverse tcp:7880 tcp:7880 >/dev/null 2>&1; adb reverse tcp:7881 tcp:7881 >/dev/null 2>&1
 
 # ---- which port Metro uses: 8081, unless something else already has it ----
 METRO_PORT=8081

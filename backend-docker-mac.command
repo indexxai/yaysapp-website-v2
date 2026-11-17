@@ -2,7 +2,7 @@
 # YaysApp's backend on this Mac with Docker: MongoDB (a replica set) and Redis in containers, then the API on
 # http://localhost:4000. Uses the ports in apps/api/.env (MongoDB 27018, Redis 6380). Opens Docker Desktop if needed.
 # Double-click it in Finder. Close this window (or press Ctrl+C) to stop the API; the containers keep their data
-# and stop with: docker stop yays-mongo yays-redis
+# and stop with: docker stop yays-mongo yays-redis yays-livekit
 cd "$(dirname "$0")"
 LOG="$PWD/backend-run.log"
 : > "$LOG"; : > "$LOG.steps"
@@ -44,6 +44,18 @@ run yays-redis -p 127.0.0.1:$REDIS_PORT:6379 redis:7 || fail "Redis didn't start
 for _ in $(seq 1 60); do nc -z 127.0.0.1 $MONGO_PORT 2>/dev/null && break; sleep 1; done
 
 [ -f apps/api/.env ] || cp apps/api/.env.example apps/api/.env
+
+# ---- LiveKit (voice and video calls) ----
+# Uses the key and secret from apps/api/.env (devkey/secret when they aren't set), so the API's call tokens match.
+# Media goes over 127.0.0.1: the iPhone simulator reaches it directly, the Android emulator through adb reverse.
+step "Starting the call server (LiveKit) on port 7880"
+envval() { grep -E "^$1=" apps/api/.env | tail -1 | cut -d= -f2- | tr -d '"'"'"; }
+LK_KEY="$(envval LIVEKIT_API_KEY)"; LK_SECRET="$(envval LIVEKIT_API_SECRET)"
+docker rm -f yays-livekit >/dev/null 2>&1
+docker run -d --name yays-livekit -p 127.0.0.1:7880:7880 -p 127.0.0.1:7881:7881 -p 127.0.0.1:7882:7882/udp \
+  -e LIVEKIT_KEYS="${LK_KEY:-devkey}: ${LK_SECRET:-secret}" livekit/livekit-server:v1.8.4 \
+  --dev --bind 0.0.0.0 --node-ip 127.0.0.1 >/dev/null || echo "LiveKit didn't start; chats work, calls won't."
+unset LK_KEY LK_SECRET
 step "Installing packages"
 pnpm install >/dev/null || fail "pnpm install failed."
 pnpm --filter @yays/tokens build >/dev/null && pnpm --filter @yays/shared build >/dev/null || fail "Building the shared code failed."
