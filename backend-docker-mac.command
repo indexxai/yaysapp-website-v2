@@ -53,11 +53,25 @@ for _ in $(seq 1 60); do nc -z 127.0.0.1 $MONGO_PORT 2>/dev/null && break; sleep
 step "Starting the call server (LiveKit) on port 7880"
 envval() { grep -E "^$1=" apps/api/.env | tail -1 | cut -d= -f2- | tr -d '"'"'"; }
 LK_KEY="$(envval LIVEKIT_API_KEY)"; LK_SECRET="$(envval LIVEKIT_API_SECRET)"
+LK_KEY="${LK_KEY:-devkey}"; LK_SECRET="${LK_SECRET:-secret}"
+# The same server version and set-up as the automated tests (infra/test-stack.mjs): calls report who joined and left
+# to the API through the webhook, which reaches this Mac from the container at host.docker.internal.
+LK_CONFIG="port: 7880
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: false
+keys:
+  $LK_KEY: $LK_SECRET
+webhook:
+  api_key: $LK_KEY
+  urls:
+    - http://host.docker.internal:4000/v1/livekit/webhook"
 docker rm -f yays-livekit >/dev/null 2>&1
 docker run -d --name yays-livekit -p 127.0.0.1:7880:7880 -p 127.0.0.1:7881:7881 -p 127.0.0.1:7882:7882/udp \
-  -e LIVEKIT_KEYS="${LK_KEY:-devkey}: ${LK_SECRET:-secret}" livekit/livekit-server:v1.8.4 \
-  --dev --bind 0.0.0.0 --node-ip 127.0.0.1 >/dev/null || echo "LiveKit didn't start; chats work, calls won't."
-unset LK_KEY LK_SECRET
+  -e LIVEKIT_CONFIG="$LK_CONFIG" livekit/livekit-server:v1.12.0 \
+  --bind 0.0.0.0 --node-ip 127.0.0.1 >/dev/null || echo "LiveKit didn't start; chats work, calls won't."
+unset LK_KEY LK_SECRET LK_CONFIG
 step "Installing packages"
 pnpm install >/dev/null || fail "pnpm install failed."
 pnpm --filter @yays/tokens build >/dev/null && pnpm --filter @yays/shared build >/dev/null || fail "Building the shared code failed."
