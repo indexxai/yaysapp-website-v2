@@ -9,6 +9,8 @@ LOG="$PWD/backend-run.log"
 exec > >(tee -a "$LOG") 2>&1
 step() { printf "\n\033[1;33m▶ %s\033[0m\n" "$1"; echo "STEP: $1" >> "$LOG.steps"; }
 fail() { printf "\n\033[1;31m✖ %s\033[0m\n" "$1"; echo "FAILED: $1" >> "$LOG.steps"; echo; read -r -p "Press Enter to close." _; exit 1; }
+# Any answer on /v1/health means an API is there (it says 503 when, say, file storage isn't set up locally).
+api_up() { [ "$(curl -s -o /dev/null --max-time 3 -w '%{http_code}' http://localhost:4000/v1/health)" != "000" ]; }
 
 for b in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -x "$b" ] && eval "$("$b" shellenv)"; done
 export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null
@@ -63,15 +65,15 @@ step "Setting up the MongoDB replica set"
 node infra/rs-init.js "mongodb://127.0.0.1:$MONGO_PORT/?directConnection=true" || fail "The MongoDB replica set didn't start (see above)."
 
 # ---- the API ----
-if curl -sf -o /dev/null http://localhost:4000/v1/health; then
+if api_up; then
   echo "An API is already running on port 4000."; echo "RUNNING" >> "$LOG.steps"; read -r -p "Press Enter to close." _; exit 0
 fi
 step "Starting the API on http://localhost:4000"
 pnpm --filter @yays/api dev > api-run.log 2>&1 &
 API=$!
 trap 'kill $API 2>/dev/null; exit 0' INT TERM HUP
-for _ in $(seq 1 90); do curl -sf -o /dev/null http://localhost:4000/v1/health && break; kill -0 $API 2>/dev/null || break; sleep 2; done
-curl -sf -o /dev/null http://localhost:4000/v1/health || { tail -30 api-run.log; fail "The API didn't start (see above, and api-run.log)."; }
+for _ in $(seq 1 90); do api_up && break; kill -0 $API 2>/dev/null || break; sleep 2; done
+api_up || { tail -30 api-run.log; fail "The API didn't start (see above, and api-run.log)."; }
 echo "RUNNING" >> "$LOG.steps"
 printf "\n\033[1;32m✔ The backend is running: http://localhost:4000 (the Android emulator reaches it at 10.0.2.2:4000)\033[0m\n"
 echo "  Sign-in codes aren't sent in development. The last code for a number or email:"

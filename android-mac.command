@@ -9,6 +9,8 @@ LOG="$PWD/android-run.log"
 exec > >(tee -a "$LOG") 2>&1
 step() { printf "\n\033[1;33m▶ %s\033[0m\n" "$1"; echo "STEP: $1" >> "$LOG.steps"; }
 fail() { printf "\n\033[1;31m✖ %s\033[0m\n" "$1"; echo "FAILED: $1" >> "$LOG.steps"; echo; read -r -p "Press Enter to close." _; exit 1; }
+# Any answer on /v1/health means an API is there (it says 503 when, say, file storage isn't set up locally).
+api_up() { [ "$(curl -s -o /dev/null --max-time 3 -w '%{http_code}' http://localhost:4000/v1/health)" != "000" ]; }
 : > "$LOG.steps"
 
 # ---- tools: Homebrew, Node (nvm or Homebrew), pnpm, Android SDK, Java ----
@@ -80,7 +82,7 @@ echo "BUILD_OK" >> "$LOG.steps"
 pids=()
 stop() { echo; step "Stopping"; for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; pkill -f "livekit-server --dev" 2>/dev/null || true; exit 0; }
 trap stop INT TERM HUP
-if curl -sf -o /dev/null http://localhost:4000/v1/health; then
+if api_up; then
   echo "An API is already running on port 4000."
 elif command -v mongod >/dev/null && command -v redis-server >/dev/null; then
   step "Starting MongoDB and Redis"
@@ -101,7 +103,7 @@ if ! curl -s --max-time 3 "http://localhost:$METRO_PORT/status" | grep -q packag
   for _ in $(seq 1 90); do curl -s --max-time 2 "http://localhost:$METRO_PORT/status" | grep -q packager-status:running && break; sleep 1; done
 fi
 adb reverse tcp:$METRO_PORT tcp:$METRO_PORT >/dev/null 2>&1
-[ ${#pids[@]} -gt 0 ] && for _ in $(seq 1 90); do curl -sf -o /dev/null http://localhost:4000/v1/health && break; sleep 2; done
+[ ${#pids[@]} -gt 0 ] && for _ in $(seq 1 90); do api_up && break; sleep 2; done
 step "Installing and opening YaysApp"
 adb install -r "$APK" || fail "Installing the app failed."
 PKG="$(grep -m1 applicationId apps/mobile/android/app/build.gradle | sed -E 's/.*"([^"]+)".*/\1/')"
