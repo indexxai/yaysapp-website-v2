@@ -50,7 +50,7 @@ export function ExploreScreen({ me, nav }: { me: MeProfile; nav: ExploreNav }) {
       <LineArt name="skater" height={300} />
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
         <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 30, lineHeight: 36, color: t.ink }}>Explore</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`INEX balance ${points.data ? points.data.balance.toLocaleString('en-US') : ''}`} onPress={nav.earn}
+        <Pressable accessibilityRole="button" accessibilityLabel={`INEX earned in YaysApp: ${points.data ? points.data.balance.toLocaleString('en-US') : ''}. Opens Earn`} onPress={nav.earn}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: t['ember-wash'] }}>
           <Image source={BRAND.coin} style={{ width: 24, height: 24 }} resizeMode="contain" />
           <Text testID="explore-balance" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 14, color: t['ember-ink'] }}>{points.data ? points.data.balance.toLocaleString('en-US') : '—'}</Text>
