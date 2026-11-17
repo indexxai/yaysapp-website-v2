@@ -44,7 +44,7 @@ import type { MeProfile } from '@yays/shared';
 export type Routes = { Welcome: undefined; SignIn: undefined; ProfileSetup: undefined; Tabs: undefined; NewChat: undefined; Chat: { id: string }; Forward: { conversationId: string; messageId: string }; MessageInfo: { conversationId: string; messageId: string }; NewGroup: undefined; Search: undefined; Archived: undefined; ChatInfo: { id: string }; AddMembers: { id: string }; NewPoll: { conversationId: string }; Profile: undefined; Devices: undefined; Privacy: undefined; NotificationSettings: undefined; Appearance: undefined; Starred: undefined; Storage: undefined; Socials: undefined;
   Discover: undefined; NewCircle: undefined; CircleSettings: { id: string }; Circle: { id: string; tab?: 'feed' | 'events' | 'chats' | 'about' }; Compose: { circleId: string }; Post: { id: string }; Event: { id: string }; EventForm: { circleId: string; eventId?: string };
   JoinInvite: { kind: 'group' | 'circle'; code: string };
-  Jack: undefined; Earn: undefined; History: undefined; Invite: undefined; Wallet: undefined; Indexx: undefined; Btcy: undefined; Products: { tab?: ProductTab }; Help: undefined;
+  Jack: undefined; Earn: undefined; History: undefined; Invite: undefined; Wallet: undefined; Indexx: undefined; Btcy: undefined; Products: { tab?: ProductTab }; Help: { back?: string } | undefined;
 };
 const Stack = createNativeStackNavigator<Routes>();
 /** For the call screens, which sit above the navigator: "Message" on a ringing call opens its chat. */
@@ -92,7 +92,7 @@ function Tabs({ me }: { me: MeProfile }) {
       <Tab.Screen name="Calls">{() => <CallsScreen openChat={(id) => nav.navigate('Chat', { id })} />}</Tab.Screen>
       <Tab.Screen name="Circles">{() => <CirclesTab nav={circleNav(nav)} />}</Tab.Screen>
       <Tab.Screen name="Explore">{() => <ExploreScreen me={me} nav={exploreNav(nav)} />}</Tab.Screen>
-      <Tab.Screen name="Me">{() => <MeScreen me={me} open={(r) => nav.navigate(r)} />}</Tab.Screen>
+      <Tab.Screen name="Me">{() => <MeScreen me={me} open={(r) => (r === 'Help' ? nav.navigate('Help', { back: 'Me' }) : nav.navigate(r))} />}</Tab.Screen>
     </Tab.Navigator>
   );
 }
@@ -142,7 +142,7 @@ function Root() {
             <Stack.Screen name="Starred" options={{ headerShown: false }}>{({ navigation }) => <StarredScreen me={me!} onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
             <Stack.Screen name="Storage" options={{ headerShown: false }}>{({ navigation }) => <StorageScreen onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
             <Stack.Screen name="Socials" options={{ headerShown: false }}>{({ navigation }) => <SocialsScreen onBack={() => navigation.goBack()} />}</Stack.Screen>
-            <Stack.Screen name="Devices" component={DevicesScreen} />
+            <Stack.Screen name="Devices" options={{ headerShown: false }}>{({ navigation }) => <DevicesScreen onBack={() => navigation.goBack()} />}</Stack.Screen>
             <Stack.Screen name="JoinInvite" options={{ headerShown: false }}>{({ navigation, route }) => <JoinInviteScreen kind={route.params.kind} code={route.params.code} onBack={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Tabs'))}
               openChat={(id) => navigation.replace('Chat', { id })} openCircle={(id) => navigation.replace('Circle', { id })} />}</Stack.Screen>
             <Stack.Screen name="Jack" options={{ headerShown: false }}>{({ navigation }) => <JackScreen me={me!} onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
@@ -155,7 +155,7 @@ function Root() {
             <Stack.Screen name="Indexx" options={{ headerShown: false }}>{({ navigation }) => <IndexxScreen me={me!} onBack={() => navigation.goBack()} />}</Stack.Screen>
             <Stack.Screen name="Btcy" options={{ headerShown: false }}>{({ navigation }) => <BtcyScreen me={me!} onBack={() => navigation.goBack()} invite={() => navigation.navigate('Invite')} />}</Stack.Screen>
             <Stack.Screen name="Products" options={{ headerShown: false }}>{({ navigation, route }) => <ProductsScreen me={me!} tab={route.params?.tab} onBack={() => navigation.goBack()} />}</Stack.Screen>
-            <Stack.Screen name="Help" options={{ headerShown: false }}>{({ navigation }) => <HelpScreen onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
+            <Stack.Screen name="Help" options={{ headerShown: false }}>{({ navigation, route }) => <HelpScreen back={route.params?.back} onBack={() => navigation.goBack()} openChat={(id) => navigation.navigate('Chat', { id })} />}</Stack.Screen>
             <Stack.Screen name="Discover" options={{ headerShown: false }}>{({ navigation }) => <DiscoverScreen nav={circleNav(navigation)} onBack={() => navigation.goBack()} />}</Stack.Screen>
             <Stack.Screen name="NewCircle" options={{ headerShown: false, presentation: 'modal' }}>{({ navigation }) => <CircleFormScreen onBack={() => navigation.goBack()} onSaved={(c) => navigation.replace('Circle', { id: c.id })} />}</Stack.Screen>
             <Stack.Screen name="CircleSettings" options={{ headerShown: false, presentation: 'modal' }}>{({ navigation, route }) => <CircleFormScreen id={route.params.id} onBack={() => navigation.goBack()} onSaved={() => navigation.goBack()} />}</Stack.Screen>

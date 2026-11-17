@@ -112,7 +112,11 @@ export function useSaved() {
     if (tone === 'success') timer.current = setTimeout(() => setM(null), 4000);
   };
   return {
-    banner: m ? <Banner tone={m.tone}>{m.text}</Banner> : null,
+    // A success floats over the top of the section, so the rows don't jump when it appears and again when it fades
+    // (a tap aimed at a row would land on its neighbour). An error stays in the flow until it's dealt with.
+    banner: !m ? null : m.tone === 'success'
+      ? <View style={s.toast} pointerEvents="none"><Banner tone="success">{m.text}</Banner></View>
+      : <Banner tone={m.tone}>{m.text}</Banner>,
     ok: (text = 'Saved.') => show('success', text),
     fail: (text: string) => show('danger', text),
     clear: () => setM(null),
@@ -159,5 +163,6 @@ const s = StyleSheet.create({
   card: { borderRadius: 24, paddingVertical: 6, overflow: 'hidden' },
   cardTitle: { fontFamily: font.display, fontWeight: '800', fontSize: 13, letterSpacing: 0.4, textTransform: 'uppercase', paddingHorizontal: 16, paddingTop: 10, paddingBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  toast: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 10, elevation: 10 },
   navRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
 });

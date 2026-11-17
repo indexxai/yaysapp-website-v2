@@ -133,7 +133,7 @@ const FAQ: Array<[string, string]> = [
   ['How do I edit or delete a message?', 'Long-press a message and open its menu. You can edit your messages for 15 minutes and delete them for everyone for 15 minutes; after that you can still delete them for yourself.'],
 ];
 
-export function HelpScreen({ onBack, openChat }: { onBack: () => void; openChat: (id: string) => void }) {
+export function HelpScreen({ onBack, openChat, back = 'Explore' }: { onBack: () => void; openChat: (id: string) => void; back?: string }) {
   const t = useTheme();
   const [q, setQ] = useState('');
   const [answer, setAnswer] = useState<string | null>(null);
@@ -147,7 +147,7 @@ export function HelpScreen({ onBack, openChat }: { onBack: () => void; openChat:
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="help-screen">
       <LineArt name="lantern" height={230} style={{ right: -10, top: 150, bottom: undefined }} />
-      <Header back="Explore" onBack={onBack} title="Help" />
+      <Header back={back} onBack={onBack} title="Help" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 30, gap: 12 }} keyboardShouldPersistTaps="handled">
         {notice ? <ErrorBanner tone="success">{notice}</ErrorBanner> : null}
         <Card testID="ask-support">

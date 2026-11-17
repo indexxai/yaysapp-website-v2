@@ -10,6 +10,7 @@ import { Icon } from '../ui/Icon';
 import { Oval } from '../ui/Oval';
 import { ProfileForm } from './ProfileForm';
 import { Screen } from './Screen';
+import { SettingsPage } from '../settings/ui';
 
 export function ProfileSetupScreen() {
   const s = useSession();
@@ -17,7 +18,7 @@ export function ProfileSetupScreen() {
   return <Screen art="selfie" title="Set up your profile" lead="This is how friends will see you in chats."><ProfileForm me={s.state.me} submitLabel="Continue" onSaved={s.setMe} /></Screen>;
 }
 
-export function DevicesScreen() {
+export function DevicesScreen({ onBack }: { onBack: () => void }) {
   const t = useTheme();
   const [list, setList] = useState<DeviceSession[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -29,7 +30,8 @@ export function DevicesScreen() {
     try { await fn(); setMsg({ tone: 'success', text: ok }); await load(); } catch (e) { setMsg({ tone: 'danger', text: e instanceof ApiError ? e.message : 'That did not work. Try again.' }); } finally { setBusy(null); }
   };
   return (
-    <Screen art="gear" title="Linked devices" lead="Use YaysApp on your phone, the web and other devices. Log out any you don't recognise.">
+    <SettingsPage title="Linked devices" art="gear" onBack={onBack} testID="devices-screen">
+      <Text style={{ fontSize: 15, lineHeight: 22, color: t['ink-soft'], paddingHorizontal: 4 }}>Use YaysApp on your phone, the web and other devices. Log out any you don't recognise.</Text>
       {msg ? <Banner tone={msg.tone}>{msg.text}</Banner> : null}
       <View style={{ backgroundColor: t.raised, borderRadius: 24, overflow: 'hidden' }}>
         {list?.map((d, i) => (
@@ -44,6 +46,6 @@ export function DevicesScreen() {
         ))}
       </View>
       {list && list.length > 1 ? <View style={{ alignItems: 'center' }}><OvalButton icon="logout" label="Log out all other devices" variant="danger" loading={busy === 'others'} onPress={() => act('others', async () => (await api()).revokeOtherDevices(), 'All other devices were logged out.')} /></View> : null}
-    </Screen>
+    </SettingsPage>
   );
 }
