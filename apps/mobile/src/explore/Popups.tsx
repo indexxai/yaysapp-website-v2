@@ -108,7 +108,7 @@ export function BonusPopup({ first, bonus: b, onClose, onGo, onEarn }: { first: 
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
           <OvalButton icon="clock" label="Later" variant="ghost" onPress={later} />
-          <OvalButton icon={jack ? 'sparkles' : 'bitcoin'} label={jack ? 'Ask Jack now' : b.needsLink ? 'Sign in to Indexx' : 'Open BTCY'} size="lg" onPress={go} />
+          <OvalButton icon={jack ? 'jack' : 'bitcoin'} label={jack ? 'Ask Jack now' : b.needsLink ? 'Sign in to Indexx' : 'Open BTCY'} size="lg" onPress={go} />
         </View>
         <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: noMore }} accessibilityLabel="Don’t show bonus pop-ups today" onPress={() => setNoMore(!noMore)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
           <Oval width={22} fill={noMore ? t.ember : t.sunken}>{noMore ? <Icon name="check" size={13} color="#fff" /> : null}</Oval>

@@ -68,7 +68,7 @@ export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => v
                 <Text style={{ fontFamily: font.display, fontWeight: '700', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: t['ember-ink'] }}>{b.eyebrow}</Text>
                 <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 17, color: t.ink }}>{b.complete ? `+${b.paid} earned` : `Up to +${b.points}`}</Text>
               </View>
-              <OvalButton icon={b.product === 'jack' ? 'sparkles' : 'bitcoin'} label={b.product === 'jack' ? 'Ask Jack' : b.needsLink ? 'Link Indexx' : 'Open BTCY'} size="sm" variant="soft" onPress={b.product === 'jack' ? nav.ai : b.needsLink ? nav.indexx : nav.btcy} />
+              <OvalButton icon={b.product === 'jack' ? 'jack' : 'bitcoin'} label={b.product === 'jack' ? 'Ask Jack' : b.needsLink ? 'Link Indexx' : 'Open BTCY'} size="sm" variant="soft" onPress={b.product === 'jack' ? nav.ai : b.needsLink ? nav.indexx : nav.btcy} />
             </View>
             <TaskList tasks={b.tasks} />
           </Card>

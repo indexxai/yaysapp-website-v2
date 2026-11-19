@@ -262,6 +262,10 @@ span.chip { cursor: default; }
 .quote__body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .quote__thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; flex: none; }
 .convo { position: relative; }
+/* The YaysApp doodle wallpaper behind the messages (the phone app uses the same tile). It stays put while the messages scroll. */
+.convo__scroll { background: url('/brand/chat-wallpaper-light.png') repeat 0 0 / 260px auto; }
+[data-theme="dark"] .convo__scroll { background-image: url('/brand/chat-wallpaper-dark.png'); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .convo__scroll { background-image: url('/brand/chat-wallpaper-dark.png'); } }
 .convo--drop .convo__scroll { opacity: .35; }
 .drop-hint { position: absolute; inset: 70px 24px 90px; border: 3px dashed var(--ember); border-radius: 24px; display: flex; align-items: center; justify-content: center; gap: 12px; font: 800 18px var(--font-display); color: var(--ember-ink); pointer-events: none; background: rgba(255,255,255,.4); }
 .modal--wide { max-width: 640px; }
@@ -362,6 +366,8 @@ mark.hit { background: var(--ember-wash); color: var(--ember-ink); font-weight: 
 
 /* Chat list: filters, archived, row menu (w02, m43) */
 .list-filters { padding: 0 20px 8px; }
+.list-filters .ys-tabs { display: flex; width: 100%; }
+.list-filters .ys-tab { flex: 1 0 auto; justify-content: center; padding: 0 8px; }
 .chat-row { position: relative; }
 .chat-row + .chat-row > .ys-row-item, .archived-row + .chat-row > .ys-row-item { border-top: 1px solid var(--line); }
 .chat-row__icons { display: flex; align-items: center; gap: 6px; min-height: 20px; color: var(--ink-soft); }
@@ -416,7 +422,7 @@ button.info-row { cursor: pointer; }
 /* Settings (w08, w25–w29) */
 .settings { display: flex; height: 100%; min-height: 0; }
 .settings__list { width: 372px; flex: none; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; border-right: 1px solid var(--line); background: var(--ground); }
-.settings__me { position: relative; overflow: hidden; display: flex; align-items: center; gap: 14px; margin: 0 12px 12px; padding: 16px; border-radius: 28px; background: var(--surface); color: inherit; text-decoration: none; }
+.settings__me { position: relative; overflow: hidden; flex: none; display: flex; align-items: center; gap: 14px; margin: 0 12px 12px; padding: 16px; border-radius: 28px; background: var(--surface); color: inherit; text-decoration: none; }
 .settings__me-art { position: absolute; right: -6px; top: -8px; pointer-events: none; }
 .settings__me-text { display: flex; flex-direction: column; min-width: 0; }
 .settings__me strong { font: 800 17px var(--font-display); }

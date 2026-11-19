@@ -34,7 +34,7 @@ export function CatchUp({ c, onClose }: { c: ConversationSummary; onClose: () =>
         <Text style={{ fontSize: 12, color: t['ink-soft'] }}>{c.kind === 'group' ? 'Group members are not told. ' : ''}You can turn this off any time from this chat.</Text>
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
           <OvalButton icon="close" label="Not now" variant="ghost" onPress={onClose} />
-          <OvalButton icon="sparkles" label="Allow and summarise" size="lg" onPress={() => void api().then((a) => a.aiSetConsent(c.id, true)).then(run, (e) => { setError(errText(e)); setStep('done'); })} />
+          <OvalButton icon="jack" label="Allow and summarise" size="lg" onPress={() => void api().then((a) => a.aiSetConsent(c.id, true)).then(run, (e) => { setError(errText(e)); setStep('done'); })} />
         </View>
       </Sheet>
     );

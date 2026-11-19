@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '../ui/Text';
 import { CallButtons } from '../calls/Calls';
 import { CatchUp } from '../chat/CatchUp';
@@ -14,9 +14,12 @@ import { LineArt } from '../ui/LineArt';
 import { ActionsCtx, Bubble, CallLine, ComposeBar, MessageSheet, SystemLine, TickMark, canDeleteForEveryone, errText, type Actions } from '../chat/messages';
 import { dayLabel, lastSeen, listTime, useChatState, useEngine } from '../lib/chat';
 import { font, useTheme, type Theme } from '../lib/theme';
-import { Avatar, Banner, Field, OvalButton } from '../ui/kit';
+import { Avatar, Banner, Field, JACK_LOGO, OvalButton } from '../ui/kit';
 import { Icon } from '../ui/Icon';
 import { Oval } from '../ui/Oval';
+
+/** The YaysApp doodle wallpaper as a small seamless tile (lines only), repeated so it reads as a pattern, tinted per theme. */
+const CHAT_WALLPAPER = require('../../assets/brand/chat-wallpaper-tile.png');
 
 function ConnectionNotice() {
   const s = useChatState();
@@ -386,7 +389,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
           </View>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Catch up" accessibilityState={{ selected: catchUp }} testID="catch-up" onPress={() => setCatchUp((v) => !v)} hitSlop={8}>
-            <Icon name="sparkles" size={22} color={catchUp ? t['ember-ink'] : t['ink-soft']} />
+            <Image source={JACK_LOGO} style={{ width: 24, height: 24, opacity: catchUp ? 1 : 0.55 }} resizeMode="contain" />
           </Pressable>
           <CallButtons conversationId={id} canCall={c.canSend && !(group && c.group?.announcements)} live={c.call} />
         </View>
@@ -400,7 +403,8 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
         <ConnectionNotice />
         {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior="padding">
-          <LineArt name="chat" place="center" />
+          {/* The YaysApp doodle wallpaper behind the messages; date labels and notices sit on their own pills, so they stay readable on it. */}
+          <Image source={CHAT_WALLPAPER} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', tintColor: t.ember, opacity: t.scheme === 'dark' ? 0.35 : 0.28 }]} resizeMode="repeat" accessibilityIgnoresInvertColors testID="chat-wallpaper" />
           <FlatList
             testID="thread"
             inverted

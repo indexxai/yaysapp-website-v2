@@ -156,7 +156,7 @@ export function HelpScreen({ onBack, openChat, back = 'Explore' }: { onBack: () 
             style={{ minHeight: 70, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: t['line-strong'], backgroundColor: t.surface, color: t.ink, fontSize: 15, textAlignVertical: 'top' }} />
           {error ? <ErrorBanner>{error}</ErrorBanner> : null}
           {answer === null ? (
-            <View style={{ alignItems: 'center' }}><OvalButton icon="sparkles" label="Get an answer" loading={busy === 'ask'} disabled={q.trim().length < 3} onPress={() => void run('ask', async () => setAnswer((await (await api()).supportAsk(q)).answer))} /></View>
+            <View style={{ alignItems: 'center' }}><OvalButton icon="jack" label="Get an answer" loading={busy === 'ask'} disabled={q.trim().length < 3} onPress={() => void run('ask', async () => setAnswer((await (await api()).supportAsk(q)).answer))} /></View>
           ) : (
             <>
               <View testID="support-answer" style={{ gap: 4, padding: 12, borderRadius: 16, backgroundColor: t.surface }}><Text style={{ fontSize: 11, color: t['ink-soft'] }}>Jack’s AI</Text><Text style={{ fontSize: 14, lineHeight: 20, color: t.ink }}>{answer}</Text></View>
