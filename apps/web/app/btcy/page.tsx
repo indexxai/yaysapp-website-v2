@@ -37,7 +37,7 @@ export default function BtcyPage() {
         </div>
         {v.error && <Banner>{v.error}</Banner>}
         {v.data && !v.data.linked && ix.data && (
-          <IndexxSignIn email={ix.data.email ?? me?.email ?? null} ended={!!ix.data.email} sub="See your mining, Nuggets, team and boost here. BTCY bonus tasks count toward INEX." onDone={(s) => { ix.setData(s); void v.reload(); }} />
+          <IndexxSignIn email={ix.data.email ?? me?.email ?? null} ended={!!ix.data.email} sub="See your mining, Nuggets, team and boost here. BTCY bonus tasks count toward BTCY tokens." onDone={(s) => { ix.setData(s); void v.reload(); }} />
         )}
         {v.data?.linked && !b && <Banner tone="warning">BTCY didn’t answer. Try again in a minute.</Banner>}
         {b && (

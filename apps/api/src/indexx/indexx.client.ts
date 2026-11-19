@@ -73,7 +73,7 @@ export class IndexxClient {
     if (res.status === 401) throw new IndexxSignedOut();
     if (res.status === 400) throw AppError.validation(said ?? 'Indexx didn’t accept that.');
     if (res.status === 409) throw AppError.conflict(said ?? 'Another withdrawal is still running. Wait a moment, then refresh.');
-    if (res.status === 503) throw new AppError(503, ErrorCode.PROVIDER_UNAVAILABLE, said ?? 'Indexx Exchange couldn’t take the INEX. Nothing was spent. Try again later.');
+    if (res.status === 503) throw new AppError(503, ErrorCode.PROVIDER_UNAVAILABLE, said ?? 'The BTCY app couldn’t take the BTCY tokens. Nothing was spent. Try again later.');
     throw new AppError(503, ErrorCode.PROVIDER_UNAVAILABLE, NO_ANSWER);
   }
 }

@@ -29,7 +29,7 @@ export function IndexxSignIn({ email, onDone, title = 'Sign in to Indexx', sub, 
         <span className="ys-oval" style={{ width: 52, ['--ys-oval-fill' as string]: '#ffffff' }}><img src="/brand/products/indexx.png" alt="" /></span>
         <span className="p2-col" style={{ flex: 1 }}>
           <h2 id="ixsign-h" style={{ margin: 0 }}>{title}</h2>
-          <span className="muted">{sub ?? 'See your BTCY mining, EMMM positions, ShoperPal orders, Wall Street stocks and wallet here, and withdraw INEX to Indexx Exchange.'}</span>
+          <span className="muted">{sub ?? 'See your BTCY mining, EMMM positions, ShoperPal orders, Wall Street stocks and wallet here, and withdraw BTCY tokens to the BTCY app.'}</span>
         </span>
       </div>
       {ended && <Banner tone="info">Your Indexx sign-in ended. Sign in again to see your products.</Banner>}

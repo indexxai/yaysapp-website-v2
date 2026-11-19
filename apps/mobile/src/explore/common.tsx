@@ -182,7 +182,7 @@ export function IndexxSignIn({ email, onDone, sub, ended, title = 'Sign in to In
         <Logo src={BRAND.indexx} size={52} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 17, color: t.ink }}>{title}</Text>
-          <Text style={{ fontSize: 13, lineHeight: 18, color: t['ink-soft'] }}>{sub ?? 'See your BTCY mining, EMMM positions, ShoperPal orders, Wall Street stocks and wallet here, and withdraw INEX to Indexx Exchange.'}</Text>
+          <Text style={{ fontSize: 13, lineHeight: 18, color: t['ink-soft'] }}>{sub ?? 'See your BTCY mining, EMMM positions, ShoperPal orders, Wall Street stocks and wallet here, and withdraw BTCY tokens to the BTCY app.'}</Text>
         </View>
       </View>
       {ended ? <ErrorBanner tone="warning">Your Indexx sign-in ended. Sign in again to see your products.</ErrorBanner> : null}

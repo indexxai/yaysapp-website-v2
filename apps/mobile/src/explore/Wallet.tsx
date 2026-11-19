@@ -12,16 +12,16 @@ import { Card, Header, Note, Sheet, Tag } from '../circles/common';
 import { BRAND, IconOval, IndexxSignIn, Logo, errText, money, num, useLoad, when } from './common';
 
 const STATUS: Record<Withdrawal['status'], { label: string; tone: 'ok' | 'danger' | 'warn' }> = {
-  completed: { label: 'Completed', tone: 'ok' }, failed: { label: 'Failed · INEX returned', tone: 'danger' }, processing: { label: 'Processing', tone: 'warn' },
+  completed: { label: 'Completed', tone: 'ok' }, failed: { label: 'Failed · BTCY returned', tone: 'danger' }, processing: { label: 'Processing', tone: 'warn' },
 };
 const newKey = () => 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16));
 
-/** p09: INEX, BTCY Nuggets, USDXX and Indexx Exchange from the Indexx account, and withdrawing INEX to the exchange. */
+/** p09: BTCY tokens, BTCY Nuggets, USDXX and Indexx Exchange from the Indexx account, and withdrawing BTCY tokens to the BTCY app. */
 export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void }) {
   const t = useTheme();
   const wallet = useLoad(() => api().then((a) => a.wallet()));
   const ix = useLoad(() => api().then((a) => a.indexx()));
-  // What this account earned in YaysApp (Earn). The card above it is the INEX Indexx holds, which is what withdraws.
+  // What this account earned in YaysApp (Earn). The card above it is the BTCY tokens Indexx holds for this account, which is what withdraws to the BTCY app.
   const earned = useLoad(() => api().then((a) => a.points()));
   const [history, setHistory] = useState<WithdrawalsPage | null>(null);
   const [hidden, setHidden] = useState(false);
@@ -44,15 +44,15 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
         {done ? <ErrorBanner tone="success">{done}</ErrorBanner> : null}
         {!w && !wallet.error ? <ActivityIndicator color={t.ember} /> : null}
         {w && !linked && ix.data ? (
-          <IndexxSignIn email={ix.data.email ?? me.email ?? null} ended={!!ix.data.email} sub="Your INEX, BTCY Nuggets, USDXX and Indexx Exchange balances show here once you sign in, and you can withdraw INEX to Indexx Exchange." onDone={(s) => { ix.setData(s); void wallet.reload(); }} />
+          <IndexxSignIn email={ix.data.email ?? me.email ?? null} ended={!!ix.data.email} sub="Your BTCY tokens, BTCY Nuggets, USDXX and Indexx Exchange balances show here once you sign in, and you can withdraw BTCY tokens to the BTCY app." onDone={(s) => { ix.setData(s); void wallet.reload(); }} />
         ) : null}
         {w ? (
           <View style={{ borderRadius: 26, padding: 20, gap: 4, backgroundColor: '#211b16', overflow: 'hidden' }} testID="card-inex">
             <View style={{ position: 'absolute', width: 220, height: 200, borderRadius: 200, top: -110, right: -70, backgroundColor: '#ffffff', opacity: 0.06 }} />
-            <Text style={{ fontSize: 13, color: '#ffffffcc' }}>INEX on Indexx · ready to withdraw</Text>
+            <Text style={{ fontSize: 13, color: '#ffffffcc' }}>BTCY tokens · ready to withdraw</Text>
             <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 38, lineHeight: 46, color: '#fff' }}>{w.inex ? show(num(w.inex.balance)) : '—'}</Text>
-            <Text style={{ fontSize: 12, color: '#ffffffcc' }}>{linked ? 'Withdraw to your Indexx Exchange INEX wallet' : 'Sign in to Indexx to withdraw'}</Text>
-            {earned.data ? <Text style={{ fontSize: 12, color: '#ffffffcc' }} testID="earned-in-yaysapp">Earned in YaysApp: {show(num(earned.data.balance))} INEX (see Earn)</Text> : null}
+            <Text style={{ fontSize: 12, color: '#ffffffcc' }}>{linked ? 'Withdraw to your BTCY app wallet' : 'Sign in to Indexx to withdraw'}</Text>
+            {earned.data ? <Text style={{ fontSize: 12, color: '#ffffffcc' }} testID="earned-in-yaysapp">Earned in YaysApp: {show(num(earned.data.balance))} BTCY (see Earn)</Text> : null}
             <View style={{ flexDirection: 'row', gap: 22, marginTop: 12 }}>
               <OvalButton icon="upload" label="Withdraw" size="sm" disabled={!linked} onPress={() => { setDone(null); setWithdrawing(true); }} />
               {linked ? <OvalButton icon="refresh" label="Refresh" size="sm" variant="secondary" onPress={() => void refresh()} /> : null}
@@ -61,7 +61,7 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
         ) : null}
         {w ? (
           <Card title="Balances" pad={false}>
-            <Row left={<IconOval icon="star" tone="ember" />} name="INEX" sub={w.inex?.source ?? 'Your Indexx INEX balance'} amount={w.inex ? show(num(w.inex.balance)) : '—'} note="INEX" />
+            <Row left={<IconOval icon="star" tone="ember" />} name="BTCY tokens" sub={w.inex?.source ?? 'Your BTCY token balance'} amount={w.inex ? show(num(w.inex.balance)) : '—'} note="BTCY" />
             <Row left={<Logo src={BRAND.btcy} size={40} />} name="BTCY Nuggets" sub={w.nuggets?.source ?? 'From BTCY mining'} amount={w.nuggets ? show(num(w.nuggets.balance, 2)) : '—'} note="nuggets" />
             <Row left={<Logo src={BRAND.usdxx} size={40} />} name="USDXX" sub={w.usdxx?.source ?? 'Indexx Pay'} amount={w.usdxx ? show(money(w.usdxx.usd ?? w.usdxx.balance)) : '—'} note="available" />
             <Row left={<Logo src={BRAND.exchange} size={40} />} name="Indexx Exchange" sub={linked && !w.exchange ? 'Couldn’t read it right now' : 'Read-only · open the app to trade'} amount={w.exchange ? show(money(w.exchange.totalUsd)) : '—'} note="est. value" testID="card-exchange" />
@@ -80,12 +80,12 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
         ) : null}
         {linked ? (
           <Card title="Withdrawals" pad={false} testID="withdrawals">
-            {history && !history.items.length ? <Text style={{ paddingHorizontal: 16, paddingBottom: 14, paddingTop: 4, color: t['ink-soft'], fontSize: 14 }}>Nothing yet. INEX you withdraw to Indexx Exchange shows here.</Text> : null}
+            {history && !history.items.length ? <Text style={{ paddingHorizontal: 16, paddingBottom: 14, paddingTop: 4, color: t['ink-soft'], fontSize: 14 }}>Nothing yet. BTCY tokens you withdraw to the BTCY app show here.</Text> : null}
             {history?.items.map((x) => (
               <View key={x.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 }}>
                 <IconOval icon="upload" size={36} tone="muted" />
-                <View style={{ flex: 1, gap: 3 }}><Text style={{ fontWeight: '700', color: t.ink, fontSize: 14 }}>To Indexx Exchange</Text><View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}><Tag kind={STATUS[x.status]?.tone ?? 'muted'}>{STATUS[x.status]?.label ?? x.status}</Tag><Text style={{ fontSize: 12, color: t['ink-soft'] }}>{when(x.createdAt)}</Text></View></View>
-                <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 14, color: x.status === 'failed' ? t['ink-soft'] : t.ink, textDecorationLine: x.status === 'failed' ? 'line-through' : 'none' }}>{show(num(x.amount))} INEX</Text>
+                <View style={{ flex: 1, gap: 3 }}><Text style={{ fontWeight: '700', color: t.ink, fontSize: 14 }}>To the BTCY app</Text><View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}><Tag kind={STATUS[x.status]?.tone ?? 'muted'}>{STATUS[x.status]?.label ?? x.status}</Tag><Text style={{ fontSize: 12, color: t['ink-soft'] }}>{when(x.createdAt)}</Text></View></View>
+                <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 14, color: x.status === 'failed' ? t['ink-soft'] : t.ink, textDecorationLine: x.status === 'failed' ? 'line-through' : 'none' }}>{show(num(x.amount))} BTCY</Text>
               </View>
             ))}
             {history?.hasMore ? <View style={{ alignItems: 'center', paddingBottom: 12 }}><OvalButton icon="chevron-down" label="Show more" size="sm" variant="ghost" onPress={() => void loadHistory(history.items.length)} /></View> : null}
@@ -93,7 +93,7 @@ export function WalletScreen({ me, onBack }: { me: MeProfile; onBack: () => void
         ) : null}
       </ScrollView>
       {withdrawing && w ? (
-        <WithdrawSheet onClose={() => setWithdrawing(false)} onDone={(r) => { setWithdrawing(false); setDone(`${num(r.amount)} INEX is on its way to your Indexx Exchange INEX wallet.`); void refresh(); }}
+        <WithdrawSheet onClose={() => setWithdrawing(false)} onDone={(r) => { setWithdrawing(false); setDone(`${num(r.amount)} BTCY is on its way to your BTCY app wallet.`); void refresh(); }}
           onSignedOut={() => { setWithdrawing(false); void ix.reload(); void wallet.reload(); }} />
       ) : null}
     </SafeAreaView>
@@ -134,7 +134,7 @@ function WithdrawSheet({ onClose, onDone, onSignedOut }: { onClose: () => void; 
     return () => clearTimeout(id);
   }, [raw]); // eslint-disable-line react-hooks/exhaustive-deps
   const current = quote && whole && quote.amount === n ? quote : null;
-  const problem = !typed ? null : !whole ? 'Enter a whole number of INEX.' : current && !current.eligible ? current.reason : null;
+  const problem = !typed ? null : !whole ? 'Enter a whole number of BTCY tokens.' : current && !current.eligible ? current.reason : null;
   const max = quote ? Math.max(0, Math.min(quote.balance, quote.remainingToday ?? quote.balance)) : 0;
   const go = async () => {
     if (!confirm) return;
@@ -145,16 +145,16 @@ function WithdrawSheet({ onClose, onDone, onSignedOut }: { onClose: () => void; 
   };
   if (confirm) {
     return (
-      <Sheet title="Withdraw INEX?" onClose={() => { if (!busy) setConfirm(null); }} testID="withdraw-confirm">
+      <Sheet title="Withdraw BTCY tokens?" onClose={() => { if (!busy) setConfirm(null); }} testID="withdraw-confirm">
         <View style={{ alignItems: 'center', gap: 6, padding: 14, borderRadius: 18, backgroundColor: t.raised }}>
           <Text style={{ color: t['ink-soft'] }}>You send</Text>
-          <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 26, color: t.ink }}>{num(confirm.amount)} INEX</Text>
+          <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 26, color: t.ink }}>{num(confirm.amount)} BTCY</Text>
           <Icon name="arrow-down" size={18} color={t['ink-soft']} />
           <Text style={{ color: t['ink-soft'] }}>It arrives in</Text>
-          <Text style={{ fontWeight: '700', color: t.ink }}>{quote?.destination ?? 'Indexx Exchange INEX wallet'}</Text>
+          <Text style={{ fontWeight: '700', color: t.ink }}>{quote?.destination ?? 'BTCY app wallet'}</Text>
         </View>
-        <Facts rows={[['Fee', 'None'], ['Left on Indexx', quote ? `${num(quote.balance - confirm.amount)} INEX` : '—']]} />
-        <Text style={{ fontSize: 12, lineHeight: 17, color: t['ink-soft'] }}>Withdrawals can’t be undone. If the exchange can’t take it, your INEX comes back.</Text>
+        <Facts rows={[['Fee', 'None'], ['Left on Indexx', quote ? `${num(quote.balance - confirm.amount)} BTCY` : '—']]} />
+        <Text style={{ fontSize: 12, lineHeight: 17, color: t['ink-soft'] }}>Withdrawals can’t be undone. If the BTCY app can’t take it, your BTCY tokens come back.</Text>
         {error ? <ErrorBanner>{error}</ErrorBanner> : null}
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
           <OvalButton icon="close" label="Cancel" variant="ghost" disabled={busy} onPress={() => setConfirm(null)} />
@@ -164,27 +164,27 @@ function WithdrawSheet({ onClose, onDone, onSignedOut }: { onClose: () => void; 
     );
   }
   return (
-    <Sheet title="Withdraw" lead="To your Indexx Exchange INEX wallet." onClose={onClose} testID="withdraw-sheet">
+    <Sheet title="Withdraw" lead="To your BTCY app wallet." onClose={onClose} testID="withdraw-sheet">
       {error ? <ErrorBanner>{error}</ErrorBanner> : null}
       <View style={{ padding: 16, borderRadius: 22, backgroundColor: t.raised, gap: 8 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 13, color: t['ink-soft'] }}>INEX to withdraw</Text>
+          <Text style={{ fontSize: 13, color: t['ink-soft'] }}>BTCY tokens to withdraw</Text>
           <Pressable accessibilityRole="button" accessibilityLabel="Max" disabled={!quote || max < quote.minimum} onPress={() => setRaw(String(max))}><Text style={{ fontSize: 13, color: t['ink-soft'] }}>{quote ? `Balance ${num(quote.balance)} · ` : ''}<Text style={{ color: t['ember-ink'], fontWeight: '700' }}>Max</Text></Text></Pressable>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <IconOval icon="star" tone="ember" />
-          <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: t.ink }}>INEX</Text>
-          <TextInput accessibilityLabel="INEX to withdraw" value={raw} onChangeText={(v) => { setRaw(v); setError(null); }} keyboardType="number-pad" placeholder="0" placeholderTextColor={t['ink-faint']} style={{ minWidth: 120, textAlign: 'right', fontFamily: font.display, fontWeight: '800', fontSize: 30, color: t.ink }} />
+          <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: t.ink }}>BTCY</Text>
+          <TextInput accessibilityLabel="BTCY tokens to withdraw" value={raw} onChangeText={(v) => { setRaw(v); setError(null); }} keyboardType="number-pad" placeholder="0" placeholderTextColor={t['ink-faint']} style={{ minWidth: 120, textAlign: 'right', fontFamily: font.display, fontWeight: '800', fontSize: 30, color: t.ink }} />
         </View>
         {problem ? <Text accessibilityRole="alert" style={{ fontSize: 13, fontWeight: '600', color: t['danger-ink'] }}>{problem}</Text> : null}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 22, backgroundColor: t.raised }}>
-        <Logo src={BRAND.exchange} size={40} />
-        <Text style={{ flex: 1, fontWeight: '700', color: t.ink }}>{quote?.destination ?? 'Indexx Exchange INEX wallet'}</Text>
+        <Logo src={BRAND.btcy} size={40} />
+        <Text style={{ flex: 1, fontWeight: '700', color: t.ink }}>{quote?.destination ?? 'BTCY app wallet'}</Text>
         <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 20, color: t['ember-ink'] }}>{current?.eligible ? num(n) : '—'}</Text>
       </View>
-      <Facts rows={[['Rate', '1 INEX = 1 INEX on the exchange'], ['Minimum', quote ? `${num(quote.minimum)} INEX` : '—'], ...(quote?.dailyMax != null ? [['Daily limit', `${num(quote.dailyMax)} INEX`], ['Left today', `${num(quote.remainingToday)} INEX`]] as Array<[string, string]> : [])]} />
-      <View style={{ alignItems: 'center' }}><OvalButton icon="upload" label={current?.eligible ? `Withdraw ${num(n)}` : 'Withdraw'} accessibilityLabel={current?.eligible ? `Withdraw ${num(n)} INEX` : 'Withdraw'} size="xl" disabled={!current?.eligible} onPress={() => { setError(null); setConfirm({ amount: n, key: newKey() }); }} /></View>
+      <Facts rows={[['Rate', '1 BTCY token = 1 BTCY in the BTCY app'], ['Minimum', quote ? `${num(quote.minimum)} BTCY` : '—'], ...(quote?.dailyMax != null ? [['Daily limit', `${num(quote.dailyMax)} BTCY`], ['Left today', `${num(quote.remainingToday)} BTCY`]] as Array<[string, string]> : [])]} />
+      <View style={{ alignItems: 'center' }}><OvalButton icon="upload" label={current?.eligible ? `Withdraw ${num(n)}` : 'Withdraw'} accessibilityLabel={current?.eligible ? `Withdraw ${num(n)} BTCY` : 'Withdraw'} size="xl" disabled={!current?.eligible} onPress={() => { setError(null); setConfirm({ amount: n, key: newKey() }); }} /></View>
     </Sheet>
   );
 }
@@ -232,7 +232,7 @@ export function IndexxScreen({ me, onBack }: { me: MeProfile; onBack: () => void
           <IndexxSignIn email={d.email ?? me.email ?? null} ended={!!d.email} onDone={(n) => { s.setData(n); setMsg({ tone: 'success', text: 'Signed in to Indexx.' }); }} />
         ) : null}
         <Card title="What the Indexx sign-in shows" pad={false}>
-          {([['Explore', 'BTCY mining, EMMM positions, ShoperPal orders and Wall Street stocks'], ['Wallet', 'INEX, BTCY Nuggets, USDXX and Indexx Exchange; withdraw INEX to the exchange'], ['BTCY bonus', 'Your mining streak and friends who join your team count toward INEX'], ['Your password', 'Sent to Indexx once to sign in, never kept by YaysApp']] as const).map(([a, b]) => (
+          {([['Explore', 'BTCY mining, EMMM positions, ShoperPal orders and Wall Street stocks'], ['Wallet', 'BTCY tokens, BTCY Nuggets, USDXX and Indexx Exchange; withdraw BTCY tokens to the BTCY app'], ['BTCY bonus', 'Your mining streak and friends who join your team count toward BTCY tokens'], ['Your password', 'Sent to Indexx once to sign in, never kept by YaysApp']] as const).map(([a, b]) => (
             <View key={a} style={{ paddingHorizontal: 16, paddingVertical: 10 }}><Text style={{ fontWeight: '700', color: t.ink, fontSize: 14 }}>{a}</Text><Text style={{ fontSize: 13, color: t['ink-soft'] }}>{b}</Text></View>
           ))}
         </Card>

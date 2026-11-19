@@ -38,7 +38,7 @@ const BTCY_TASKS = [
   { id: 'alchemy', title: 'Convert nuggets to tokens with Alchemy', icon: 'swap', of: 1, points: 30 },
 ] as const;
 
-/** INEX (stored as points): what people earn in YaysApp, kept as a ledger. Every award has a key, so nothing is paid twice. */
+/** BTCY tokens (stored as points): what people earn in YaysApp, kept as a ledger. Every award has a key, so nothing is paid twice. */
 export class RewardsService {
   readonly ledger: Collection<LedgerDoc>;
   /** BTCY team size at the start of each week, to count friends invited this week. */
@@ -96,7 +96,7 @@ export class RewardsService {
           const ok = await this.balances.updateOne({ _id: me, balance: { $gte: -amount } }, { $inc: { balance: amount } }, { session: s });
           if (!ok.modifiedCount) {
             const b = await this.balances.findOne({ _id: me }, { session: s });
-            throw AppError.validation(`You have ${(b?.balance ?? 0).toLocaleString('en-US')} INEX. That isn’t enough.`);
+            throw AppError.validation(`You have ${(b?.balance ?? 0).toLocaleString('en-US')} BTCY. That isn’t enough.`);
           }
         }
         const doc: LedgerDoc = { _id: new ObjectId(), userId: me, key: v.key, kind: v.kind, title: v.title, sub: v.sub, amount, status: v.status ?? 'done', at: now, day, week: weekKey(now, tz), ...(v.capped ? { capped: true } : {}) };

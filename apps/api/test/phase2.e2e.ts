@@ -155,7 +155,7 @@ describe('Jack’s AI, the Jack bonus and pop-ups', () => {
     await t.redis.set(keys[0]!, '30');
     const full = await t.http.post('/v1/ai/chats').set(sara.auth).send({ text: 'one more' });
     expect(full.status).toBe(409);
-    expect(full.body.error.message).toContain('50 INEX');
+    expect(full.body.error.message).toContain('50 BTCY');
     const bal = (await points(t, sara)).balance;
     const after = (await t.http.post('/v1/ai/quota/extra').set(sara.auth).expect(200)).body;
     expect(after).toMatchObject({ used: 30, limit: 40 });
@@ -235,25 +235,25 @@ describe('Indexx account, wallet and BTCY', () => {
     await stub().updateOne({ _id: 'sara@indexx.io' as never }, { $set: { down: [] } });
   });
 
-  it('wallet: the four cards; withdraw checks limits, pays once per key, and the INEX moves to the exchange', async () => {
+  it('wallet: the four cards; withdraw checks limits, pays once per key, and the BTCY tokens go to the BTCY app', async () => {
     const w = (await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body as WalletView;
     expect(w).toMatchObject({ linked: true, inex: { balance: 60 }, nuggets: { balance: 10 }, usdxx: { usd: 47.5 }, exchange: { totalUsd: 1.73, partial: true } });
     expect(w.exchange!.assets.map((a) => a.symbol)).toEqual(['INEX', 'XYZ']);
     const q = async (n: number) => (await t.http.get(`/v1/wallet/withdraw/quote?amount=${n}`).set(sara.auth).expect(200)).body as WithdrawQuote;
-    expect(await q(0)).toMatchObject({ eligible: false, reason: 'Enter how much INEX to withdraw.', minimum: 25, dailyMax: 5000, balance: 60 });
-    expect((await q(10)).reason).toBe('The minimum withdrawal is 25 INEX.');
-    expect((await q(1000)).reason).toBe('You have 60 INEX.');
+    expect(await q(0)).toMatchObject({ eligible: false, reason: 'Enter how many BTCY tokens to withdraw.', minimum: 25, dailyMax: 5000, balance: 60 });
+    expect((await q(10)).reason).toBe('The minimum withdrawal is 25 BTCY.');
+    expect((await q(1000)).reason).toBe('You have 60 BTCY.');
     expect(await q(25)).toMatchObject({ eligible: true, reason: null });
     const key = cid();
     const send = (amount: number, k = key) => t.http.post('/v1/wallet/withdraw').set(sara.auth).send({ amount, idempotencyKey: k });
-    expect((await send(10)).body.error.message).toBe('The minimum withdrawal is 25 INEX.');
+    expect((await send(10)).body.error.message).toBe('The minimum withdrawal is 25 BTCY.');
     expect((await send(2.5)).status).toBe(400);
     const r = (await send(25).expect(200)).body as Withdrawal;
-    expect(r).toMatchObject({ status: 'completed', amount: 25, balance: 35, network: 'BSC', duplicate: false });
+    expect(r).toMatchObject({ status: 'completed', amount: 25, balance: 35, network: null, duplicate: false });
     expect((await send(25).expect(200)).body).toMatchObject({ id: r.id, duplicate: true }); // same key: paid once
     const after = (await t.http.get('/v1/wallet').set(sara.auth).expect(200)).body as WalletView;
     expect(after.inex!.balance).toBe(35);
-    expect(after.exchange!.assets.find((a) => a.symbol === 'INEX')!.balance).toBe(25.33);
+    expect(after.exchange!.assets.find((a) => a.symbol === 'INEX')!.balance).toBe(0.33); // the exchange holdings don't change
     // The exchange can't take it: nothing spent, and it shows as failed.
     await stub().updateOne({ _id: 'sara@indexx.io' as never }, { $set: { failNext: 'unavailable' } });
     const down = await send(25, cid());

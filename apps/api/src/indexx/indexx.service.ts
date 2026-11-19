@@ -128,7 +128,7 @@ export class IndexxService {
     return this.call(me, (c, t) => c.get<WithdrawQuote>(t, `/yays/wallet/withdraw/quote${n ? `?amount=${n}` : ''}`));
   }
 
-  /** INEX 1:1 to the person's Indexx Exchange INEX wallet. The same key twice pays once. */
+  /** BTCY tokens 1:1 to the person's BTCY app wallet. The same key twice pays once. */
   withdraw(me: ObjectId, amount: number, idempotencyKey: string): Promise<Withdrawal> {
     return this.call(me, (c, t) => c.post<Withdrawal>(t, '/yays/wallet/withdraw', { amount, idempotencyKey }, { 'x-idempotency-key': idempotencyKey }));
   }

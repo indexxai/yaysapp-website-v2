@@ -21,7 +21,7 @@ test('the website: sections, Ask Jack, and leaving an email for the team', async
   await page.setViewportSize(VP);
   await page.goto('/?ref=SARA-7K2');
   await expect(page.getByRole('heading', { name: 'The chat app that rewards you for showing up.' })).toBeVisible();
-  for (const h of ['Everything you need to stay close', 'Earn INEX for the things you already do', 'One account for every Indexx product', 'Bring your people together', 'You decide who reaches you', 'Questions people ask']) await expect(page.getByRole('heading', { name: h })).toBeVisible();
+  for (const h of ['Everything you need to stay close', 'Earn BTCY tokens for the things you already do', 'One account for every Indexx product', 'Bring your people together', 'You decide who reaches you', 'Questions people ask']) await expect(page.getByRole('heading', { name: h })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('yays.ref'))).toBe('SARA-7K2');
   await shot(page, 'w07-landing');
   await page.getByRole('button', { name: 'Open the chat assistant' }).click();
@@ -50,15 +50,15 @@ test('pop-ups as the app opens: check-in, then the Jack’s AI bonus, then BTCY'
   await expect(ci.getByText('Daily check-in · Day 1')).toBeVisible();
   await shot(a.page, 'w08-checkin');
   await ci.getByRole('button', { name: 'Claim +10' }).click();
-  await expect(a.page.getByRole('heading', { name: '+10 INEX added' })).toBeVisible();
-  await expect(a.page.getByRole('link', { name: '10 INEX' })).toBeVisible();
+  await expect(a.page.getByRole('heading', { name: '+10 BTCY added' })).toBeVisible();
+  await expect(a.page.getByRole('link', { name: '10 BTCY' })).toBeVisible();
   await shot(a.page, 'p18-checkin-claimed');
   await a.page.getByRole('button', { name: 'Done' }).click();
   await a.ctx.close();
   // A new tab: the next pop-up.
   const b = await pageAs(browser, sara, VP, { popups: true });
   await b.page.goto('/chats');
-  const jack = b.page.getByRole('dialog', { name: /Earn \+50 bonus INEX/ });
+  const jack = b.page.getByRole('dialog', { name: /Earn \+50 bonus BTCY/ });
   await expect(jack).toBeVisible();
   await expect(jack.getByText('Ask Jack’s AI 3 questions')).toBeVisible();
   await expect(jack.getByRole('img', { name: 'Jack’s AI' })).toBeVisible();
@@ -68,7 +68,7 @@ test('pop-ups as the app opens: check-in, then the Jack’s AI bonus, then BTCY'
   await b.ctx.close();
   const c = await pageAs(browser, sara, VP, { popups: true });
   await c.page.goto('/chats');
-  const btcy = c.page.getByRole('dialog', { name: /Earn up to \+100 INEX/ });
+  const btcy = c.page.getByRole('dialog', { name: /Earn up to \+100 BTCY/ });
   await expect(btcy.getByText('Convert nuggets to tokens with Alchemy')).toBeVisible();
   await shot(c.page, 'w14-btcy-bonus');
   await btcy.getByRole('button', { name: 'Sign in to Indexx' }).click();
@@ -93,7 +93,7 @@ test('Explore, Earn, history and invites', async ({ browser }) => {
   await expect(a.page.getByText('BTCY', { exact: true })).toBeHidden();
   await a.page.getByRole('button', { name: 'Claim' }).click();
   await a.page.getByRole('button', { name: 'Claim +10' }).click();
-  await expect(a.page.getByRole('heading', { name: '+10 INEX added' })).toBeVisible();
+  await expect(a.page.getByRole('heading', { name: '+10 BTCY added' })).toBeVisible();
   await a.page.getByRole('button', { name: 'Done' }).click();
   // Hamza joins with Sara's code and says hi.
   const code = (await apiCall('/v1/rewards/referrals', undefined, sara.tokens.accessToken)).code as string;
@@ -203,7 +203,7 @@ test('every page opened from Explore has a way back to Explore', async ({ browse
   await a.ctx.close();
 });
 
-test('wallet: the four cards from Indexx; withdraw INEX to Indexx Exchange; a sign-in that ends asks again', async ({ browser }) => {
+test('wallet: the four cards from Indexx; withdraw BTCY tokens to the BTCY app; a sign-in that ends asks again', async ({ browser }) => {
   const sara = await apiUser('Sara Ahmed');
   const email = ixEmail(sara, 'sara');
   const a = await pageAs(browser, sara, VP);
@@ -216,29 +216,29 @@ test('wallet: the four cards from Indexx; withdraw INEX to Indexx Exchange; a si
   await expect(a.page.getByTestId('card-exchange')).toContainText('$1.73');
   await expect(a.page.getByText('$47.50')).toBeVisible();
   await expect(a.page.getByText('Some coins have no price yet, so they aren’t in the total.')).toBeVisible();
-  await expect(a.page.getByText('Nothing yet. INEX you withdraw to Indexx Exchange shows here.')).toBeVisible();
-  await expect(a.page.getByText('You have 60 INEX.')).toBeVisible();
-  await a.page.getByLabel('INEX to withdraw').fill('10');
-  await expect(a.page.getByText('The minimum withdrawal is 25 INEX.')).toBeVisible();
+  await expect(a.page.getByText('Nothing yet. BTCY tokens you withdraw to the BTCY app show here.')).toBeVisible();
+  await expect(a.page.getByText('You have 60 BTCY.')).toBeVisible();
+  await a.page.getByLabel('BTCY tokens to withdraw').fill('10');
+  await expect(a.page.getByText('The minimum withdrawal is 25 BTCY.')).toBeVisible();
   await expect(a.page.getByRole('button', { name: 'Withdraw', exact: true })).toBeDisabled();
-  await a.page.getByLabel('INEX to withdraw').fill('100');
-  await expect(a.page.getByText('You have 60 INEX.', { exact: true }).last()).toBeVisible();
+  await a.page.getByLabel('BTCY tokens to withdraw').fill('100');
+  await expect(a.page.getByText('You have 60 BTCY.', { exact: true }).last()).toBeVisible();
   await shot(a.page, 'w04-wallet');
-  await a.page.getByLabel('INEX to withdraw').fill('25');
+  await a.page.getByLabel('BTCY tokens to withdraw').fill('25');
   await expect(a.page.getByRole('button', { name: 'Withdraw', exact: true })).toBeEnabled();
   await a.page.getByRole('button', { name: 'Withdraw', exact: true }).click();
-  const dlg = a.page.getByRole('dialog', { name: 'Withdraw INEX?' });
-  await expect(dlg.getByText('25 INEX', { exact: true })).toBeVisible();
-  await expect(dlg.getByText('35 INEX')).toBeVisible();
+  const dlg = a.page.getByRole('dialog', { name: 'Withdraw BTCY tokens?' });
+  await expect(dlg.getByText('25 BTCY', { exact: true })).toBeVisible();
+  await expect(dlg.getByText('35 BTCY')).toBeVisible();
   await shot(a.page, 'w04b-withdraw-confirm');
   await dlg.getByRole('button', { name: 'Withdraw' }).click();
-  await expect(a.page.getByText('25 INEX is on its way to your Indexx Exchange INEX wallet.')).toBeVisible();
+  await expect(a.page.getByText('25 BTCY is on its way to your BTCY app wallet.')).toBeVisible();
   await expect(a.page.getByTestId('card-inex')).toContainText('35');
   await expect(a.page.getByRole('cell', { name: 'Completed' })).toBeVisible();
-  await expect(a.page.getByRole('row', { name: /^INEX Binance Smart Chain 25\.33/ })).toBeVisible();
+  await expect(a.page.getByRole('row', { name: /^INEX Binance Smart Chain 0\.33/ })).toBeVisible(); // went to the BTCY app, not the exchange
   // The exchange can't take it: the message shows in the dialog, and nothing is spent.
   await stub(email, { failNext: 'unavailable' });
-  await a.page.getByLabel('INEX to withdraw').fill('30');
+  await a.page.getByLabel('BTCY tokens to withdraw').fill('30');
   await a.page.getByRole('button', { name: 'Withdraw', exact: true }).click();
   await dlg.getByRole('button', { name: 'Withdraw' }).click();
   await expect(dlg.getByText(/balance is unchanged/)).toBeVisible();
@@ -299,7 +299,7 @@ test('Jack’s AI: answers, documents, and the daily limit', async ({ browser })
     await a.page.reload();
     await expect(a.page.getByText('You’ve used today’s 30 messages.')).toBeVisible();
     await shot(a.page, 'w02-ai-limit');
-    await a.page.getByRole('button', { name: 'Use 50 INEX' }).click();
+    await a.page.getByRole('button', { name: 'Use 50 BTCY' }).click();
     await expect(a.page.getByLabel('Message Jack')).toBeVisible();
     await expect(a.page.getByText('30 of 40 today')).toBeVisible();
   }
@@ -333,7 +333,7 @@ test('support desk and socials', async ({ browser }) => {
   const sara = await apiUser('Sara Ahmed'), amara = await apiUser('Amara Okafor');
   const a = await pageAs(browser, sara, VP);
   await a.page.goto('/settings/help');
-  await a.page.getByLabel('Describe the problem').fill('My daily check-in didn’t add INEX yesterday');
+  await a.page.getByLabel('Describe the problem').fill('My daily check-in didn’t add BTCY tokens yesterday');
   await a.page.getByRole('button', { name: 'Get an answer' }).click();
   await expect(a.page.getByRole('button', { name: 'Talk to a person' })).toBeVisible();
   await shot(a.page, 'p05-support');

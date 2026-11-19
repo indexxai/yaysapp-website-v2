@@ -19,7 +19,7 @@ const MODES: Array<{ id: AiMode; label: string; icon: IconName; hint: string }> 
   { id: 'document', label: 'Document', icon: 'document', hint: 'Describe a document, or a change to it…' },
   { id: 'image', label: 'Image', icon: 'image', hint: 'Describe a picture…' },
 ];
-const SUGGEST = ['Give me 3 post ideas for my community', 'Translate “See you at 7” into Urdu', 'How do INEX rewards work?', 'Write a one-page event proposal'];
+const SUGGEST = ['Give me 3 post ideas for my community', 'Translate “See you at 7” into Urdu', 'How do BTCY token rewards work?', 'Write a one-page event proposal'];
 
 function groupOf(c: AiChatSummary) {
   if (c.saved) return 'Saved';
@@ -171,7 +171,7 @@ function Ai() {
                   <span style={{ flex: 1 }}><strong>You’ve used today’s {quota.limit} messages.</strong><br /><span className="muted">They reset at midnight (in {timeLeft(quota.resetsAt)}). You can still read and copy past answers.</span></span>
                 )}
                 {imageMode ? <OvalButton icon="chat" label="Back to chat" size="sm" variant="soft" onClick={() => { setMode('chat'); setEditing(null); }} />
-                  : <OvalButton icon="star" label={`Use ${quota.extraCost} INEX`} size="sm" loading={buying} onClick={() => void buy()} />}
+                  : <OvalButton icon="star" label={`Use ${quota.extraCost} BTCY`} size="sm" loading={buying} onClick={() => void buy()} />}
               </div>
             ) : (
               <>

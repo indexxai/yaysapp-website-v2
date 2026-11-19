@@ -36,7 +36,7 @@ export function BtcyScreen({ me, onBack, invite }: { me: MeProfile; onBack: () =
       <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 30, gap: 12 }} keyboardShouldPersistTaps="handled">
         {v.error ? <ErrorBanner>{v.error}</ErrorBanner> : null}
         {!v.data && !v.error ? <ActivityIndicator color={t.ember} /> : null}
-        {v.data && !v.data.linked && ix.data ? <IndexxSignIn email={ix.data.email ?? me.email ?? null} ended={!!ix.data.email} sub="See your mining, Nuggets, team and boost here. BTCY bonus tasks count toward INEX." onDone={(s) => { ix.setData(s); void v.reload(); }} /> : null}
+        {v.data && !v.data.linked && ix.data ? <IndexxSignIn email={ix.data.email ?? me.email ?? null} ended={!!ix.data.email} sub="See your mining, Nuggets, team and boost here. BTCY bonus tasks count toward BTCY tokens." onDone={(s) => { ix.setData(s); void v.reload(); }} /> : null}
         {v.data?.linked && !b ? <ErrorBanner tone="warning">BTCY didn’t answer. Try again in a minute.</ErrorBanner> : null}
         {b ? (
           <>

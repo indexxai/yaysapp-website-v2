@@ -50,7 +50,7 @@ export function ExploreScreen({ me, nav }: { me: MeProfile; nav: ExploreNav }) {
       <LineArt name="skater" height={300} />
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8 }}>
         <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 30, lineHeight: 36, color: t.ink }}>Explore</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`INEX earned in YaysApp: ${points.data ? points.data.balance.toLocaleString('en-US') : ''}. Opens Earn`} onPress={nav.earn}
+        <Pressable accessibilityRole="button" accessibilityLabel={`BTCY tokens earned in YaysApp: ${points.data ? points.data.balance.toLocaleString('en-US') : ''}. Opens Earn`} onPress={nav.earn}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 6, paddingRight: 12, paddingVertical: 5, borderRadius: 999, backgroundColor: t['ember-wash'] }}>
           <Image source={BRAND.coin} style={{ width: 24, height: 24 }} resizeMode="contain" />
           <Text testID="explore-balance" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 14, color: t['ember-ink'] }}>{points.data ? points.data.balance.toLocaleString('en-US') : '—'}</Text>
@@ -79,7 +79,7 @@ export function ExploreScreen({ me, nav }: { me: MeProfile; nav: ExploreNav }) {
           <IconOval icon="gift" size={48} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ fontWeight: '800', color: t.ink, fontSize: 15 }}>Daily check-in</Text>
-            <Text style={{ fontSize: 13, color: t['ink-soft'] }}>{c ? (c.claimedToday ? `Claimed · day ${c.streak} streak · tomorrow +${c.tomorrowPoints}` : c.streak ? `Day ${c.streak + 1} streak · +${c.todayPoints} INEX` : `Start a streak · +${c.todayPoints} INEX`) : '…'}</Text>
+            <Text style={{ fontSize: 13, color: t['ink-soft'] }}>{c ? (c.claimedToday ? `Claimed · day ${c.streak} streak · tomorrow +${c.tomorrowPoints}` : c.streak ? `Day ${c.streak + 1} streak · +${c.todayPoints} BTCY` : `Start a streak · +${c.todayPoints} BTCY`) : '…'}</Text>
           </View>
           {c && !c.claimedToday ? <OvalButton icon="check" label="Claim" size="sm" onPress={() => setClaiming(true)} /> : <OvalButton icon="star" label="Earn" size="sm" variant="soft" onPress={nav.earn} />}
         </Card>
@@ -111,9 +111,9 @@ export function ExploreScreen({ me, nav }: { me: MeProfile; nav: ExploreNav }) {
         </Card>
 
         <Card pad={false}>
-          <LinkRow left={<IconOval icon="wallet" />} title="Wallet" sub="INEX, Nuggets, USDXX and the exchange" onPress={nav.wallet} />
+          <LinkRow left={<IconOval icon="wallet" />} title="Wallet" sub="BTCY tokens, Nuggets, USDXX and the exchange" onPress={nav.wallet} />
           <LinkRow left={<IconOval icon="star" />} title="Earn" sub="Check-ins, tasks and bonuses" onPress={nav.earn} />
-          <LinkRow left={<IconOval icon="person-add" />} title="Invite friends" sub="+100 INEX each" onPress={nav.invite} />
+          <LinkRow left={<IconOval icon="person-add" />} title="Invite friends" sub="+100 BTCY each" onPress={nav.invite} />
           <LinkRow left={<IconOval icon="help" />} title="Help and support" sub="AI answers, then a person" onPress={nav.help} />
         </Card>
       </ScrollView>
@@ -127,7 +127,7 @@ export function ExploreScreen({ me, nav }: { me: MeProfile; nav: ExploreNav }) {
 const FAQ: Array<[string, string]> = [
   ['I’m not getting notifications', 'Check that notifications are on for YaysApp in your phone’s Settings. Muted chats don’t notify. On Android, also check the app isn’t restricted in battery settings.'],
   ['Why does a message show one tick?', 'One tick means it reached YaysApp but not the other person’s phone yet, usually because they are offline. Two ticks: delivered. Two orange ticks: read. If they turned read receipts off, you’ll only see delivered.'],
-  ['My check-in didn’t add INEX', 'Check-ins reset at midnight in your time zone, and each day counts once on any device. Look in Earn › History. If it’s missing, ask below and a person will check.'],
+  ['My check-in didn’t add BTCY tokens', 'Check-ins reset at midnight in your time zone, and each day counts once on any device. Look in Earn › History. If it’s missing, ask below and a person will check.'],
   ['How do I use YaysApp on a computer?', 'Sign in on yaysapp.com with your phone number or email. Your chats are kept on YaysApp, so they appear on every device. See and log out devices in Me › Linked devices.'],
   ['What happens when I block someone?', 'They can’t message or call you, and they won’t see when you’re online or your photo. They are not told.'],
   ['How do I edit or delete a message?', 'Long-press a message and open its menu. You can edit your messages for 15 minutes and delete them for everyone for 15 minutes; after that you can still delete them for yourself.'],
@@ -152,7 +152,7 @@ export function HelpScreen({ onBack, openChat, back = 'Explore' }: { onBack: () 
         {notice ? <ErrorBanner tone="success">{notice}</ErrorBanner> : null}
         <Card testID="ask-support">
           <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}><Image source={BRAND.jack} style={{ width: 28, height: 28 }} resizeMode="contain" /><Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 17, color: t.ink }}>What’s going wrong?</Text></View>
-          <TextInput accessibilityLabel="Describe the problem" multiline value={q} maxLength={1000} onChangeText={(v) => { setQ(v); setAnswer(null); setSolved(false); }} placeholder="For example: my check-in didn’t add INEX" placeholderTextColor={t['ink-faint']}
+          <TextInput accessibilityLabel="Describe the problem" multiline value={q} maxLength={1000} onChangeText={(v) => { setQ(v); setAnswer(null); setSolved(false); }} placeholder="For example: my check-in didn’t add BTCY tokens" placeholderTextColor={t['ink-faint']}
             style={{ minHeight: 70, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: t['line-strong'], backgroundColor: t.surface, color: t.ink, fontSize: 15, textAlignVertical: 'top' }} />
           {error ? <ErrorBanner>{error}</ErrorBanner> : null}
           {answer === null ? (

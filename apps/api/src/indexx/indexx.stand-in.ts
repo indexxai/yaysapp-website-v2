@@ -88,11 +88,11 @@ function btcyOf(a: StubAccount, now: Date): IndexxBtcy {
 
 function quoteOf(a: StubAccount, amount: number, now: Date) {
   const used = sumByDay(a, dayOf(now)), remaining = Math.max(0, STUB_DAILY_MAX - used);
-  const reason = !amount ? 'Enter how much INEX to withdraw.'
-    : amount < STUB_MIN ? `The minimum withdrawal is ${STUB_MIN} INEX.`
-      : amount > a.inex ? `You have ${a.inex} INEX.`
-        : amount > remaining ? `You can withdraw ${remaining} more INEX today.` : null;
-  return { amount, balance: a.inex, minimum: STUB_MIN, dailyMax: STUB_DAILY_MAX, usedToday: used, remainingToday: remaining, destination: 'Indexx Exchange INEX wallet', eligible: !reason, reason };
+  const reason = !amount ? 'Enter how many BTCY tokens to withdraw.'
+    : amount < STUB_MIN ? `The minimum withdrawal is ${STUB_MIN} BTCY.`
+      : amount > a.inex ? `You have ${a.inex} BTCY.`
+        : amount > remaining ? `You can withdraw ${remaining} more BTCY today.` : null;
+  return { amount, balance: a.inex, minimum: STUB_MIN, dailyMax: STUB_DAILY_MAX, usedToday: used, remainingToday: remaining, destination: 'BTCY app wallet', eligible: !reason, reason };
 }
 
 /** A fetch function that answers the Indexx API's routes from the stand-in records. */
@@ -133,7 +133,7 @@ export function standInIndexx(db: Db): typeof fetch {
     if (path === '/yays/wallet/summary') {
       const assets = a.exchange.filter((x) => x.balance > 0).map((x) => ({ ...x, usd: x.price == null ? null : Math.round(x.balance * x.price * 100) / 100 }));
       return ok({
-        inex: { balance: a.inex, source: 'Your Indexx INEX balance' },
+        inex: { balance: a.inex, source: 'Your BTCY token balance' },
         nuggets: { balance: a.nuggets, source: 'From BTCY mining' },
         usdxx: { balance: a.usdxx, usd: a.usdxx, source: 'Indexx Pay' },
         exchange: a.down.includes('exchange') ? null : { totalUsd: Math.round(assets.reduce((n, x) => n + (x.usd ?? 0), 0) * 100) / 100, assets, partial: assets.some((x) => x.usd == null), readOnly: true },
@@ -151,18 +151,18 @@ export function standInIndexx(db: Db): typeof fetch {
       const seen = a.withdrawals.find((w) => w.key === key);
       if (seen) { const { key: _k, ...w } = seen; return ok({ ...w, duplicate: true }); }
       const amount = Number(body.amount);
-      if (!Number.isInteger(amount)) return json(400, { message: 'Enter a whole number of INEX.', code: 'validation' });
+      if (!Number.isInteger(amount)) return json(400, { message: 'Enter a whole number of BTCY tokens.', code: 'validation' });
       const q = quoteOf(a, amount, now);
       if (!q.eligible) return json(400, { message: q.reason, code: 'validation' });
       if (a.failNext === 'in_progress') { await col.updateOne({ _id: email }, { $set: { failNext: null } }); return json(409, { message: 'Another withdrawal is still running.', code: 'in_progress' }); }
       const id = randomBytes(12).toString('hex');
       if (a.failNext === 'unavailable') {
         await col.updateOne({ _id: email }, { $set: { failNext: null }, $push: { withdrawals: { id, key, status: 'failed', amount, balance: a.inex, network: null, createdAt: now.toISOString(), duplicate: false } } });
-        return json(503, { message: 'The exchange could not take the INEX right now. Your balance is unchanged.', code: 'unavailable' });
+        return json(503, { message: 'The BTCY app could not take the BTCY tokens right now. Your balance is unchanged.', code: 'unavailable' });
       }
-      const w = { id, key, status: 'completed' as const, amount, balance: a.inex - amount, network: 'BSC', createdAt: now.toISOString(), duplicate: false };
-      const exchange = a.exchange.some((x) => x.symbol === 'INEX') ? a.exchange.map((x) => (x.symbol === 'INEX' ? { ...x, balance: Math.round((x.balance + amount) * 100) / 100 } : x)) : [{ symbol: 'INEX', network: 'Binance Smart Chain', balance: amount, price: 5.25, usd: null }, ...a.exchange];
-      await col.updateOne({ _id: email }, { $set: { inex: a.inex - amount, exchange }, $push: { withdrawals: w } });
+      // Withdrawals go to the person's BTCY app wallet; their Indexx Exchange holdings don't change.
+      const w = { id, key, status: 'completed' as const, amount, balance: a.inex - amount, network: null, createdAt: now.toISOString(), duplicate: false };
+      await col.updateOne({ _id: email }, { $set: { inex: a.inex - amount }, $push: { withdrawals: w } });
       const { key: _k, ...out } = w;
       return ok(out);
     }

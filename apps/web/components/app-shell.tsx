@@ -30,12 +30,12 @@ const NAV: Array<{ href: string; icon: IconName | 'jack'; label: string; badge?:
   { href: '/wallet', icon: 'wallet', label: 'Wallet' },
 ];
 
-/** INEX balance, always in view; opens Earn. */
+/** BTCY token balance, always in view; opens Earn. */
 function PointsChip() {
   const n = useBalance();
   if (n === null) return null;
   return (
-    <Link href="/earn" className="rail__points" aria-label={`${fmtPoints(n)} INEX`}>
+    <Link href="/earn" className="rail__points" aria-label={`${fmtPoints(n)} BTCY`}>
       <span className="ys-oval ys-oval--wash" style={{ width: 36 }}><Icon name="star" size={16} /></span>{n >= 100_000 ? `${Math.floor(n / 1000)}k` : fmtPoints(n)}
     </Link>
   );

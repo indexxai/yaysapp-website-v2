@@ -27,7 +27,7 @@ describe('Indexx client', () => {
 
   it('errors: 401 ends the sign-in; 400, 409 and 503 keep Indexx’s message; down or unknown says try later', async () => {
     expect(await err(new IndexxClient('https://i', log, reply(401, { message: 'Unauthorized: jwt expired' })).get('t', '/x'))).toBeInstanceOf(IndexxSignedOut);
-    expect(((await err(new IndexxClient('https://i', log, reply(400, { message: 'The minimum withdrawal is 25 INEX.', code: 'validation' })).get('t', '/x'))) as AppError)).toMatchObject({ status: 400, message: 'The minimum withdrawal is 25 INEX.' });
+    expect(((await err(new IndexxClient('https://i', log, reply(400, { message: 'The minimum withdrawal is 25 BTCY.', code: 'validation' })).get('t', '/x'))) as AppError)).toMatchObject({ status: 400, message: 'The minimum withdrawal is 25 BTCY.' });
     expect(((await err(new IndexxClient('https://i', log, reply(409, { code: 'in_progress' })).post('t', '/x', {}))) as AppError).status).toBe(409);
     expect(((await err(new IndexxClient('https://i', log, reply(503, { message: 'Exchange is down' })).post('t', '/x', {}))) as AppError).message).toBe('Exchange is down');
     expect(((await err(new IndexxClient('https://i', log, reply(500, { code: 'server' })).get('t', '/x'))) as AppError).message).toContain('didn’t answer');

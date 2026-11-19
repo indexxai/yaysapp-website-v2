@@ -117,8 +117,8 @@ summary. As on the web, there is no money in chats.
 ### Explore
 
 The Explore tab: Jack's AI (chat, web answers with sources, documents and pictures, sent to a chat if you like),
-the daily check-in, Earn (tasks, bonuses, INEX history, invites), the Wallet (INEX, BTCY Nuggets, USDXX and Indexx
-Exchange; withdraw INEX to the exchange), BTCY and the other Indexx products, and Help (Jack answers first, then
+the daily check-in, Earn (tasks, bonuses, BTCY token history, invites), the Wallet (BTCY tokens, BTCY Nuggets, USDXX and Indexx
+Exchange; withdraw BTCY tokens to the BTCY app), BTCY and the other Indexx products, and Help (Jack answers first, then
 a person). The check-in or a bonus pops up once a day as the app opens. Indexx account and Help are also on the Me tab.
 
 - In development the API's stand-ins answer: `INDEXX_DRIVER=dev` signs in to Indexx with any password except

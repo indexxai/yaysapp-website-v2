@@ -36,8 +36,8 @@ describe('Explore on mobile, against the real API', () => {
     expect(within(pop).getByText('Welcome back, Sara')).toBeTruthy();
     expect(within(pop).getByText('Daily check-in · Day 1')).toBeTruthy();
     fireEvent.press(within(pop).getByLabelText('Claim +10'));
-    expect(await within(pop).findByText('+10 INEX added', {}, T)).toBeTruthy();
-    expect(within(pop).getByText('New balance: 10 INEX')).toBeTruthy();
+    expect(await within(pop).findByText('+10 BTCY added', {}, T)).toBeTruthy();
+    expect(within(pop).getByText('New balance: 10 BTCY')).toBeTruthy();
     fireEvent.press(within(pop).getByLabelText('Done'));
     await waitFor(() => expect(screen.queryByTestId('checkin-popup')).toBeNull());
     expect((await call('/v1/rewards/points', undefined, as(sara))).balance).toBe(10);
@@ -146,7 +146,7 @@ describe('Explore on mobile, against the real API', () => {
     await waitFor(() => expect(within(back).getByTestId('live-emmm').props.children).toBe('1 open · 1 settled this month'), T);
   });
 
-  it('the wallet: balances from Indexx; withdraw INEX to the exchange with a confirmation; it shows as Completed', async () => {
+  it('the wallet: balances from Indexx; withdraw BTCY tokens to the BTCY app with a confirmation; it shows as Completed', async () => {
     const sara = await user('Sara');
     const email = ixEmail(sara, 'sara');
     await signIn(sara, email);
@@ -156,31 +156,31 @@ describe('Explore on mobile, against the real API', () => {
     const w = await screen.findByTestId('wallet-screen');
     await waitFor(() => expect(within(w).getByTestId('card-exchange')).toBeTruthy(), T);
     expect(within(within(w).getByTestId('card-inex')).getByText('60')).toBeTruthy();
-    expect(within(w).getByText('INEX on Indexx · ready to withdraw')).toBeTruthy();
+    expect(within(w).getByText('BTCY tokens · ready to withdraw')).toBeTruthy();
     expect(await within(w).findByTestId('earned-in-yaysapp', {}, T)).toBeTruthy();
     expect(within(w).getByText('$47.50')).toBeTruthy();
     expect(within(within(w).getByTestId('card-exchange')).getByText('$1.73')).toBeTruthy();
-    expect(await within(w).findByText('Nothing yet. INEX you withdraw to Indexx Exchange shows here.', {}, T)).toBeTruthy();
+    expect(await within(w).findByText('Nothing yet. BTCY tokens you withdraw to the BTCY app show here.', {}, T)).toBeTruthy();
     fireEvent.press(within(within(w).getByTestId('card-inex')).getByLabelText('Withdraw'));
     const sheet = await screen.findByTestId('withdraw-sheet');
-    fireEvent.changeText(within(sheet).getByLabelText('INEX to withdraw'), '10');
-    expect(await within(sheet).findByText('The minimum withdrawal is 25 INEX.', {}, T)).toBeTruthy();
-    fireEvent.changeText(within(sheet).getByLabelText('INEX to withdraw'), '25');
-    await waitFor(() => expect(within(sheet).getByLabelText('Withdraw 25 INEX').props.accessibilityState.disabled).toBe(false), T);
-    fireEvent.press(within(sheet).getByLabelText('Withdraw 25 INEX'));
+    fireEvent.changeText(within(sheet).getByLabelText('BTCY tokens to withdraw'), '10');
+    expect(await within(sheet).findByText('The minimum withdrawal is 25 BTCY.', {}, T)).toBeTruthy();
+    fireEvent.changeText(within(sheet).getByLabelText('BTCY tokens to withdraw'), '25');
+    await waitFor(() => expect(within(sheet).getByLabelText('Withdraw 25 BTCY').props.accessibilityState.disabled).toBe(false), T);
+    fireEvent.press(within(sheet).getByLabelText('Withdraw 25 BTCY'));
     const conf = await screen.findByTestId('withdraw-confirm');
-    expect(within(conf).getByText('25 INEX')).toBeTruthy();
-    expect(within(conf).getByText('35 INEX')).toBeTruthy();
+    expect(within(conf).getByText('25 BTCY')).toBeTruthy();
+    expect(within(conf).getByText('35 BTCY')).toBeTruthy();
     fireEvent.press(within(conf).getByLabelText('Withdraw'));
-    expect(await within(w).findByText('25 INEX is on its way to your Indexx Exchange INEX wallet.', {}, T)).toBeTruthy();
+    expect(await within(w).findByText('25 BTCY is on its way to your BTCY app wallet.', {}, T)).toBeTruthy();
     await waitFor(() => expect(within(within(w).getByTestId('card-inex')).getByText('35')).toBeTruthy(), T);
     expect(await within(w).findByText('Completed', {}, T)).toBeTruthy();
     // Hide: no amount is left on screen, the withdrawal and the coins on the exchange included.
     fireEvent.press(within(w).getByLabelText('Hide'));
-    await waitFor(() => expect(within(w).queryByText('25 INEX')).toBeNull(), T);
+    await waitFor(() => expect(within(w).queryByText('25 BTCY')).toBeNull(), T);
     expect(within(w).queryByText(/^\d[\d.,]* ·/)).toBeNull();
     fireEvent.press(within(w).getByLabelText('Show'));
-    expect(await within(w).findByText('25 INEX', {}, T)).toBeTruthy();
+    expect(await within(w).findByText('25 BTCY', {}, T)).toBeTruthy();
     // The Indexx account screen (from Me): signed in, and signing out shows the sign-in again.
     fireEvent.press(within(w).getByLabelText('Explore'));
     fireEvent.press(await screen.findByTestId('tab-Me'));
@@ -226,7 +226,7 @@ describe('Explore on mobile, against the real API', () => {
     expect(within(hist).getAllByLabelText(/post ideas|sponsorship|bunny/i).length).toBeGreaterThanOrEqual(1);
     fireEvent.press(within(hist).getByLabelText('New chat'));
     expect(await within(jack).findByTestId('ai-hello')).toBeTruthy();
-    // Out of messages: 50 INEX buys 10 more.
+    // Out of messages: 50 BTCY buys 10 more.
     const Redis = require('ioredis') as typeof import('ioredis').default;
     const r = new Redis('redis://127.0.0.1:6430');
     const key = (await r.keys(`ai:q:${sara.id}:*`))[0]!;
@@ -237,7 +237,7 @@ describe('Explore on mobile, against the real API', () => {
     const out = await within(jack).findByTestId('ai-out', {}, T);
     expect(within(out).getByText('You’ve used today’s 30 messages.')).toBeTruthy();
     const before = (await call('/v1/rewards/points', undefined, as(sara))).balance as number;
-    fireEvent.press(within(out).getByLabelText('Use 50 INEX'));
+    fireEvent.press(within(out).getByLabelText('Use 50 BTCY'));
     await waitFor(() => expect(within(jack).getByText('30 of 40')).toBeTruthy(), T);
     expect((await call('/v1/rewards/points', undefined, as(sara))).balance).toBe(before - 50);
   });
@@ -248,14 +248,14 @@ describe('Explore on mobile, against the real API', () => {
     fireEvent.press(await screen.findByTestId('tab-Me', {}, T));
     fireEvent.press(await screen.findByLabelText('Help and support'));
     const help = await screen.findByTestId('help-screen');
-    fireEvent.changeText(within(help).getByLabelText('Describe the problem'), 'My check-in didn’t add INEX');
+    fireEvent.changeText(within(help).getByLabelText('Describe the problem'), 'My check-in didn’t add BTCY tokens');
     fireEvent.press(within(help).getByLabelText('Get an answer'));
     expect(await within(help).findByTestId('support-answer', {}, T)).toBeTruthy();
-    fireEvent.press(within(help).getByLabelText('My check-in didn’t add INEX'));
+    fireEvent.press(within(help).getByLabelText('My check-in didn’t add BTCY tokens'));
     expect(within(help).getByText(/Check-ins reset at midnight/)).toBeTruthy();
     fireEvent.press(within(help).getByLabelText('Talk to a person'));
     expect(await screen.findByTestId('thread', {}, { timeout: 10000 })).toBeTruthy();
-    expect((await screen.findAllByText(/My check-in didn’t add INEX/, {}, T)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/My check-in didn’t add BTCY tokens/, {}, T)).length).toBeGreaterThan(0);
   });
 
   it('Catch up in a chat: Jack asks first, then summarises; it remembers the yes, and it can be turned off', async () => {

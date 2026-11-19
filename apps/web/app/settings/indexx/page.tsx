@@ -9,7 +9,7 @@ import { errText, useLoad } from '@/lib/phase2';
 
 export default function IndexxPage() { return <SettingsFrame>{(me) => <Indexx email={me.email} />}</SettingsFrame>; }
 
-/** p15: the Indexx sign-in (BTCY, EMMM, ShoperPal, Wall Street, the wallet and withdrawing INEX). */
+/** p15: the Indexx sign-in (BTCY, EMMM, ShoperPal, Wall Street, the wallet and withdrawing BTCY tokens). */
 function Indexx({ email }: { email: string | null }) {
   const s = useLoad(() => api().indexx());
   const saved = useSaved();
@@ -38,8 +38,8 @@ function Indexx({ email }: { email: string | null }) {
       )}
       <Card label="What the Indexx sign-in shows">
         <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Explore</span><span className="ys-row-item__sub">BTCY mining, EMMM positions, ShoperPal orders and Wall Street stocks</span></span></div>
-        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Wallet</span><span className="ys-row-item__sub">INEX, BTCY Nuggets, USDXX and Indexx Exchange; withdraw INEX to the exchange</span></span></div>
-        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">BTCY bonus</span><span className="ys-row-item__sub">Your mining streak and friends who join your team count toward INEX</span></span></div>
+        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Wallet</span><span className="ys-row-item__sub">BTCY tokens, BTCY Nuggets, USDXX and Indexx Exchange; withdraw BTCY tokens to the BTCY app</span></span></div>
+        <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">BTCY bonus</span><span className="ys-row-item__sub">Your mining streak and friends who join your team count toward BTCY tokens</span></span></div>
         <div className="ys-row-item"><span className="ys-row-item__text"><span className="ys-row-item__title">Your password</span><span className="ys-row-item__sub">Sent to Indexx once to sign in, never kept by YaysApp</span></span></div>
       </Card>
     </>

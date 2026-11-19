@@ -183,7 +183,7 @@ export type WithdrawStatus = 'completed' | 'failed' | 'processing';
 export interface Withdrawal { id: string; status: WithdrawStatus; amount: number; balance: number; network: string | null; createdAt: string; duplicate: boolean }
 export interface WithdrawalsPage { items: Withdrawal[]; hasMore: boolean }
 export const withdrawSchema = z.object({
-  amount: z.number().int('Enter a whole number of INEX.').positive('Enter how much INEX to withdraw.'),
+  amount: z.number().int('Enter a whole number of BTCY tokens.').positive('Enter how many BTCY tokens to withdraw.'),
   idempotencyKey: z.string().min(8).max(100),
 });
 

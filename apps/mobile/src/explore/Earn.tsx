@@ -16,7 +16,7 @@ import type { IconName } from '../ui/Icon';
 
 export const inviteLink = (code: string) => `${config.webUrl}/?ref=${encodeURIComponent(code)}`;
 
-/** p06: INEX balance, the daily check-in, ways to earn today, bonuses and invites. */
+/** p06: BTCY token balance, the daily check-in, ways to earn today, bonuses and invites. */
 export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => void; nav: { history: () => void; invite: () => void; wallet: () => void; ai: () => void; btcy: () => void; indexx: () => void } }) {
   const t = useTheme();
   const points = useLoad(() => api().then((a) => a.points()));
@@ -37,7 +37,7 @@ export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => v
         <View style={{ borderRadius: 26, padding: 20, gap: 2, backgroundColor: t.ember, overflow: 'hidden' }}>
           <View style={{ position: 'absolute', width: 220, height: 200, borderRadius: 200, top: -100, right: -60, backgroundColor: t['ember-light'], opacity: 0.5 }} />
           <Image source={BRAND.coin} style={{ position: 'absolute', right: 16, top: 16, width: 84, height: 84 }} resizeMode="contain" />
-          <Text style={{ fontFamily: font.display, fontWeight: '700', fontSize: 12, letterSpacing: 1.4, color: '#fff' }}>INEX</Text>
+          <Text style={{ fontFamily: font.display, fontWeight: '700', fontSize: 12, letterSpacing: 1.4, color: '#fff' }}>BTCY TOKENS</Text>
           <Text testID="points-balance" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 40, lineHeight: 48, color: '#fff' }}>{p ? fmtPoints(p.balance) : '—'}</Text>
           <Text style={{ fontSize: 13, color: '#fff' }}>{p ? `+${fmtPoints(p.earnedThisWeek)} this week${p.pending ? ` · ${fmtPoints(p.pending)} pending` : ''}` : ' '}</Text>
           <View style={{ flexDirection: 'row', gap: 24, marginTop: 14 }}>
@@ -76,7 +76,7 @@ export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => v
 
         <Card>
           <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 16, color: t.ink }}>Invite friends</Text>
-          <Text style={{ fontSize: 13, lineHeight: 19, color: t['ink-soft'] }}>Get {REFERRAL_POINTS} INEX when a friend joins with your code, verifies their number and sends a first message.</Text>
+          <Text style={{ fontSize: 13, lineHeight: 19, color: t['ink-soft'] }}>Get {REFERRAL_POINTS} BTCY when a friend joins with your code, verifies their number and sends a first message.</Text>
           <View style={{ flexDirection: 'row', gap: 8 }}><Stat value={String(r?.invited ?? '–')} label="Invited" /><Stat value={String(r?.joined ?? '–')} label="Joined" /><Stat value={String(r?.pending ?? '–')} label="Pending" /></View>
           <View style={{ alignItems: 'center' }}><OvalButton icon="people" label="Your invites" size="sm" variant="soft" onPress={nav.invite} /></View>
         </Card>
@@ -111,14 +111,14 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="history-screen">
       <LineArt name="trader" height={300} style={{ right: -40, bottom: 10 }} />
-      <Header back="Earn" onBack={onBack} title="INEX history" />
+      <Header back="Earn" onBack={onBack} title="BTCY token history" />
       <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 30, gap: 10 }}>
-        <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Filter INEX history">
+        <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Filter BTCY token history">
           {FILTERS.map(([f, label]) => <Chip key={f} label={label} on={filter === f} onPress={() => { setFilter(f); setMore([]); setNext(null); }} />)}
         </View>
         {page.error || error ? <ErrorBanner>{page.error ?? error}</ErrorBanner> : null}
         {!page.data && !page.error ? <ActivityIndicator color={t.ember} /> : null}
-        {page.data && !items.length ? <State icon="star" tone="plain" title="Nothing here yet">Check in daily, chat and invite friends to earn INEX.</State> : null}
+        {page.data && !items.length ? <State icon="star" tone="plain" title="Nothing here yet">Check in daily, chat and invite friends to earn BTCY tokens.</State> : null}
         {groups.map(([g, rows]) => (
           <Card key={g} title={g} pad={false}>
             {rows.map((i) => {
@@ -137,7 +137,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
           </Card>
         ))}
         {cursor ? <View style={{ alignItems: 'center' }}><OvalButton icon="chevron-down" label="Show more" size="sm" variant="soft" onPress={() => void loadMore()} /></View> : null}
-        <Text style={{ marginHorizontal: 8, fontSize: 12, lineHeight: 17, color: t['ink-soft'] }}>INEX from invites shows as pending until your friend verifies their number and sends a first message.</Text>
+        <Text style={{ marginHorizontal: 8, fontSize: 12, lineHeight: 17, color: t['ink-soft'] }}>BTCY tokens from invites shows as pending until your friend verifies their number and sends a first message.</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -164,7 +164,7 @@ export function InviteScreen({ onBack }: { onBack: () => void }) {
       <ScrollView contentContainerStyle={{ paddingHorizontal: 12, paddingBottom: 30, gap: 12 }}>
         {r.error ? <ErrorBanner>{r.error}</ErrorBanner> : null}
         <Card style={{ alignItems: 'center', padding: 18, gap: 12 }}>
-          <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 20, color: t.ink, textAlign: 'center' }}>Get {REFERRAL_POINTS} INEX for each friend</Text>
+          <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 20, color: t.ink, textAlign: 'center' }}>Get {REFERRAL_POINTS} BTCY for each friend</Text>
           <Text style={{ fontSize: 13, lineHeight: 19, color: t['ink-soft'], textAlign: 'center' }}>Your friend joins with your code, verifies their number and sends a first message. Your code also works across Indexx products.</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'stretch', paddingVertical: 8, paddingLeft: 16, paddingRight: 8, borderRadius: 999, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t['ember-light'], backgroundColor: t['ember-wash'] }}>
             <View style={{ flex: 1 }}><Text style={{ fontSize: 11, fontWeight: '700', color: t['ember-ink'] }}>YOUR CODE</Text><Text testID="invite-code" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 18, letterSpacing: 1.4, color: t.ink }}>{d?.code ?? '…'}</Text></View>
@@ -176,7 +176,7 @@ export function InviteScreen({ onBack }: { onBack: () => void }) {
             <OvalButton icon="share" label="More" variant="soft" disabled={!d} onPress={share} />
           </View>
         </Card>
-        <View style={{ flexDirection: 'row', gap: 8 }}><Stat value={String(d?.invited ?? '–')} label="Invited" /><Stat value={String(d?.joined ?? '–')} label="Joined" /><Stat value={String(d?.pointsEarned ?? '–')} label="INEX earned" /></View>
+        <View style={{ flexDirection: 'row', gap: 8 }}><Stat value={String(d?.invited ?? '–')} label="Invited" /><Stat value={String(d?.joined ?? '–')} label="Joined" /><Stat value={String(d?.pointsEarned ?? '–')} label="BTCY earned" /></View>
         <Card title="Your invites" pad={false}>
           {d && !d.friends.length ? <Text style={{ padding: 16, paddingTop: 6, color: t['ink-soft'], fontSize: 14 }}>Nobody has used your code yet. Share your link to get started.</Text> : null}
           {d?.friends.map((f, i) => (

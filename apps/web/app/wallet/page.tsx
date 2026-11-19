@@ -12,10 +12,10 @@ import { Icon } from '@/lib/icons';
 import { errText, money, num, useLoad, when } from '@/lib/phase2';
 
 const STATUS: Record<Withdrawal['status'], { label: string; tone: string }> = {
-  completed: { label: 'Completed', tone: 'success' }, failed: { label: 'Failed · INEX returned', tone: 'danger' }, processing: { label: 'Processing', tone: 'warning' },
+  completed: { label: 'Completed', tone: 'success' }, failed: { label: 'Failed · BTCY returned', tone: 'danger' }, processing: { label: 'Processing', tone: 'warning' },
 };
 
-/** W4: INEX, BTCY Nuggets, USDXX and Indexx Exchange from the person's Indexx account, and withdrawing INEX to the exchange. */
+/** W4: BTCY tokens, BTCY Nuggets, USDXX and Indexx Exchange from the person's Indexx account, and withdrawing BTCY tokens to the BTCY app. */
 export default function WalletPage() {
   const { me } = useMe();
   const wallet = useLoad(() => api().wallet());
@@ -41,12 +41,12 @@ export default function WalletPage() {
         </div>
         {wallet.error && <Banner>{wallet.error}</Banner>}
         {w && !w.linked && ix.data && (
-          <IndexxSignIn email={ix.data.email ?? me?.email ?? null} ended={!!ix.data.email} sub="Your INEX, BTCY Nuggets, USDXX and Indexx Exchange balances show here once you sign in, and you can withdraw INEX to Indexx Exchange." onDone={(s) => { ix.setData(s); void wallet.reload(); }} />
+          <IndexxSignIn email={ix.data.email ?? me?.email ?? null} ended={!!ix.data.email} sub="Your BTCY tokens, BTCY Nuggets, USDXX and Indexx Exchange balances show here once you sign in, and you can withdraw BTCY tokens to the BTCY app." onDone={(s) => { ix.setData(s); void wallet.reload(); }} />
         )}
         <div className="p2-grid p2-grid--wallet">
           <div className="p2-col" style={{ gap: 16, minWidth: 0 }}>
             <div className="p2-assets">
-              <Asset name="INEX" amount={w?.inex ? num(w.inex.balance) : '—'} sub={w?.inex?.source ?? 'Your Indexx INEX balance'} icon testId="card-inex" />
+              <Asset name="BTCY tokens" amount={w?.inex ? num(w.inex.balance) : '—'} sub={w?.inex?.source ?? 'Your BTCY token balance'} icon testId="card-inex" />
               <Asset name="BTCY Nuggets" amount={w?.nuggets ? num(w.nuggets.balance, 2) : '—'} sub={w?.nuggets?.source ?? 'From BTCY mining'} logo="/brand/products/btcy.png" />
               <Asset name="USDXX" amount={w?.usdxx ? money(w.usdxx.usd ?? w.usdxx.balance) : '—'} sub={w?.usdxx?.source ?? 'Indexx Pay'} logo="/brand/products/usdxx.png" />
               <Asset name="Indexx Exchange" amount={w?.exchange ? money(w.exchange.totalUsd) : '—'} sub={w?.linked && !w.exchange ? 'Couldn’t read it right now' : 'Read-only'} logo="/brand/products/exchange.png" testId="card-exchange" />
@@ -56,17 +56,17 @@ export default function WalletPage() {
               <section className="p2-card" aria-labelledby="wd-h">
                 <div className="p2-card__head p2-card__head--pad"><h2 id="wd-h">Withdrawals</h2></div>
                 {historyError && <div style={{ padding: '0 18px 18px' }}><Banner>{historyError}</Banner></div>}
-                {history && !history.items.length && <p className="muted" style={{ margin: '4px 20px 20px' }}>Nothing yet. INEX you withdraw to Indexx Exchange shows here.</p>}
+                {history && !history.items.length && <p className="muted" style={{ margin: '4px 20px 20px' }}>Nothing yet. BTCY tokens you withdraw to the BTCY app show here.</p>}
                 {!!history?.items.length && (
                   <div style={{ overflowX: 'auto' }}>
                     <table className="p2-table">
                       <thead><tr><th>What</th><th>Date</th><th>Status</th><th className="num">Amount</th></tr></thead>
                       <tbody>{history.items.map((t) => (
                         <tr key={t.id}>
-                          <td><strong>To Indexx Exchange</strong><br /><span className="muted p2-small">INEX wallet{t.network ? ` · ${t.network}` : ''}</span></td>
+                          <td><strong>To the BTCY app</strong><br /><span className="muted p2-small">BTCY wallet{t.network ? ` · ${t.network}` : ''}</span></td>
                           <td className="muted">{when(t.createdAt)}</td>
                           <td><span className={`ys-tag ys-tag--${STATUS[t.status]?.tone ?? 'neutral'}`}>{STATUS[t.status]?.label ?? t.status}</span></td>
-                          <td className={`num${t.status === 'failed' ? ' muted strike' : ''}`}>{num(t.amount)} INEX</td>
+                          <td className={`num${t.status === 'failed' ? ' muted strike' : ''}`}>{num(t.amount)} BTCY</td>
                         </tr>
                       ))}</tbody>
                     </table>
@@ -146,7 +146,7 @@ function Withdraw({ w, onDone, onSignedOut }: { w: WalletView; onDone: (r: Withd
   }, [w.linked, raw]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const current = quote && whole && quote.amount === n ? quote : null;
-  const problem = !typed ? null : !whole ? 'Enter a whole number of INEX.' : current && !current.eligible ? current.reason : null;
+  const problem = !typed ? null : !whole ? 'Enter a whole number of BTCY tokens.' : current && !current.eligible ? current.reason : null;
   const max = quote ? Math.max(0, Math.min(quote.balance, quote.remainingToday ?? quote.balance)) : 0;
   const go = async () => {
     if (!confirm) return;
@@ -154,7 +154,7 @@ function Withdraw({ w, onDone, onSignedOut }: { w: WalletView; onDone: (r: Withd
     try {
       const r = await api().withdraw(confirm.amount, confirm.key);
       setConfirm(null); setRaw('');
-      setDone(`${num(r.amount)} INEX is on its way to your Indexx Exchange INEX wallet.`);
+      setDone(`${num(r.amount)} BTCY is on its way to your BTCY app wallet.`);
       onDone(r);
     } catch (e) {
       if (e instanceof ApiError && e.code === ErrorCode.INDEXX_SIGN_IN) { setConfirm(null); onSignedOut(); return; }
@@ -164,34 +164,34 @@ function Withdraw({ w, onDone, onSignedOut }: { w: WalletView; onDone: (r: Withd
   return (
     <aside className="p2-card p2-card--pad p2-convert" aria-labelledby="wd">
       <h2 id="wd">Withdraw</h2>
-      {!w.linked ? <p className="muted" style={{ margin: 0 }}>Sign in to Indexx to withdraw INEX to your Indexx Exchange INEX wallet.</p> : (
+      {!w.linked ? <p className="muted" style={{ margin: 0 }}>Sign in to Indexx to withdraw BTCY tokens to your BTCY app wallet.</p> : (
         <>
           {done && <Banner tone="success">{done}</Banner>}
           {error && !confirm && <Banner>{error}</Banner>}
           <div className={`ys-field${problem ? ' ys-field--error' : ''}`}>
-            <label className="ys-field__label" htmlFor="amt">INEX to withdraw</label>
+            <label className="ys-field__label" htmlFor="amt">BTCY tokens to withdraw</label>
             <div className="ys-field__box"><input id="amt" className="ys-input p2-convert__input" inputMode="numeric" value={raw} onChange={(e) => { setRaw(e.target.value); setDone(null); setError(null); }} placeholder="0" aria-describedby="amt-hint" /><button type="button" className="link-btn" onClick={() => setRaw(String(max))} disabled={!quote || max < quote.minimum}>Max</button></div>
-            <span className="ys-field__hint" id="amt-hint" role={problem ? 'alert' : undefined}>{problem ?? (quote ? `You have ${num(quote.balance)} INEX.` : ' ')}</span>
+            <span className="ys-field__hint" id="amt-hint" role={problem ? 'alert' : undefined}>{problem ?? (quote ? `You have ${num(quote.balance)} BTCY.` : ' ')}</span>
           </div>
           <div className="row center muted"><Icon name="arrow-down" size={18} /></div>
-          <div className="p2-convert__to"><span className="ys-oval" style={{ width: 36, ['--ys-oval-fill' as string]: '#ffffff' }}><img src="/brand/products/exchange.png" alt="" /></span><span style={{ flex: 1, fontWeight: 700 }}>{quote?.destination ?? 'Indexx Exchange INEX wallet'}</span><strong>{current?.eligible ? num(n) : '—'}</strong></div>
+          <div className="p2-convert__to"><span className="ys-oval" style={{ width: 36, ['--ys-oval-fill' as string]: '#ffffff' }}><img src="/brand/products/btcy.png" alt="" /></span><span style={{ flex: 1, fontWeight: 700 }}>{quote?.destination ?? 'BTCY app wallet'}</span><strong>{current?.eligible ? num(n) : '—'}</strong></div>
           <dl className="p2-dl">
-            <dt>Rate</dt><dd>1 INEX = 1 INEX on the exchange</dd>
-            <dt>Minimum</dt><dd>{quote ? `${num(quote.minimum)} INEX` : '—'}</dd>
-            {quote?.dailyMax != null && <><dt>Daily limit</dt><dd>{num(quote.dailyMax)} INEX</dd><dt>Left today</dt><dd>{num(quote.remainingToday)} INEX</dd></>}
+            <dt>Rate</dt><dd>1 BTCY token = 1 BTCY in the BTCY app</dd>
+            <dt>Minimum</dt><dd>{quote ? `${num(quote.minimum)} BTCY` : '—'}</dd>
+            {quote?.dailyMax != null && <><dt>Daily limit</dt><dd>{num(quote.dailyMax)} BTCY</dd><dt>Left today</dt><dd>{num(quote.remainingToday)} BTCY</dd></>}
           </dl>
           <div className="row center"><OvalButton icon="upload" label="Withdraw" size="lg" disabled={!current?.eligible} onClick={() => { setError(null); setConfirm({ amount: n, key: crypto.randomUUID() }); }} /></div>
         </>
       )}
       {confirm && (
-        <Modal title="Withdraw INEX?" onClose={() => { if (!busy) setConfirm(null); }}>
+        <Modal title="Withdraw BTCY tokens?" onClose={() => { if (!busy) setConfirm(null); }}>
           <div className="p2-confirm">
-            <div><span className="muted">You send</span><strong>{num(confirm.amount)} INEX</strong></div>
+            <div><span className="muted">You send</span><strong>{num(confirm.amount)} BTCY</strong></div>
             <Icon name="arrow-down" size={18} />
-            <div><span className="muted">It arrives in</span><strong>Indexx Exchange INEX wallet</strong></div>
+            <div><span className="muted">It arrives in</span><strong>BTCY app wallet</strong></div>
           </div>
-          <dl className="p2-dl"><dt>Fee</dt><dd>None</dd><dt>Left on Indexx</dt><dd>{quote ? `${num(quote.balance - confirm.amount)} INEX` : '—'}</dd></dl>
-          <p className="muted p2-small" style={{ margin: 0 }}>Withdrawals can’t be undone. If the exchange can’t take it, your INEX comes back.</p>
+          <dl className="p2-dl"><dt>Fee</dt><dd>None</dd><dt>Left on Indexx</dt><dd>{quote ? `${num(quote.balance - confirm.amount)} BTCY` : '—'}</dd></dl>
+          <p className="muted p2-small" style={{ margin: 0 }}>Withdrawals can’t be undone. If the BTCY app can’t take it, your BTCY tokens come back.</p>
           {error && <Banner>{error}</Banner>}
           <div className="row center"><OvalButton icon="close" label="Cancel" variant="ghost" disabled={busy} onClick={() => setConfirm(null)} /><OvalButton icon="check" label={error ? 'Try again' : 'Withdraw'} size="lg" loading={busy} onClick={() => void go()} /></div>
         </Modal>

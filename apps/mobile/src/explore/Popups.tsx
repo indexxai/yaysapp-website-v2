@@ -42,15 +42,15 @@ export function CheckinPopup({ first, status, onClose, onEarn }: { first: string
         <View style={{ position: 'absolute', width: 240, height: 220, borderRadius: 200, top: -110, right: -70, backgroundColor: t['ember-light'], opacity: 0.5 }} />
         <Image source={BRAND.coin} style={{ position: 'absolute', right: 20, top: 18, width: 76, height: 76 }} resizeMode="contain" />
         <Text style={{ fontFamily: font.display, fontWeight: '700', fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase', color: '#fff' }}>Daily check-in · Day {s.dayOfWeek}</Text>
-        <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 40, lineHeight: 48, color: '#fff' }}>+{s.todayPoints} INEX</Text>
-        <Text style={{ fontSize: 13, color: '#fff' }}>{done ? `New balance: ${fmtPoints(s.balance)} INEX` : `Balance after claim: ${fmtPoints(s.balance + s.todayPoints)}`}</Text>
+        <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: 40, lineHeight: 48, color: '#fff' }}>+{s.todayPoints} BTCY</Text>
+        <Text style={{ fontSize: 13, color: '#fff' }}>{done ? `New balance: ${fmtPoints(s.balance)} BTCY` : `Balance after claim: ${fmtPoints(s.balance + s.todayPoints)}`}</Text>
       </View>
       <View style={{ padding: 20, gap: 16 }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
           {done ? <Oval width={44} fill={t['success-wash']}><Icon name="check" size={22} color={t['success-ink']} /></Oval> : null}
           <View style={{ flex: 1, gap: 4 }}>
-            <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 22, color: t.ink }}>{done ? `+${s.todayPoints} INEX added` : `Welcome back, ${first}`}</Text>
-            <Text style={{ fontSize: 14, lineHeight: 20, color: t['ink-soft'] }}>{done ? `That’s a ${s.streak}-day streak.` : s.streak ? `You’re on a ${s.streak}-day streak. Claim today’s INEX to keep it going.` : 'Claim today’s INEX to start a streak.'}</Text>
+            <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 22, color: t.ink }}>{done ? `+${s.todayPoints} BTCY added` : `Welcome back, ${first}`}</Text>
+            <Text style={{ fontSize: 14, lineHeight: 20, color: t['ink-soft'] }}>{done ? `That’s a ${s.streak}-day streak.` : s.streak ? `You’re on a ${s.streak}-day streak. Claim today’s BTCY tokens to keep it going.` : 'Claim today’s BTCY tokens to start a streak.'}</Text>
           </View>
         </View>
         <CheckinWeek status={s} />
@@ -99,12 +99,12 @@ export function BonusPopup({ first, bonus: b, onClose, onGo, onEarn }: { first: 
       </View>
       <View style={{ padding: 20, gap: 14 }}>
         <Text style={{ fontFamily: font.display, fontWeight: '700', fontSize: 12, letterSpacing: 1.2, textTransform: 'uppercase', color: t['ember-ink'] }}>{b.eyebrow}</Text>
-        <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 26, lineHeight: 32, color: t.ink }}>Earn {jack ? '' : 'up to '}<Text style={{ color: t['ember-ink'] }}>+{b.points}</Text> {jack ? 'bonus INEX' : 'INEX'}</Text>
+        <Text accessibilityRole="header" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 26, lineHeight: 32, color: t.ink }}>Earn {jack ? '' : 'up to '}<Text style={{ color: t['ember-ink'] }}>+{b.points}</Text> {jack ? 'bonus BTCY' : 'BTCY'}</Text>
         <Text style={{ fontSize: 14, lineHeight: 20, color: t['ink-soft'] }}>{lead}</Text>
         <View style={{ borderRadius: 20, backgroundColor: t.raised, overflow: 'hidden' }}><TaskList tasks={b.tasks} /></View>
         <View style={{ flexDirection: 'row', gap: 10, padding: 12, borderRadius: 16, backgroundColor: t.sunken }}>
           <Icon name="clock" size={16} color={t['ink-soft']} />
-          <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: t.ink }}>Ends in <Text style={{ fontWeight: '800' }}>{timeLeft(b.endsAt)}</Text>. {b.allRequired ? `INEX lands in your wallet when all ${b.tasks.length} are done.` : 'INEX lands in your wallet as each task is done.'}</Text>
+          <Text style={{ flex: 1, fontSize: 13, lineHeight: 18, color: t.ink }}>Ends in <Text style={{ fontWeight: '800' }}>{timeLeft(b.endsAt)}</Text>. {b.allRequired ? `BTCY tokens land in your wallet when all ${b.tasks.length} are done.` : 'BTCY tokens land in your wallet as each task is done.'}</Text>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
           <OvalButton icon="clock" label="Later" variant="ghost" onPress={later} />
