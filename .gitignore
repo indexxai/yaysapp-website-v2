@@ -34,3 +34,4 @@ metro-run.log
 emulator.log
 backend-run.log*
 ios-run.log*
+tester-apk.log*
