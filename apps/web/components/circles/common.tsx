@@ -9,7 +9,7 @@ export const offline = (e: unknown) => e instanceof ApiError && e.status === 0;
 export const plural = (n: number, w: string) => `${n.toLocaleString()} ${w}${n === 1 ? '' : 's'}`;
 export const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1).replace(/\.0$/, '')}k` : String(n));
 
-const FILLS = ['var(--ember)', '#4f5fa8', '#b24a7a', '#7fcc1b', '#2f8f83', '#c7772a'];
+const FILLS = ['var(--ember)', '#4f5fa8', '#b24a7a', '#55b556', '#2f8f83', '#c7772a'];
 const fillFor = (id: string) => FILLS[[...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % FILLS.length]!;
 
 /** The circle's picture, or its first letter on its own colour. Official BTCY circles get the coin. */

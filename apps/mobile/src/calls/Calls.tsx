@@ -15,7 +15,7 @@ import { askPermissions, CallSession } from './session';
 
 const errText = (e: unknown, f: string) => (e instanceof ApiError ? e.message : f);
 /** Calls look the same in light and dark mode: a dark room, like the phone's own call screen. */
-const C = { bg: '#1f1a16', raised: 'rgba(255,255,255,0.12)', ink: '#ffffff', soft: 'rgba(255,255,255,0.72)', end: '#c85a45', accept: '#88f102', onAccept: '#1f1a16', ember: '#e5852b' };
+const C = { bg: '#1f1a16', raised: 'rgba(255,255,255,0.12)', ink: '#ffffff', soft: 'rgba(255,255,255,0.72)', end: '#c85a45', accept: '#67cc68', onAccept: '#1f1a16', ember: '#e5852b' };
 
 // ---------------------------------------------------------------------------------------------------------------
 // Calls for the whole signed-in app: start, answer, join, and the one call this phone is on.

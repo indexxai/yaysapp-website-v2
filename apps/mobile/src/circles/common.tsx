@@ -19,7 +19,7 @@ export const compact = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10
 export const isMember = (c: Pick<CircleView, 'access'>) => c.access === 'admin' || c.access === 'member';
 export const categoryLabel = (c: CircleView | CircleCard) => CIRCLE_CATEGORY_LABEL[c.category];
 
-const FILLS = ['#ff6a00', '#4f5fa8', '#b24a7a', '#7fcc1b', '#2f8f83', '#c7772a'];
+const FILLS = ['#ff6a00', '#4f5fa8', '#b24a7a', '#55b556', '#2f8f83', '#c7772a'];
 const fillFor = (id: string) => FILLS[[...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % FILLS.length]!;
 const COIN = require('../../assets/brand/btcy-coin.png');
 

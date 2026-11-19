@@ -56,7 +56,7 @@ export function LineArt({ name, width, height, ink, opacity, className, style }:
 }
 
 /** The brand palette for things that need telling apart (community marks, sender names). No new hues. */
-const MARKS = ['var(--ember)', '#7fcc1b', '#b24a7a', '#4f5fa8'];
+const MARKS = ['var(--ember)', '#55b556', '#b24a7a', '#4f5fa8'];
 export const markFill = (id: string) => MARKS[[...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % MARKS.length]!;
 
 export function Field({ label, hint, error, children, id }: { label: string; hint?: ReactNode; error?: string | null; children: ReactNode; id: string }) {
