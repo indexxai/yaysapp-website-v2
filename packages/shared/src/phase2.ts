@@ -66,6 +66,18 @@ export const CHAT_EARN = {
   monthWeeks: 4,
 } as const;
 
+/** "How it counts", shown on the Earn screens of the phone and web apps. */
+export const CHAT_EARN_RULES: Array<{ title: string; body: string }> = [
+  { title: 'A conversation', body: `In one chat on one day you send ${CHAT_EARN.minMessages} or more messages and someone replies (in a group, 2 people). Or you're on a call for ${CHAT_EARN.minCallSec / 60}+ minutes.` },
+  { title: 'Messages that count', body: 'Two or more words, a photo or a voice note. Forwards, copy-paste repeats, stickers alone and community chats don’t count.' },
+  { title: 'Replies that count', body: `From people with a verified phone number whose account is ${CHAT_EARN.replierMinAgeDays}+ days old.` },
+  { title: 'Settles at midnight', body: 'Rewards show as pending during the day. Just after midnight we check the day again: delete messages and that reward is reversed.' },
+  { title: 'New connections', body: `Chat with someone new (a chat from the last ${CHAT_EARN.newConnectionWindowDays} days) and once you've both replied on 2 different days, you each get ${CHAT_EARN.newConnectionPoints} BTCY. Up to ${CHAT_EARN.newConnectionsPerDay} a day.` },
+  { title: 'Chat week and month', body: `Reach Tier 1 on ${CHAT_EARN.weekDays} days of a week (Mon–Sun) for ${CHAT_EARN.weekPoints} BTCY and a Turbo mining day. ${CHAT_EARN.monthWeeks} chat weeks in a row: the Chat Champion badge and a coupon.` },
+  { title: 'Your messages stay private', body: 'We check length and repeats as each message is sent and keep only a yes or no. Your words are never stored for rewards.' },
+  { title: 'The daily cap', body: 'Everything here counts toward the daily cap of 200 BTCY.' },
+];
+
 export type ChatDayState = 'met' | 'missed' | 'today' | 'upcoming';
 export interface ChatEarnToday {
   /** Chats that counted today. */

@@ -78,6 +78,12 @@ describe('Explore on mobile, against the real API', () => {
     expect(within(earn).getByText('Claimed today. Tomorrow: +10')).toBeTruthy();
     expect(within(earn).getByText('Ways to earn today')).toBeTruthy();
     expect(await within(earn).findByText('Ask Jack’s AI 3 questions', {}, T)).toBeTruthy();
+    // Chat to Earn: today's conversations and the three tiers; "How it counts" opens the rules.
+    const ce = within(earn).getByTestId('chat-earn');
+    expect(within(ce).getByTestId('chat-earn-count').props.children.join('')).toMatch(/^\d+ conversations? today$/);
+    expect(within(ce).getByText('Tier 3 · 10 conversations')).toBeTruthy();
+    fireEvent.press(within(ce).getByTestId('chat-earn-rules'));
+    expect(within(ce).getByText('Your messages stay private')).toBeTruthy();
     // History.
     fireEvent.press(within(earn).getByLabelText('History'));
     const hist = await screen.findByTestId('history-screen');

@@ -104,6 +104,12 @@ test('Explore, Earn, history and invites', async ({ browser }) => {
   await expect(a.page.getByTestId('points-balance')).toHaveText('110');
   await expect(a.page.getByText(code)).toBeVisible();
   await expect(a.page.getByText('Ask Jack’s AI 3 questions')).toBeVisible();
+  // Chat to Earn: today's conversations, the three tiers, and the rules behind "How it counts".
+  const ce = a.page.getByTestId('chat-earn');
+  await expect(ce.getByTestId('chat-earn-count')).toHaveText(/^\d+ conversations? today$/);
+  await expect(ce.getByText('Tier 3 · 10 conversations')).toBeVisible();
+  await ce.getByRole('button', { name: 'How it counts' }).click();
+  await expect(ce.getByText('Your messages stay private')).toBeVisible();
   await shot(a.page, 'w03-earn');
   await a.page.getByRole('link', { name: 'History' }).click();
   await expect(a.page.getByText('Invited Hamza')).toBeVisible();

@@ -10,7 +10,7 @@ import { errText, fmtPoints, useLoad } from '@/lib/phase2';
 
 const FILTERS = [['all', 'All'], ['earned', 'Earned'], ['spent', 'Spent'], ['pending', 'Pending']] as const;
 type Filter = (typeof FILTERS)[number][0];
-const ICON: Record<PointsEntry['kind'], IconName> = { checkin: 'gift', activity: 'chats', referral: 'person-add', bonus: 'sparkles', convert: 'swap', ai_extra: 'sparkles', reversal: 'refresh' };
+const ICON: Record<PointsEntry['kind'], IconName> = { checkin: 'gift', activity: 'chats', referral: 'person-add', bonus: 'sparkles', convert: 'swap', ai_extra: 'sparkles', reversal: 'refresh', chat: 'chats', perk: 'zap' };
 
 const group = (iso: string) => {
   const d = new Date(iso), now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
@@ -53,7 +53,7 @@ export default function HistoryPage() {
           </section>
         ))}
         {cursor && <div className="row center"><OvalButton icon="chevron-down" label="Show more" size="sm" variant="soft" onClick={() => void loadMore()} /></div>}
-        <p className="muted p2-small">BTCY tokens from invites shows as pending until your friend verifies their number and sends a first message.</p>
+        <p className="muted p2-small">BTCY tokens from invites stay pending until your friend verifies their number and sends a first message. Chat to Earn rewards stay pending until the day is checked just after midnight.</p>
       </div>
     </AppShell>
   );

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Linking, RefreshControl, ScrollView, Share, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Pressable, RefreshControl, ScrollView, Share, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Clipboard from '@react-native-clipboard/clipboard';
-import { REFERRAL_POINTS, type MeProfile, type PointsEntry } from '@yays/shared';
+import { CHAT_EARN_RULES, REFERRAL_POINTS, type ChatEarnToday, type MeProfile, type Perk, type PointsEntry } from '@yays/shared';
 import { api } from '../lib/api';
 import { config } from '../lib/config';
 import { font, useTheme } from '../lib/theme';
@@ -24,9 +24,10 @@ export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => v
   const today = useLoad(() => api().then((a) => a.earnToday()));
   const bonuses = useLoad(() => api().then((a) => a.bonuses()));
   const refs = useLoad(() => api().then((a) => a.referrals()));
+  const perks = useLoad(() => api().then((a) => a.perks()));
   const [popup, setPopup] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const all = () => Promise.all([points.reload(), checkin.reload(), today.reload(), bonuses.reload(), refs.reload()]);
+  const all = () => Promise.all([points.reload(), checkin.reload(), today.reload(), bonuses.reload(), refs.reload(), perks.reload()]);
   const p = points.data, c = checkin.data, d = today.data, r = refs.data;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: t.surface }} testID="earn-screen">
@@ -54,6 +55,10 @@ export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => v
           {c ? <CheckinWeek status={c} /> : <ActivityIndicator color={t.ember} />}
           {c ? <View style={{ alignItems: 'center' }}>{c.claimedToday ? <Text style={{ color: t['ink-soft'], fontSize: 13 }}>Claimed today. Tomorrow: +{c.tomorrowPoints}</Text> : <OvalButton icon="gift" label={`Claim +${c.todayPoints} today`} onPress={() => setPopup(true)} />}</View> : null}
         </Card>
+
+        {d?.chat ? <ChatEarnCard chat={d.chat} /> : null}
+
+        {perks.data?.length ? <PerksCard perks={perks.data} /> : null}
 
         <Card title="Ways to earn today" pad={false}>
           {d ? <TaskList tasks={d.tasks} /> : <ActivityIndicator color={t.ember} style={{ margin: 16 }} />}
@@ -86,11 +91,93 @@ export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => v
   );
 }
 
+/* ------------------------------------------------------------------ Chat to Earn (c01) */
+
+const WEEK_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+/** Today's conversations, the three tiers, new connections, the chat week and month, and how it all counts. */
+export function ChatEarnCard({ chat }: { chat: ChatEarnToday }) {
+  const t = useTheme();
+  const [rules, setRules] = useState(false);
+  const next = chat.tiers.find((x) => !x.reached);
+  const settles = new Date(chat.settlesAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return (
+    <Card pad={false} testID="chat-earn">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, paddingBottom: 6 }}>
+        <IconOval icon="chats" size={44} tone="ember" />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontFamily: font.display, fontWeight: '700', fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: t['ember-ink'] }}>Chat to Earn</Text>
+          <Text accessibilityRole="header" testID="chat-earn-count" style={{ fontFamily: font.display, fontWeight: '800', fontSize: 17, color: t.ink }}>{chat.conversations} {chat.conversations === 1 ? 'conversation' : 'conversations'} today</Text>
+          <Text style={{ fontSize: 12, color: t['ink-soft'] }}>{next ? `${next.of - chat.conversations} more for ${next.label}: ${next.reward}` : 'All 3 tiers reached today'}</Text>
+        </View>
+      </View>
+      {chat.tiers.map((x) => (
+        <View key={x.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingHorizontal: 14 }}>
+          <IconOval icon={x.reached ? 'check' : 'chat'} size={32} tone={x.reached ? 'success' : 'muted'} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.ink }}>{x.label} · {x.of} conversations</Text>
+            <Text style={{ fontSize: 12, color: x.reached ? t['success-ink'] : t['ink-soft'] }}>{x.reached ? `${x.reward} · pending until ${settles}` : x.reward}</Text>
+          </View>
+          <Bar done={Math.min(chat.conversations, x.of)} of={x.of} width={60} />
+        </View>
+      ))}
+      <View style={{ flexDirection: 'row', gap: 8, padding: 14, paddingTop: 8 }}>
+        <Stat value={`${chat.newConnections}/${chat.newConnectionsMax}`} label="New connections" />
+        <Stat value={`${chat.week.daysMet}/${chat.week.of}`} label="Chat week" />
+        <Stat value={`${chat.month.weeks}/${chat.month.of}`} label="Chat month" />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 10 }} accessibilityLabel={`This week: Tier 1 on ${chat.week.daysMet} of ${chat.week.of} days`}>
+        {chat.week.days.map((s, i) => (
+          <View key={i} style={{ alignItems: 'center', gap: 4 }}>
+            <View style={{ width: 28, height: 20, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: s === 'met' ? t.ember : s === 'today' ? t['ember-wash'] : t.sunken, borderWidth: s === 'today' ? 1.5 : 0, borderColor: t.ember }}>
+              {s === 'met' ? <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800' }}>✓</Text> : null}
+            </View>
+            <Text style={{ fontSize: 11, color: s === 'today' ? t['ember-ink'] : t['ink-soft'], fontWeight: s === 'today' ? '800' : '400' }}>{WEEK_LETTERS[i]}</Text>
+          </View>
+        ))}
+      </View>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: rules }} testID="chat-earn-rules" onPress={() => setRules((v) => !v)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: t.line }}>
+        <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: t['ember-ink'] }}>How it counts</Text>
+        <Text style={{ color: t['ember-ink'], fontSize: 14 }}>{rules ? '▲' : '▼'}</Text>
+      </Pressable>
+      {rules ? (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 14, gap: 10 }}>
+          {CHAT_EARN_RULES.map((r) => (
+            <View key={r.title}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: t.ink }}>{r.title}</Text>
+              <Text style={{ fontSize: 13, lineHeight: 19, color: t['ink-soft'] }}>{r.body}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
+/** Rewards that aren't BTCY: a Turbo mining day, a coupon to pick. */
+function PerksCard({ perks }: { perks: Perk[] }) {
+  const t = useTheme();
+  return (
+    <Card title="Your perks" pad={false} testID="perks">
+      {perks.map((p) => (
+        <View key={p.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, paddingHorizontal: 14, paddingVertical: 8 }}>
+          <IconOval icon={p.kind === 'turbo_day' ? 'zap' : 'ticket'} size={36} tone={p.status === 'ready' ? 'wash' : 'muted'} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontWeight: '700', color: t.ink }}>{p.title}</Text>
+            <Text style={{ fontSize: 12, color: t['ink-soft'] }}>{p.sub}</Text>
+          </View>
+          <Tag kind={p.status === 'ready' ? 'ok' : 'muted'}>{p.status === 'ready' ? 'Ready' : p.status === 'used' ? 'Used' : 'Expired'}</Tag>
+        </View>
+      ))}
+    </Card>
+  );
+}
+
 /* ------------------------------------------------------------------ history (p07) */
 
 const FILTERS = [['all', 'All'], ['earned', 'Earned'], ['spent', 'Spent'], ['pending', 'Pending']] as const;
 type Filter = (typeof FILTERS)[number][0];
-const KIND_ICON: Record<PointsEntry['kind'], IconName> = { checkin: 'gift', activity: 'chats', referral: 'person-add', bonus: 'sparkles', convert: 'swap', ai_extra: 'sparkles', reversal: 'flag' };
+const KIND_ICON: Record<PointsEntry['kind'], IconName> = { checkin: 'gift', activity: 'chats', referral: 'person-add', bonus: 'sparkles', convert: 'swap', ai_extra: 'sparkles', reversal: 'flag', chat: 'chats', perk: 'zap' };
 const dayGroup = (iso: string) => {
   const d = new Date(iso), now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
   return d.toDateString() === now.toDateString() ? 'Today' : d.toDateString() === y.toDateString() ? 'Yesterday' : d.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'short' });
@@ -137,7 +224,7 @@ export function HistoryScreen({ onBack }: { onBack: () => void }) {
           </Card>
         ))}
         {cursor ? <View style={{ alignItems: 'center' }}><OvalButton icon="chevron-down" label="Show more" size="sm" variant="soft" onPress={() => void loadMore()} /></View> : null}
-        <Text style={{ marginHorizontal: 8, fontSize: 12, lineHeight: 17, color: t['ink-soft'] }}>BTCY tokens from invites shows as pending until your friend verifies their number and sends a first message.</Text>
+        <Text style={{ marginHorizontal: 8, fontSize: 12, lineHeight: 17, color: t['ink-soft'] }}>BTCY tokens from invites stay pending until your friend verifies their number and sends a first message. Chat to Earn rewards stay pending until the day is checked just after midnight.</Text>
       </ScrollView>
     </SafeAreaView>
   );

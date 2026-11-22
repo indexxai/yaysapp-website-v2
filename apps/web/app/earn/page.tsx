@@ -4,6 +4,7 @@ import { AppShell } from '@/components/app-shell';
 import { CheckinPopup, CheckinWeek, TaskList } from '@/components/popups';
 import { Banner, LineArt, OvalButton } from '@/components/ui';
 import { BackButton } from '@/components/back';
+import { ChatEarnCard, PerksCard } from '@/components/chat-earn';
 import { useMe } from '@/components/use-me';
 import { api } from '@/lib/api';
 import { Bar, errText, fmtPoints, inviteLink, refreshBalance, setBalance, useLoad } from '@/lib/phase2';
@@ -16,6 +17,7 @@ export default function EarnPage() {
   const today = useLoad(() => api().earnToday());
   const bonuses = useLoad(() => api().bonuses());
   const refs = useLoad(() => api().referrals());
+  const perks = useLoad(() => api().perks());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -52,6 +54,10 @@ export default function EarnPage() {
             {error && <Banner>{error}</Banner>}
             <div className="row center">{c && (c.claimedToday ? <span className="muted">Claimed today. Tomorrow: +{c.tomorrowPoints}</span> : <OvalButton icon="gift" label={`Claim +${c.todayPoints} today`} size="md" loading={busy} onClick={() => void claim()} />)}</div>
           </section>
+
+          {t?.chat && <ChatEarnCard chat={t.chat} />}
+
+          {!!perks.data?.length && <PerksCard perks={perks.data} />}
 
           <section className="p2-card" aria-labelledby="acts">
             <h2 id="acts" className="p2-card__title">Ways to earn today</h2>
