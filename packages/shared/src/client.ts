@@ -1,6 +1,6 @@
 import { ApiError, ErrorCode, type ApiErrorBody } from './errors';
 import type { LinkApproved, LinkPoll, LinkStart, AuthResult, CodeSent, ContactMatch, DeviceSession, HealthReport, MeProfile, NotificationSettings, AppPreferences, PinRequired, PrivacySettings, PublicProfile, SignInResult, StorageReport, Tokens } from './types';
-import type { AiChat, AiChatSummary, AiInfo, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, CheckinStatus, EarnToday, ExploreProduct, ExploreView, IndexxLink, IndexxLinks, PointsHistoryPage, PointsSummary, PopupNow, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletView, WithdrawQuote, Withdrawal, WithdrawalsPage } from './phase2';
+import type { AiChat, AiChatSummary, AiInfo, AiMode, AiQuota, AiReply, AiSummary, BonusCampaign, CheckinStatus, EarnToday, ExploreProduct, ExploreView, IndexxLink, IndexxLinks, Perk, PointsHistoryPage, PointsSummary, PopupNow, ReferralSummary, SocialNetwork, SocialsView, SupportAnswer, SupportTicket, WalletView, WithdrawQuote, Withdrawal, WithdrawalsPage } from './phase2';
 import type { CircleComment, CircleDiscover, CircleEvent, CircleFeed, CircleMemberRow, CirclePost, CirclePostInput, CircleReview, CircleView, CreateCircleInput, CreateEventInput, MyCircles, PostReportReason, RsvpStatus, UpdateCircleInput, UpdateEventInput } from './circles';
 import type { CallHistoryPage, CallJoin, CallLink, CallLinkJoin, CallLinkPreview, CallMedia, CallView, AttachmentInput, AttachmentKind, ChatMessage, ChatOverview, CreatePollInput, CommunityInfo, CommunityInvitePreview, CommunityJoinResult, CommunityMember, CommunityReport, CommunitySummary, ChatPrefsInput, ReportInput, SharedPage, SharedTab, SearchResults, ConversationPage, ConversationSummary, GroupInfo, MessageInfo, StarredItem, GroupSettings, InvitePreview, JoinRequest, JoinResult, MemberReceipt, MessagePage, SendResult } from './chat';
 
@@ -323,6 +323,7 @@ export class YaysClient {
   checkin() { return this.request<CheckinStatus>('GET', '/v1/rewards/checkin'); }
   claimCheckin() { return this.request<CheckinStatus>('POST', '/v1/rewards/checkin', {}); }
   earnToday() { return this.request<EarnToday>('GET', '/v1/rewards/today'); }
+  perks() { return this.request<Perk[]>('GET', '/v1/rewards/perks'); }
   referrals() { return this.request<ReferralSummary>('GET', '/v1/rewards/referrals'); }
   useReferralCode(code: string) { return this.request<{ ok: true; inviter: string }>('POST', '/v1/rewards/referrals/use', { code }); }
   bonuses() { return this.request<BonusCampaign[]>('GET', '/v1/rewards/bonuses'); }

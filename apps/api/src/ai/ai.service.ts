@@ -113,6 +113,13 @@ export class AiService {
     return { model: this.ai.model, images: !!this.images && this.opts.imagesPerDay > 0, search: this.ai.canSearch, demo: this.ai.name === 'dev', fullJackUrl: this.opts.fullJackUrl };
   }
 
+  /** Free extra messages for today (a Chat to Earn reward). */
+  async grantMessages(me: ObjectId, day: string, n: number) {
+    const key = `ai:x:${me.toHexString()}:${day}`;
+    await this.redis.incrby(key, n);
+    await this.redis.expire(key, 2 * 86400);
+  }
+
   async buyMessages(me: ObjectId): Promise<AiQuota> {
     const d = await this.rewards.dayStart(me);
     const paid = await this.rewards.award(me, d.tz, { key: `ai-extra:${d.day}:${Date.now()}`, kind: 'ai_extra', title: 'More Jack’s AI messages', sub: `${AI_EXTRA.messages} extra messages today`, amount: -AI_EXTRA.cost });

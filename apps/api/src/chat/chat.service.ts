@@ -183,7 +183,7 @@ export class ChatService {
   /** Called when someone's read point moves (to clear notifications on their other devices). */
   onRead: (userId: ObjectId, conversationId: string) => void = () => undefined;
   /** Every new message someone sends (points for activity, referrals). */
-  onSent: (userId: ObjectId, conv: ConversationDoc) => void = () => undefined;
+  onSent: (userId: ObjectId, conv: ConversationDoc, message: MessageDoc) => void = () => undefined;
   readonly stars: Collection<StarDoc>;
   readonly prefs: Collection<ChatPrefDoc>;
   readonly blocks: Collection<BlockDoc>;
@@ -565,7 +565,7 @@ export class ChatService {
     const to = hiddenFrom ? c.members.filter((x) => !x.equals(hiddenFrom!)) : c.members;
     this.events.messageCreated(to, message);
     this.events.receiptChanged(to, message.conversationId, me.toHexString(), { deliveredSeq: m.seq, readSeq: m.seq });
-    try { this.onSent(me, c); } catch { /* points never block a message */ }
+    try { this.onSent(me, c, m); } catch { /* points never block a message */ }
     return { message, duplicate: false };
   }
 

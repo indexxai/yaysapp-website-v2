@@ -1,36 +1,38 @@
 import { randomInt } from 'crypto';
 import { ObjectId, type ClientSession, type Collection, type Db, type MongoClient } from 'mongodb';
 import {
-  CHECKIN_POINTS, DAILY_POINTS_CAP, REFERRAL_POINTS,
-  type BonusCampaign, type BonusId, type CheckinStatus, type EarnTask, type EarnToday, type PointsEntry, type PointsHistoryPage, type PointsStatus, type PointsSummary, type PopupNow, type ReferralSummary,
+  CHAT_EARN, CHECKIN_POINTS, DAILY_POINTS_CAP, REFERRAL_POINTS,
+  type BonusCampaign, type ChatEarnToday, type BonusId, type CheckinStatus, type EarnTask, type EarnToday, type PointsEntry, type PointsHistoryPage, type PointsStatus, type PointsSummary, type PopupNow, type ReferralSummary,
 } from '@yays/shared';
 import { AppError } from '../common/app-error';
 import { isDup } from '../chat/chat.service';
 import { C } from '../infra/mongo';
 import { displayNameOf, type UserDoc } from '../users/users.repo';
 import type { IndexxService } from '../indexx/indexx.service';
+import type { ChatEarn } from './chat-earn';
 import { cleanTz, dayKey, endOfWeek, nextMidnight, shiftDay, startOf, weekKey } from './days';
 
 interface Balance { _id: ObjectId; balance: number; pending: number }
 export interface LedgerDoc {
   _id: ObjectId; userId: ObjectId; key: string; kind: PointsEntry['kind']; title: string; sub: string; amount: number; status: PointsStatus;
   at: Date; day: string; week: string; capped?: boolean;
+  /** Chat to Earn: when this pending reward is checked again and paid or reversed. */
+  settleAt?: Date;
 }
-interface ActivityDoc { _id: string; userId: ObjectId; day: string; messages?: number; posts?: number; aiQuestions?: number; aiSummaries?: number }
+interface ActivityDoc { _id: string; userId: ObjectId; day: string; messages?: number; posts?: number; aiQuestions?: number; aiSummaries?: number; conversations?: number }
 interface CheckinDoc { _id: string; userId: ObjectId; day: string; dayOfWeek: number; streak: number; points: number; at: Date }
 interface ReferralDoc { _id: ObjectId /* invitee */; inviterId: ObjectId; code: string; status: 'pending' | 'rewarded' | 'not_eligible'; at: Date; rewardedAt?: Date }
 interface PopupDoc { _id: string; userId: ObjectId; day: string; seen: string[] }
 
-type Counter = 'messages' | 'posts' | 'aiQuestions' | 'aiSummaries';
+type Counter = 'messages' | 'posts' | 'aiQuestions' | 'aiSummaries' | 'conversations';
 const EARN: Array<{ id: EarnTask['id']; title: string; icon: string; counter: Counter; of: number; points: number }> = [
-  { id: 'messages', title: 'Send 10 messages', icon: 'chats', counter: 'messages', of: 10, points: 10 },
   { id: 'post', title: 'Post in a circle', icon: 'people', counter: 'posts', of: 1, points: 15 },
   { id: 'ask_jack', title: 'Ask Jack’s AI a question', icon: 'sparkles', counter: 'aiQuestions', of: 1, points: 5 },
 ];
 const JACK_TASKS: Array<{ id: string; title: string; icon: string; counter: Counter; of: number; points: number }> = [
   { id: 'ask', title: 'Ask Jack’s AI 3 questions', icon: 'sparkles', counter: 'aiQuestions', of: 3, points: 15 },
   { id: 'summary', title: 'Summarise a chat with Jack', icon: 'document', counter: 'aiSummaries', of: 1, points: 15 },
-  { id: 'messages', title: 'Send 10 messages today', icon: 'chats', counter: 'messages', of: 10, points: 20 },
+  { id: 'conversations', title: 'Have 3 conversations today', icon: 'chats', counter: 'conversations', of: 3, points: 20 },
 ];
 const BTCY_TASKS = [
   { id: 'invites', title: 'Invite 10 friends to BTCY', icon: 'people', of: 10, points: 40 },
@@ -50,6 +52,8 @@ export class RewardsService {
   readonly popups: Collection<PopupDoc>;
   readonly users: Collection<UserDoc>;
   indexx?: IndexxService;
+  /** Chat to Earn (conversations, tiers, new connections, chat weeks). */
+  chat?: ChatEarn;
 
   constructor(private readonly client: MongoClient, private readonly db: Db) {
     this.ledger = db.collection(C.pointsLedger);
@@ -82,7 +86,7 @@ export class RewardsService {
    * Adds or takes points once per key. Capped awards (everyday activity) stop at the daily cap.
    * Returns the entry, or null when the key was already used (or the cap left nothing).
    */
-  async award(me: ObjectId, tz: string, v: { key: string; kind: LedgerDoc['kind']; title: string; sub: string; amount: number; status?: PointsStatus; capped?: boolean }): Promise<LedgerDoc | null> {
+  async award(me: ObjectId, tz: string, v: { key: string; kind: LedgerDoc['kind']; title: string; sub: string; amount: number; status?: PointsStatus; capped?: boolean; settleAt?: Date }): Promise<LedgerDoc | null> {
     const now = new Date(), day = dayKey(now, tz);
     try {
       return await this.tx(async (s) => {
@@ -99,7 +103,7 @@ export class RewardsService {
             throw AppError.validation(`You have ${(b?.balance ?? 0).toLocaleString('en-US')} BTCY. That isn’t enough.`);
           }
         }
-        const doc: LedgerDoc = { _id: new ObjectId(), userId: me, key: v.key, kind: v.kind, title: v.title, sub: v.sub, amount, status: v.status ?? 'done', at: now, day, week: weekKey(now, tz), ...(v.capped ? { capped: true } : {}) };
+        const doc: LedgerDoc = { _id: new ObjectId(), userId: me, key: v.key, kind: v.kind, title: v.title, sub: v.sub, amount, status: v.status ?? 'done', at: now, day, week: weekKey(now, tz), ...(v.capped ? { capped: true } : {}), ...(v.settleAt && (v.status ?? 'done') === 'pending' ? { settleAt: v.settleAt } : {}) };
         await this.ledger.insertOne(doc, { session: s });
         if (amount > 0) await this.balances.updateOne({ _id: me }, { $inc: doc.status === 'pending' ? { pending: amount, balance: 0 } : { balance: amount, pending: 0 } }, { upsert: true, session: s });
         return doc;
@@ -113,13 +117,26 @@ export class RewardsService {
   /** A pending award becomes real (a friend verified). */
   private async settle(userId: ObjectId, key: string) {
     await this.tx(async (s) => {
-      const e = await this.ledger.findOneAndUpdate({ userId, key, status: 'pending' }, { $set: { status: 'done', at: new Date() } }, { session: s });
+      const e = await this.ledger.findOneAndUpdate({ userId, key, status: 'pending' }, { $set: { status: 'done', at: new Date() }, $unset: { settleAt: '' } }, { session: s });
       if (e) await this.balances.updateOne({ _id: userId }, { $inc: { pending: -e.amount, balance: e.amount } }, { session: s });
     });
   }
 
+  /** A pending reward is paid (`keep`) or reversed: Chat to Earn checks each finished day again. */
+  async resolve(userId: ObjectId, key: string, keep: boolean) {
+    if (keep) {
+      await this.ledger.updateOne({ userId, key, status: 'pending' }, { $set: { sub: (await this.ledger.findOne({ userId, key }))?.sub.replace(' · settles at midnight', '') ?? '' } });
+      await this.settle(userId, key);
+      return;
+    }
+    await this.tx(async (s) => {
+      const e = await this.ledger.findOneAndUpdate({ userId, key, status: 'pending' }, { $set: { status: 'reversed', sub: 'Reversed · no longer counted when the day was checked' }, $unset: { settleAt: '' } }, { session: s });
+      if (e) await this.balances.updateOne({ _id: userId }, { $inc: { pending: -e.amount } }, { session: s });
+    });
+  }
+
   private async capUsed(me: ObjectId, day: string, session?: ClientSession) {
-    const r = await this.ledger.aggregate<{ n: number }>([{ $match: { userId: me, day, capped: true } }, { $group: { _id: null, n: { $sum: '$amount' } } }], { session }).toArray();
+    const r = await this.ledger.aggregate<{ n: number }>([{ $match: { userId: me, day, capped: true, status: { $ne: 'reversed' } } }, { $group: { _id: null, n: { $sum: '$amount' } } }], { session }).toArray();
     return r[0]?.n ?? 0;
   }
 
@@ -199,6 +216,12 @@ export class RewardsService {
     if (JACK_TASKS.every((t) => (a[t.counter] ?? 0) >= t.of)) await this.award(me, tz, { key: `bonus:jack-daily:${a.day}`, kind: 'bonus', title: 'Jack’s AI bonus', sub: 'All 3 tasks done', amount: JACK_TASKS.reduce((n, t) => n + t.points, 0) });
   }
 
+  /** Chat to Earn reports today's conversations; the Jack's AI bonus counts them. */
+  async setConversations(me: ObjectId, day: string, n: number) {
+    const a = await this.activity.findOneAndUpdate({ _id: `${me.toHexString()}:${day}` }, { $set: { conversations: n }, $setOnInsert: { userId: me, day } }, { upsert: true, returnDocument: 'after' });
+    await this.payTasks(me, await this.tz(me), a!);
+  }
+
   /** Called for every message someone sends (not system lines). */
   async onMessage(me: ObjectId, inCommunity: boolean) {
     const tz = await this.tz(me);
@@ -218,6 +241,7 @@ export class RewardsService {
     return {
       tasks: EARN.map((t) => { const done = Math.min(a[t.counter] ?? 0, t.of); return { id: t.id, title: t.title, icon: t.icon, done, of: t.of, points: t.points, completed: done >= t.of }; }),
       capUsed, cap: DAILY_POINTS_CAP,
+      chat: this.chat ? await this.chat.today(me, tz) : await emptyChat(tz),
     };
   }
 
@@ -370,3 +394,7 @@ export class RewardsService {
   async dayStart(me: ObjectId) { const tz = await this.tz(me); return { tz, day: dayKey(new Date(), tz), start: startOf(dayKey(new Date(), tz), tz), next: nextMidnight(new Date(), tz) }; }
 }
 export const REWARDS = Symbol('REWARDS');
+
+async function emptyChat(tz: string): Promise<ChatEarnToday> {
+  return { conversations: 0, tiers: CHAT_EARN.tiers.map((t) => ({ of: t.of, label: t.label, reward: t.points ? `${t.points} BTCY` : `+${t.aiMessages} Jack’s AI messages`, reached: false })), newConnections: 0, newConnectionsMax: CHAT_EARN.newConnectionsPerDay, week: { daysMet: 0, of: CHAT_EARN.weekDays, days: ['upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming', 'upcoming'] }, month: { weeks: 0, of: CHAT_EARN.monthWeeks }, settlesAt: nextMidnight(new Date(), tz).toISOString() };
+}

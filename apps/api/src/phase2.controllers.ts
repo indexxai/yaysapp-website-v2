@@ -30,6 +30,7 @@ export class RewardsController {
   @Get('checkin') checkin(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.r.checkinStatus(a.userId, tz); }
   @Post('checkin') @HttpCode(200) claim(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.r.claimCheckin(a.userId, tz); }
   @Get('today') today(@Auth() a: AuthCtx, @Tz() tz: string | null) { return this.r.today(a.userId, tz); }
+  @Get('perks') perks(@Auth() a: AuthCtx) { return this.r.chat ? this.r.chat.listPerks(a.userId) : []; }
   @Get('referrals') referrals(@Auth() a: AuthCtx) { return this.r.referralSummary(a.userId); }
   @Post('referrals/use') @HttpCode(200)
   async useCode(@Auth() a: AuthCtx, @Body() b: unknown) {

@@ -16,6 +16,8 @@ export type ForwardResult = Array<{ conversationId: string; ok: true; message: C
 
 /** Reply, react, forward, edit, delete, pin, star and message info. Plain sending lives in ChatService. */
 export class MessagesService {
+  /** Chat to Earn: a message deleted for everyone stops counting. */
+  onDeleted: (m: MessageDoc) => void = () => undefined;
   constructor(private readonly chat: ChatService) {}
 
   /** A message this person can see: in the chat, after they joined, not deleted by them. */
@@ -67,6 +69,7 @@ export class MessagesService {
       this.chat.events.conversationChanged(c.members, c._id.toHexString());
     }
     await this.broadcast(c, updated!);
+    try { this.onDeleted(m); } catch { /* rewards never block a delete */ }
     return this.mine(me, m._id);
   }
 

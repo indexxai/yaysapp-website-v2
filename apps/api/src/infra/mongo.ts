@@ -51,6 +51,9 @@ export const C = {
   circleBars: 'yc_circle_bars',
   circleEvents: 'yc_circle_events',
   circleRsvps: 'yc_circle_rsvps',
+  chatEvents: 'yc_chat_events',
+  chatRecent: 'yc_chat_recent',
+  perks: 'yc_perks',
 } as const;
 
 const isIndexConflict = (e: unknown) => e instanceof MongoServerError && [85, 86].includes(Number(e.code ?? 0)); // IndexOptionsConflict / IndexKeySpecsConflict
@@ -100,6 +103,13 @@ export async function ensureIndexes(db: Db, c: Config, log: Logger) {
     { key: { userId: 1, week: 1 }, name: 'user_week' },
   ]);
   await db.collection(C.referrals).createIndexes([{ key: { inviterId: 1, at: -1 }, name: 'inviter' }]);
+  await db.collection(C.pointsLedger).createIndex({ status: 1, settleAt: 1 }, { name: 'settle_due', partialFilterExpression: { status: 'pending' } });
+  await db.collection(C.chatEvents).createIndexes([
+    { key: { userId: 1, at: 1 }, name: 'user_time' }, { key: { convId: 1, at: 1 }, name: 'conv_time' },
+    { key: { msgId: 1 }, name: 'msg', partialFilterExpression: { msgId: { $type: 'objectId' } } },
+  ]);
+  await db.collection(C.chatRecent).createIndex({ expiresAt: 1 }, { name: 'expires_ttl', expireAfterSeconds: 0 });
+  await db.collection(C.perks).createIndexes([{ key: { userId: 1, key: 1 }, name: 'user_key_unique', unique: true }, { key: { userId: 1, at: -1 }, name: 'user_recent' }]);
   await db.collection(C.aiChats).createIndexes([{ key: { userId: 1, updatedAt: -1 }, name: 'user_recent' }]);
   await db.collection(C.aiMessages).createIndexes([{ key: { chatId: 1, _id: 1 }, name: 'chat' }]);
   await db.collection(C.supportTickets).createIndexes([{ key: { number: 1 }, name: 'number', unique: true }, { key: { userId: 1, at: -1 }, name: 'user' }]);

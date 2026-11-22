@@ -45,6 +45,7 @@ import { CALLS, CallsService } from './calls/calls.service';
 import { CallsController, LiveKitWebhookController } from './calls/calls.controller';
 import { MessageActionsController, PollsController, StarredController } from './chat/messages.controller';
 import { REWARDS, RewardsService } from './rewards/rewards.service';
+import { ChatEarn } from './rewards/chat-earn';
 import { IndexxClient } from './indexx/indexx.client';
 import { standInIndexx } from './indexx/indexx.stand-in';
 import { INDEXX_SERVICE, IndexxService } from './indexx/indexx.service';
@@ -86,13 +87,22 @@ export class AppModule {
     const indexxClient = c.INDEXX_DRIVER === 'off' ? null : new IndexxClient(c.INDEXX_API_URL, log, c.INDEXX_DRIVER === 'dev' ? standInIndexx(db) : fetch);
     const indexx = new IndexxService(indexxClient, db, c.INDEXX_TOKEN_SECRET ?? c.JWT_SECRET, log);
     rewards.indexx = indexx;
+    const chatEarn = new ChatEarn(db, rewards);
+    rewards.chat = chatEarn;
     const facebook = new FacebookService(createFacebook(c, log), users.col, redis, c);
     const aiProvider = createAiProvider(c, log);
     const ai = new AiService(aiProvider, db, redis, chat, rewards, storage, createImageProvider(c, log), { imagesPerDay: c.AI_IMAGES_PER_DAY, imageOptions: c.AI_IMAGE_OPTIONS, fullJackUrl: c.JACK_AI_URL });
     ai.support = support;
     // Points for activity and referrals; never in the way of the message itself.
     circles.onPost = (u) => { void rewards.onCirclePost(u).catch((e) => log.warn({ err: e }, 'points for a circle post failed')); };
-    chat.onSent = (u, conv) => { void rewards.onMessage(u, !!(conv as { communityId?: unknown }).communityId).catch((e) => log.warn({ err: e }, 'points for a message failed')); };
+    chat.onSent = (u, conv, m) => {
+      void rewards.onMessage(u, !!(conv as { communityId?: unknown }).communityId).catch((e) => log.warn({ err: e }, 'points for a message failed'));
+      void chatEarn.onMessage(u, conv, m).catch((e) => log.warn({ err: e }, 'chat to earn failed'));
+    };
+    messages.onDeleted = (m) => { void chatEarn.onDeleted(m).catch((e) => log.warn({ err: e }, 'chat to earn (delete) failed')); };
+    calls.onEnded = (doc) => { void chatEarn.onCall(doc).catch((e) => log.warn({ err: e }, 'chat to earn (call) failed')); };
+    chatEarn.grantAiMessages = (u, day, n) => ai.grantMessages(u, day, n);
+    if (c.NODE_ENV === 'test') chatEarn.typingCheck = false; else chatEarn.start();
     const providers: Provider[] = [
       { provide: CONFIG, useValue: c }, { provide: LOGGER, useValue: log },
       { provide: MONGO_CLIENT, useValue: i.mongo }, { provide: DB, useValue: db }, { provide: REDIS, useValue: redis },

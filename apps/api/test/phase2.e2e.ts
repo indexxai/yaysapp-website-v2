@@ -1,4 +1,4 @@
-import type { AiReply, BonusCampaign, CheckinStatus, ChatMessage, ExploreView, PointsSummary, PopupNow, WalletView, Withdrawal, WithdrawalsPage, WithdrawQuote } from '@yays/shared';
+import type { AiReply, BonusCampaign, EarnToday, Perk, CheckinStatus, ChatMessage, ExploreView, PointsSummary, PopupNow, WalletView, Withdrawal, WithdrawalsPage, WithdrawQuote } from '@yays/shared';
 import { startApp, type TestApp } from './helpers';
 import { cid, makeUser, sleep, type TUser } from './chat-helpers';
 
@@ -7,7 +7,19 @@ const dayIn = (tz: string, offsetDays = 0) => new Date(Date.now() + offsetDays *
 const resetLimits = async (t: TestApp) => { const k = await t.redis.keys('rl:*'); if (k.length) await t.redis.del(...k); };
 
 async function direct(t: TestApp, a: TUser, b: TUser) { return (await t.http.post('/v1/conversations/direct').set(a.auth).send({ userId: b.id }).expect(200)).body.id as string; }
-async function say(t: TestApp, u: TUser, conv: string, n = 1) { for (let i = 0; i < n; i++) await t.http.post(`/v1/conversations/${conv}/messages`).set(u.auth).send({ clientId: cid(), text: `hi ${i}` }).expect(200); }
+async function say(t: TestApp, u: TUser, conv: string, n = 1, text?: (i: number) => string) {
+  const ids: string[] = [];
+  for (let i = 0; i < n; i++) ids.push((await t.http.post(`/v1/conversations/${conv}/messages`).set(u.auth).send({ clientId: cid(), text: text ? text(i) : `hi there ${cid().slice(0, 8)}` }).expect(200)).body.message.id);
+  return ids;
+}
+/** Replies only count from accounts with a verified number that are 3+ days old. */
+async function ageUser(t: TestApp, u: TUser, days = 5) {
+  const { ObjectId } = await import('mongodb');
+  await t.db.collection('users').updateOne({ _id: new ObjectId(u.id) }, { $set: { 'yc.joinedAt': new Date(Date.now() - days * 86400_000) } });
+}
+async function today(t: TestApp, u: TUser) { return (await t.http.get('/v1/rewards/today').set(u.auth).set(TZ).expect(200)).body as EarnToday; }
+/** A conversation for `me`: 3 counting messages from me, a reply from `them`. */
+async function converse(t: TestApp, me: TUser, them: TUser) { const c = await direct(t, me, them); await say(t, me, c, 3); await say(t, them, c, 1); return c; }
 async function points(t: TestApp, u: TUser) { return (await t.http.get('/v1/rewards/points').set(u.auth).set(TZ).expect(200)).body as PointsSummary; }
 /** Points for messages are added just after the message; wait for them. */
 async function until<T>(fn: () => Promise<T>, ok: (v: T) => boolean, ms = 4000): Promise<T> {
@@ -38,26 +50,129 @@ describe('Points: check-in, activity, cap', () => {
     expect((await t.http.post('/v1/rewards/checkin').set(amara.auth).set(TZ).expect(200)).body.streak).toBe(6);
   });
 
-  it('ten messages pay +10 once; the history and today’s tasks show it', async () => {
-    const conv = await direct(t, sara, amara);
-    await say(t, sara, conv, 11);
-    const p = await until(() => points(t, sara), (x) => x.balance >= 20);
-    expect(p).toMatchObject({ balance: 20, earnedToday: 20, capUsed: 20, cap: 200 });
-    const today = (await t.http.get('/v1/rewards/today').set(sara.auth).set(TZ).expect(200)).body;
-    expect(today.tasks.find((x: { id: string }) => x.id === 'messages')).toMatchObject({ done: 10, of: 10, completed: true });
-    const h = (await t.http.get('/v1/rewards/history?filter=earned').set(sara.auth).expect(200)).body;
-    expect(h.items.map((i: { title: string }) => i.title)).toEqual(['Send 10 messages', 'Daily check-in']);
-  });
-
   it('everyday points stop at the daily cap', async () => {
     const { ObjectId } = await import('mongodb');
     const day = dayIn('Asia/Karachi');
-    await t.db.collection('yc_points_ledger').insertOne({ _id: new ObjectId(), userId: new ObjectId(amara.id), key: 'seed', kind: 'activity', title: 'x', sub: '', amount: 175, status: 'done', at: new Date(), day, week: 'x', capped: true }); // plus today's check-in (+20): 195
-    await t.db.collection('yc_points').updateOne({ _id: new ObjectId(amara.id) as never }, { $inc: { balance: 175 } });
-    const conv = await direct(t, amara, sara);
-    await say(t, amara, conv, 10);
-    const p = await until(() => points(t, amara), (x) => x.capUsed >= 200);
-    expect(p.capUsed).toBe(200); // the +10 was cut to +5
+    await t.db.collection('yc_points_ledger').insertOne({ _id: new ObjectId(), userId: new ObjectId(amara.id), key: 'seed', kind: 'activity', title: 'x', sub: '', amount: 190, status: 'done', at: new Date(), day, week: 'x', capped: true }); // plus today's check-in (+20): 210 > 200
+    await t.db.collection('yc_points').updateOne({ _id: new ObjectId(amara.id) as never }, { $inc: { balance: 190 } });
+    await t.http.post('/v1/ai/chats').set(amara.auth).send({ text: 'What can I earn today?' }).expect(200);
+    const p = await until(() => points(t, amara), (x) => x.capUsed >= 210);
+    expect(p.capUsed).toBe(210); // "Ask Jack's AI" (+5) was not paid over the cap
+    expect((await today(t, amara)).tasks.find((x) => x.id === 'ask_jack')).toMatchObject({ completed: true });
+    expect(p.balance).toBe(210);
+  });
+});
+
+describe('Chat to Earn', () => {
+  let t: TestApp; let sara: TUser; let f: TUser[]; let fresh: TUser;
+  beforeAll(async () => {
+    t = await startApp(); sara = await makeUser(t, 'Sara'); fresh = await makeUser(t, 'Nadia');
+    f = [await makeUser(t, 'Amara'), await makeUser(t, 'Bilal'), await makeUser(t, 'Hina')];
+    for (const u of f) await ageUser(t, u);
+  });
+  afterAll(async () => { await t.close(); });
+  const settle = (b: Record<string, unknown> = {}) => t.http.post('/v1/_test/chat-earn/settle').send(b).expect(200);
+
+  it('short or repeated messages and replies from brand-new accounts don’t count', async () => {
+    const c0 = await direct(t, sara, fresh);
+    await say(t, sara, c0, 3); await say(t, fresh, c0, 2);
+    const c1 = await direct(t, sara, f[0]!);
+    await say(t, sara, c1, 3, () => 'ok'); // one word
+    await say(t, sara, c1, 3, () => 'same text again'); // repeats: only the first counts
+    await say(t, f[0]!, c1, 1);
+    await sleep(300);
+    const d = await today(t, sara);
+    expect(d.chat).toMatchObject({ conversations: 0, newConnections: 0, newConnectionsMax: 3 });
+    expect(d.chat.tiers.map((x) => x.reached)).toEqual([false, false, false]);
+  });
+
+  it('3 conversations: Tier 1 is 10 BTCY pending until the day is checked, and fills the Jack task', async () => {
+    for (const u of f) await converse(t, sara, u);
+    const d = await until(() => today(t, sara), (x) => x.chat.conversations >= 3);
+    expect(d.chat.conversations).toBe(3);
+    expect(d.chat.tiers[0]).toMatchObject({ of: 3, reached: true, reward: '10 BTCY' });
+    const p = await until(() => points(t, sara), (x) => x.pending >= 10);
+    expect(p).toMatchObject({ pending: 10, balance: 0 });
+    expect((await today(t, sara)).chat.week.days.filter((x) => x === 'met')).toHaveLength(1);
+    const b = ((await t.http.get('/v1/rewards/bonuses').set(sara.auth).set(TZ).expect(200)).body as BonusCampaign[]).find((x) => x.id === 'jack-daily')!;
+    expect(b.tasks.find((x) => x.title === 'Have 3 conversations today')).toMatchObject({ completed: true });
+    // Each friend also had a conversation? No: they sent one message each, not 3.
+    expect((await today(t, f[0]!)).chat.conversations).toBe(0);
+    // Not yet due: nothing settles today.
+    await t.http.post('/v1/_test/chat-earn/settle').send({ hours: 0 }).expect(200);
+    expect((await points(t, sara)).pending).toBe(10);
+    await settle();
+    expect(await points(t, sara)).toMatchObject({ pending: 0, balance: 10 });
+    const h = (await t.http.get('/v1/rewards/history?filter=earned').set(sara.auth).expect(200)).body.items;
+    expect(h[0]).toMatchObject({ title: 'Chat to Earn · Tier 1', sub: '3 conversations', amount: 10 });
+  });
+
+  it('Tier 1 on 5 days of a week: a chat week pays 50 BTCY and a Turbo mining day', async () => {
+    const { ObjectId } = await import('mongodb');
+    const me = new ObjectId(sara.id);
+    const t1 = (await t.db.collection('yc_points_ledger').findOne({ userId: me, key: { $regex: '^chat:t1:' } }))!;
+    // Four earlier days this week already met (seeded), and a fifth waiting to be checked.
+    await t.db.collection('yc_points_ledger').insertMany(['a', 'b', 'c', 'd'].map((x) => ({ _id: new ObjectId(), userId: me, key: `chat:t1:seed-${x}`, kind: 'chat', title: 'Chat to Earn · Tier 1', sub: '', amount: 0, status: 'done', at: new Date(), day: `seed-${x}`, week: t1.week })));
+    await t.db.collection('yc_points_ledger').updateOne({ _id: t1._id }, { $set: { status: 'pending', settleAt: new Date() } });
+    await t.db.collection('yc_points').updateOne({ _id: me as never }, { $inc: { balance: -10, pending: 10 } });
+    await settle();
+    const h = (await t.http.get('/v1/rewards/history?filter=earned').set(sara.auth).expect(200)).body.items;
+    expect(h[0]).toMatchObject({ title: 'Chat week complete', amount: 50 });
+    expect((await points(t, sara)).balance).toBe(60);
+    const perks = (await t.http.get('/v1/rewards/perks').set(sara.auth).expect(200)).body as Perk[];
+    expect(perks).toEqual([expect.objectContaining({ kind: 'turbo_day', status: 'ready', product: 'btcy' })]);
+    await settle(); // once only
+    expect((await points(t, sara)).balance).toBe(60);
+  });
+
+  it('a message deleted for everyone stops counting; the reward is reversed when the day is checked', async () => {
+    const omar = await makeUser(t, 'Omar'), [x, y, z] = [await makeUser(t, 'Xena'), await makeUser(t, 'Yusuf'), await makeUser(t, 'Zara')];
+    for (const u of [x, y, z]) await ageUser(t, u);
+    const c = await direct(t, omar, x); const mine = await say(t, omar, c, 3); await say(t, x, c, 1);
+    await converse(t, omar, y); await converse(t, omar, z);
+    await until(() => points(t, omar), (v) => v.pending >= 10);
+    await t.http.delete(`/v1/conversations/${c}/messages/${mine[0]}`).query({ for: 'everyone' }).set(omar.auth).expect(200);
+    const d = await until(() => today(t, omar), (v) => v.chat.conversations < 3);
+    expect(d.chat.conversations).toBe(2);
+    await settle();
+    expect(await points(t, omar)).toMatchObject({ pending: 0, balance: 0 });
+    const h = (await t.http.get('/v1/rewards/history').set(omar.auth).expect(200)).body.items;
+    expect(h.find((i: { title: string }) => i.title === 'Chat to Earn · Tier 1')).toMatchObject({ status: 'reversed' });
+  });
+
+  it('messages typed faster than a person can don’t count', async () => {
+    await settle({ hours: 0, typingCheck: true });
+    try {
+      const kim = await makeUser(t, 'Kim');
+      const c = await direct(t, kim, f[1]!);
+      await say(t, kim, c, 3); await say(t, f[1]!, c, 1);
+      await sleep(300);
+      expect((await today(t, kim)).chat.conversations).toBe(0); // back to back: only the first message counted
+    } finally { await settle({ hours: 0, typingCheck: false }); }
+  });
+
+  it('a new connection pays 5 BTCY each once you have both replied on 2 different days', async () => {
+    const { ObjectId } = await import('mongodb');
+    const lena = await makeUser(t, 'Lena'), mo = await makeUser(t, 'Mo');
+    for (const u of [lena, mo]) await ageUser(t, u);
+    const c = await direct(t, lena, mo);
+    await say(t, lena, c, 3); await say(t, mo, c, 3);
+    await until(() => today(t, lena), (v) => v.chat.conversations >= 1);
+    expect((await points(t, lena)).pending).toBe(0);
+    // Move those messages to yesterday, then talk again today.
+    const y = dayIn('Asia/Karachi', -1);
+    await t.db.collection('yc_chat_events').updateMany({ convId: new ObjectId(c) }, { $set: { day: y, at: new Date(Date.now() - 86400_000) } });
+    await say(t, lena, c, 3); await say(t, mo, c, 3);
+    const p = await until(() => points(t, lena), (v) => v.pending >= 5);
+    expect(p.pending).toBe(5);
+    expect((await points(t, mo)).pending).toBe(5);
+    const h = (await t.http.get('/v1/rewards/history').set(lena.auth).expect(200)).body.items.map((i: { title: string }) => i.title);
+    expect(h).toContain('New connection: Mo');
+    expect((await today(t, lena)).chat.newConnections).toBe(1);
+  });
+
+  it('perks start empty', async () => {
+    expect((await t.http.get('/v1/rewards/perks').set(f[2]!.auth).expect(200)).body as Perk[]).toEqual([]);
   });
 });
 
@@ -95,9 +210,9 @@ describe('Referrals', () => {
 });
 
 describe('Jack’s AI, the Jack bonus and pop-ups', () => {
-  let t: TestApp; let sara: TUser; let amara: TUser; let family: string;
+  let t: TestApp; let sara: TUser; let amara: TUser; let omar: TUser; let hina: TUser; let family: string;
   beforeAll(async () => {
-    t = await startApp(); sara = await makeUser(t, 'Sara'); amara = await makeUser(t, 'Amara');
+    t = await startApp(); sara = await makeUser(t, 'Sara'); amara = await makeUser(t, 'Amara'); omar = await makeUser(t, 'Omar'); hina = await makeUser(t, 'Hina');
     family = (await t.http.post('/v1/groups').set(sara.auth).send({ name: 'Family', memberIds: [amara.id] }).expect(200)).body.id;
   });
   afterAll(async () => { await t.close(); });
@@ -140,12 +255,12 @@ describe('Jack’s AI, the Jack bonus and pop-ups', () => {
     await t.http.put(`/v1/ai/consent/${family}`).set(sara.auth).expect(200);
     const s = (await t.http.post('/v1/ai/summarize').set(sara.auth).send({ conversationId: family }).expect(200)).body;
     expect(s.count).toBe(2);
-    await say(t, sara, family, 10);
+    for (const u of [amara, omar, hina]) { await ageUser(t, u); await converse(t, sara, u); }
     const b = await until(async () => ((await t.http.get('/v1/rewards/bonuses').set(sara.auth).set(TZ).expect(200)).body as BonusCampaign[])[0]!, (x) => x.complete);
     expect(b).toMatchObject({ id: 'jack-daily', complete: true, paid: 50 });
     expect(b.tasks.map((x) => x.completed)).toEqual([true, true, true]);
     const h = (await t.http.get('/v1/rewards/history').set(sara.auth).expect(200)).body.items.map((i: { title: string }) => i.title);
-    expect(h).toEqual(expect.arrayContaining(['Jack’s AI bonus', 'Ask Jack’s AI a question', 'Send 10 messages']));
+    expect(h).toEqual(expect.arrayContaining(['Jack’s AI bonus', 'Ask Jack’s AI a question', 'Chat to Earn · Tier 1']));
   });
 
   it('30 messages a day, then 50 points buys 10 more', async () => {

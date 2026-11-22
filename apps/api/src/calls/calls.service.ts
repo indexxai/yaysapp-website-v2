@@ -42,6 +42,8 @@ export class CallsService {
   readonly calls: Collection<CallDoc>;
   readonly links: Collection<CallLinkDoc>;
   events: CallEvents = { call() {} };
+  /** Chat to Earn: a finished call of 2+ minutes counts as a conversation. */
+  onEnded: (doc: CallDoc) => void = () => undefined;
   private timers = new Map<string, NodeJS.Timeout>();
   private rooms?: RoomServiceClient;
   private receiver?: WebhookReceiver;
@@ -323,6 +325,7 @@ export class CallsService {
       }).catch((e) => this.log.warn({ err: e }, 'call message failed'));
     }
     this.push.callEnded(doc.parts.filter((p) => p.state === 'missed' || p.state === 'declined').map((p) => p.userId), id.toHexString());
+    try { this.onEnded(doc); } catch { /* rewards never block a call */ }
     void this.rooms?.deleteRoom(id.toHexString()).catch(() => undefined);
     return doc;
   }

@@ -34,12 +34,71 @@ export interface CheckinStatus {
 }
 
 export interface EarnTask { id: 'messages' | 'post' | 'ask_jack'; title: string; icon: string; done: number; of: number; points: number; completed: boolean }
-export interface EarnToday { tasks: EarnTask[]; capUsed: number; cap: number }
+export interface EarnToday { tasks: EarnTask[]; capUsed: number; cap: number; chat: ChatEarnToday }
+
+/* ------------------------------------------------------------------ Chat to Earn */
+
+/**
+ * Chat to Earn: real conversations earn rewards, not message counts.
+ * A chat counts as a conversation (once a day per chat) when I send 3+ counting messages and the other person replies
+ * the same day (in a group, 2+ others reply), or when we talk on a call for 2+ minutes.
+ */
+export const CHAT_EARN = {
+  /** Counting messages I need to send in a chat on a day. */
+  minMessages: 3,
+  /** A call this long counts on its own. */
+  minCallSec: 120,
+  /** Who can make a chat count: an account this old (days) with a verified phone number. */
+  replierMinAgeDays: 3,
+  tiers: [
+    { of: 3, points: 10, aiMessages: 0, label: 'Tier 1' },
+    { of: 6, points: 10, aiMessages: 0, label: 'Tier 2' },
+    { of: 10, points: 0, aiMessages: 10, label: 'Tier 3' },
+  ],
+  newConnectionPoints: 5,
+  newConnectionsPerDay: 3,
+  /** A chat started this many days ago or less is "someone new". */
+  newConnectionWindowDays: 30,
+  weekPoints: 50,
+  /** Tier 1 on this many days of a Monday–Sunday week. */
+  weekDays: 5,
+  /** Chat weeks in a row for the chat month reward. */
+  monthWeeks: 4,
+} as const;
+
+export type ChatDayState = 'met' | 'missed' | 'today' | 'upcoming';
+export interface ChatEarnToday {
+  /** Chats that counted today. */
+  conversations: number;
+  tiers: Array<{ of: number; label: string; reward: string; reached: boolean }>;
+  newConnections: number;
+  newConnectionsMax: number;
+  /** Monday → Sunday of this week. */
+  week: { daysMet: number; of: number; days: ChatDayState[] };
+  /** Chat weeks in a row so far (toward the chat month). */
+  month: { weeks: number; of: number };
+  /** Today's chat rewards settle at this time (just after midnight). */
+  settlesAt: string;
+}
+
+export type PerkKind = 'turbo_day' | 'ai_messages' | 'coupon_choice' | 'coupon';
+export interface Perk {
+  id: string;
+  kind: PerkKind;
+  title: string;
+  /** Where it came from and when to use it by. */
+  sub: string;
+  product: 'btcy' | 'jack' | 'shoperpal' | 'rehuman';
+  status: 'ready' | 'used' | 'expired';
+  /** A coupon code, once the partner supplies one. */
+  code: string | null;
+  expiresAt: string | null;
+}
 
 export type PointsStatus = 'done' | 'pending' | 'reversed';
 export interface PointsEntry {
   id: string;
-  kind: 'checkin' | 'activity' | 'referral' | 'bonus' | 'convert' | 'ai_extra' | 'reversal';
+  kind: 'checkin' | 'activity' | 'referral' | 'bonus' | 'convert' | 'ai_extra' | 'reversal' | 'chat' | 'perk';
   title: string;
   sub: string;
   /** Positive when earned, negative when spent. */
