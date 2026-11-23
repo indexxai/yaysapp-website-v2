@@ -404,7 +404,7 @@ export function ChatScreen({ id, onBack, openForward, openInfo, openChatInfo, op
         {notice ? <View style={{ paddingHorizontal: 12, paddingBottom: 6 }}><Banner tone={notice.tone}>{notice.text}</Banner></View> : null}
         <KeyboardAvoidingView style={{ flex: 1, backgroundColor: t.surface }} behavior="padding">
           {/* The YaysApp doodle wallpaper behind the messages; date labels and notices sit on their own pills, so they stay readable on it. */}
-          <Image source={CHAT_WALLPAPER} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', tintColor: t.ember, opacity: t.scheme === 'dark' ? 0.35 : 0.28 }]} resizeMode="repeat" accessibilityIgnoresInvertColors testID="chat-wallpaper" />
+          <Image source={CHAT_WALLPAPER} style={[StyleSheet.absoluteFill, { width: '100%', height: '100%', tintColor: t.ember, opacity: t.scheme === 'dark' ? 0.25 : 0.2 }]} resizeMode="repeat" accessibilityIgnoresInvertColors testID="chat-wallpaper" />
           <FlatList
             testID="thread"
             inverted
