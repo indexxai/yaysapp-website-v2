@@ -81,15 +81,13 @@ test.describe('Week 2 · sign-in on the web', () => {
     await expect(page.getByRole('main').getByRole('alert')).toContainText("This email's account already uses");
   });
 
-  test('email sign-in and Google dev sign-in both work', async ({ page }) => {
+  test('email sign-in works, and there is no Google button', async ({ page }) => {
     await signInWithEmail(page, freshEmail('mail'));
     await expect(page).toHaveURL(/\/setup\/profile$/);
     await page.evaluate(() => localStorage.clear());
     await openCodeSignIn(page);
-    const g = freshEmail('google');
-    page.once('dialog', (d) => d.accept(g));
-    await page.getByRole('button', { name: 'Google', exact: true }).click();
-    await expect(page).toHaveURL(/\/(chats|setup\/profile)$/);
+    await expect(page.getByRole('button', { name: 'QR code', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Google', exact: true })).toHaveCount(0);
   });
 
   test('an expired access token refreshes silently', async ({ page }) => {

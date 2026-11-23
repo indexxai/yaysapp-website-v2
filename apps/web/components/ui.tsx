@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { useRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/lib/icons';
+import { api } from '@/lib/api';
+import { inviteLink } from '@/lib/phase2';
 
 const ICON_SIZE = { sm: 16, md: 20, lg: 24, xl: 28 } as const;
 type Size = keyof typeof ICON_SIZE;
@@ -91,9 +93,13 @@ export function PhotoPick({ url, onFile, size = 88, label = 'Add a photo', busy 
   );
 }
 
-/** Shares a link to YaysApp, or copies it when the browser can't share. True when it was copied. */
+/**
+ * Shares an invite link (with the person's invite code, so the invite counts), or copies it when the browser
+ * can't share. The link always stands alone at the end of the text, so nothing gets glued onto it. True when copied.
+ */
 export async function shareInvite(): Promise<boolean> {
-  const url = `${location.origin}/sign-in`, text = 'Chat with me on YaysApp';
-  try { if (navigator.share) { await navigator.share({ title: 'YaysApp', text, url }); return false; } } catch { return false; }
-  try { await navigator.clipboard.writeText(`${text}: ${url}`); return true; } catch { return false; }
+  let url = `${location.origin}/`;
+  try { const { code } = await api().referrals(); url = inviteLink(code); } catch { /* signed out or offline: the plain link */ }
+  try { if (navigator.share) { await navigator.share({ title: 'YaysApp', text: `Chat with me on YaysApp: ${url}` }); return false; } } catch { return false; }
+  try { await navigator.clipboard.writeText(url); return true; } catch { return false; }
 }
