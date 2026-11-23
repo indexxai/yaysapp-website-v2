@@ -426,3 +426,7 @@ button.p2-ai__searched:hover { color: var(--ember-ink); text-decoration: underli
 .p2-meter { display: block; height: 6px; border-radius: 6px; background: var(--surface); overflow: hidden; max-width: 260px; }
 .p2-meter > span { display: block; height: 100%; border-radius: 6px; background: var(--ember); }
 .p2-ixsign p a { color: var(--ink); font-weight: 700; }
+
+/* The earn section: the hero's doodles behind the example account on the right. */
+.lp-earn__bg { position: absolute; z-index: 0; left: 70%; top: 55%; transform: translate(-50%, -50%); width: auto; height: 560px; max-width: none; opacity: .25; pointer-events: none; }
+@media (max-width: 900px) { .lp-earn__bg { left: 50%; top: auto; bottom: 0; transform: translateX(-50%); height: 460px; } }
