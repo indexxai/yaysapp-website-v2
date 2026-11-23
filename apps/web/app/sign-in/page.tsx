@@ -8,6 +8,7 @@ import { AuthShell } from '@/components/auth-shell';
 import { Banner, Field, OvalButton } from '@/components/ui';
 import { useCountdown } from '@/components/use-countdown';
 import { Icon } from '@/lib/icons';
+import { rememberRef } from '@/lib/phase2';
 
 type Step =
   | { s: 'phone' } | { s: 'phone-code'; phone: string; sent: CodeSent }
@@ -30,8 +31,12 @@ export default function SignIn() {
   useEffect(() => {
     // A phone can't scan its own screen: phones start with the phone number.
     if (window.matchMedia('(max-width: 860px)').matches) setStep((x) => (x.s === 'qr' ? { s: 'phone' } : x));
-    if (hasSession()) { router.replace('/chats'); return; }
     const q = new URLSearchParams(window.location.search);
+    // An invite link: keep the code for after sign-up, and start on the phone number (QR is for existing accounts).
+    const ref = q.get('ref');
+    rememberRef(ref);
+    if (hasSession()) { router.replace('/chats'); return; }
+    if (ref) { setStep({ s: 'phone' }); setNotice('You’ve been invited to YaysApp. Sign up with your phone number or email to start chatting.'); }
     if (q.get('deleted') === '1') setNotice('Your account was deleted. You can make a new one any time with the same steps.');
     // Back from Facebook: a one-time ticket to trade for a session, or why it didn't work.
     const ticket = q.get('fb_ticket'), fb = q.get('fb');

@@ -4,7 +4,7 @@ import { mkdirSync } from 'fs';
 import path from 'path';
 import { ObjectId } from 'mongodb';
 import { expect, test, type Page } from './test';
-import { apiCall, apiUser, db, pageAs, type ApiUser } from './helpers';
+import { apiCall, apiUser, codeFor, db, freshEmail, freshPhone, local, NO_POPUPS, pageAs, typeCode, type ApiUser } from './helpers';
 
 const OUT = process.env.PHASE2_OUT ?? path.join(__dirname, '../test-results/phase2');
 const VP = { width: 1440, height: 900 };
@@ -19,10 +19,9 @@ test.beforeAll(() => mkdirSync(OUT, { recursive: true }));
 
 test('the website: sections, Ask Jack, and leaving an email for the team', async ({ page }) => {
   await page.setViewportSize(VP);
-  await page.goto('/?ref=SARA-7K2');
+  await page.goto('/');
   await expect(page.getByRole('heading', { name: 'The chat app that rewards you for showing up.' })).toBeVisible();
   for (const h of ['Everything you need to stay close', 'Earn BTCY tokens for the things you already do', 'One account for every Indexx product', 'Bring your people together', 'You decide who reaches you', 'Questions people ask']) await expect(page.getByRole('heading', { name: h })).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem('yays.ref'))).toBe('SARA-7K2');
   await shot(page, 'w07-landing');
   await page.getByRole('button', { name: 'Open the chat assistant' }).click();
   const box = page.getByRole('dialog', { name: 'Jack’s AI' });
@@ -39,6 +38,47 @@ test('the website: sections, Ask Jack, and leaving an email for the team', async
   expect(await db((d) => d.collection('yc_leads').countDocuments({ email: 'daniel@brooks.com' }))).toBe(1);
   await page.getByRole('link', { name: 'Open web app' }).first().click();
   await expect(page).toHaveURL(/\/sign-in$/);
+});
+
+test('an invite link opens sign-up in another browser, and the invite counts', async ({ browser }) => {
+  const sara = await apiUser('Sara Ahmed');
+  const a = await pageAs(browser, sara, VP);
+  await a.page.goto('/chats');
+  await a.page.getByRole('button', { name: 'Invite', exact: true }).click();
+  await expect(a.page.getByRole('button', { name: 'Link copied' })).toBeVisible();
+  const link = await a.page.evaluate(() => navigator.clipboard.readText());
+  const { code } = await apiCall('/v1/rewards/referrals', undefined, sara.tokens.accessToken) as { code: string };
+  expect(link).toBe(`http://127.0.0.1:3100/sign-in?ref=${code}`);
+
+  // Another browser profile, nobody signed in: the link opens sign-up, not the website.
+  const ctx = await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport: VP });
+  await ctx.addInitScript(NO_POPUPS);
+  const page = await ctx.newPage();
+  await page.goto(link);
+  await expect(page.getByRole('heading', { name: 'Sign in to YaysApp' })).toBeVisible();
+  await expect(page.getByText('You’ve been invited to YaysApp.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'The chat app that rewards you for showing up.' })).toHaveCount(0);
+  const phone = freshPhone(), email = freshEmail('invited');
+  await page.getByLabel('Phone number').fill(local(phone));
+  await page.getByRole('button', { name: 'Send code' }).click();
+  await typeCode(page, await codeFor(phone));
+  await expect(page.getByRole('heading', { name: 'Add your email' })).toBeVisible();
+  await page.getByLabel('Email').fill(email);
+  await page.getByRole('button', { name: 'Send code' }).click();
+  await expect(page.getByRole('heading', { name: 'Check your email' })).toBeVisible();
+  await typeCode(page, await codeFor(email));
+  await page.getByLabel('Your name').fill('Bilal Khan');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page).toHaveURL(/\/chats$/);
+  // Sara sees the invite (pending until Bilal sends a first message).
+  await expect.poll(async () => ((await apiCall('/v1/rewards/referrals', undefined, sara.tokens.accessToken)) as { invited: number }).invited).toBe(1);
+
+  // An invite link sent before this change (/?ref=CODE) also goes to sign-up.
+  const old = await (await browser.newContext({ baseURL: 'http://127.0.0.1:3100', viewport: VP })).newPage();
+  await old.goto(`/?ref=${code}`);
+  await expect(old).toHaveURL(new RegExp(`/sign-in\\?ref=${code}$`));
+  await expect(old.getByText('You’ve been invited to YaysApp.')).toBeVisible();
+  await a.ctx.close(); await ctx.close(); await old.context().close();
 });
 
 test('pop-ups as the app opens: check-in, then the Jack’s AI bonus, then BTCY', async ({ browser }) => {
