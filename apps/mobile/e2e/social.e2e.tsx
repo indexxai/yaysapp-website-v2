@@ -47,7 +47,8 @@ beforeEach(async () => { store.clear(); await AsyncStorage.clear(); config.googl
 afterEach(() => jest.clearAllMocks());
 
 describe('Google and Facebook sign-in on mobile, against the real API', () => {
-  it('Google in a development build: the stand-in signs up a new Google account, named by Google', async () => {
+  // Google sign-in is turned off (GOOGLE_SIGN_IN_ON); these come back with it.
+  it.skip('Google in a development build: the stand-in signs up a new Google account, named by Google', async () => {
     launch();
     fireEvent.press(await screen.findByLabelText('Get started'));
     fireEvent.press(await screen.findByLabelText('Google'));
@@ -61,7 +62,7 @@ describe('Google and Facebook sign-in on mobile, against the real API', () => {
     expect(screen.getByText(/Your account is ready/)).toBeTruthy();
   });
 
-  it('Google with client ids: Google’s sheet gives the token, an existing account signs in', async () => {
+  it.skip('Google with client ids: Google’s sheet gives the token, an existing account signs in', async () => {
     const sara = await user('Sara');
     const me = await call('/v1/me', undefined, sara.tokens.accessToken);
     config.google.webClientId = 'web-client.apps.googleusercontent.com';

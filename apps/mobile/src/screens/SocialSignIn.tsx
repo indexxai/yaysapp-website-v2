@@ -20,6 +20,8 @@ const msg = (e: unknown, f: string) => (e instanceof ApiError || e instanceof Er
 type Done = (r: AuthResult) => void;
 
 /** Google is set up when the app has the Google client ids; in development builds without them, a stand-in asks for an email. */
+/** Off: the sign-in screen shows no Google button. */
+export const GOOGLE_SIGN_IN_ON = false;
 const googleReady = () => !!config.google.webClientId;
 let configured = false;
 async function googleIdToken(): Promise<string | null> {
@@ -94,8 +96,8 @@ export function SocialSignIn({ onDone, onEmail }: { onDone: Done; onEmail?: () =
     else if (why === 'error') throw new Error('Facebook sign-in did not work. Try again.');
     else if (why === 'expired') throw new Error('That took too long. Try again.');
   });
-  // Google shows only where it can work: with the client ids, or as the stand-in in development.
-  const showGoogle = googleReady() || __DEV__;
+  // Google sign-in is turned off for now (the API still supports it); flip this to bring the button back.
+  const showGoogle = GOOGLE_SIGN_IN_ON && (googleReady() || __DEV__);
   return (
     <>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
