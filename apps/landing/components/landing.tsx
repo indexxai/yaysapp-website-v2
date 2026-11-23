@@ -99,7 +99,7 @@ export function Landing() {
 
       <main>
       <section className="lp-hero lp-wrap">
-        <LineArt name="hype" width={300} opacity={0.2} className="lp-art lp-art--hero" />
+        <LineArt name="hype" width={300} opacity={0.14} className="lp-art lp-art--hero" />
         <div className="lp-hero__copy">
           <span className="ys-eyebrow">Chat. Earn. Belong.</span>
           <h1>The chat app that rewards you for showing up.</h1>
@@ -114,11 +114,11 @@ export function Landing() {
         <div className="lp-hero__art"><img className="lp-hero__bg" src="/illustrations/hero-doodles.webp" width={900} height={1108} alt="" aria-hidden="true" /><img className="lp-hero__img" src="/illustrations/hero-cards.webp" width={1300} height={1273} alt="Three YaysApp phone screens fanned out, with a character playing bass jumping out of the front one" fetchPriority="high" /></div>
       </section>
 
-      <Section id="features" label="f" eyebrow="Features" title="Everything you need to stay close" lead="Chats, calls, communities and an AI assistant, in one app that works the same on your phone and on the web." art={<><LineArt name="selfie" height={300} opacity={0.22} className="lp-art lp-art--r" /><LineArt name="gear" height={220} opacity={0.2} className="lp-art lp-art--c" /></>}>
+      <Section id="features" label="f" eyebrow="Features" title="Everything you need to stay close" lead="Chats, calls, communities and an AI assistant, in one app that works the same on your phone and on the web." art={<><LineArt name="selfie" height={300} opacity={0.15} className="lp-art lp-art--r" /><LineArt name="gear" height={220} opacity={0.14} className="lp-art lp-art--c" /></>}>
         <div className="lp-cards lp-cards--4">{FEATURES.map(([i, t, d]) => <div key={t} className="ys-card lp-card"><span className="ys-oval ys-oval--ember" style={{ width: 48 }}><Icon name={i} size={22} /></span><strong>{t}</strong><span>{d}</span></div>)}</div>
       </Section>
 
-      <Section id="earn" label="e" eyebrow="BTCY tokens" title="Earn BTCY tokens for the things you already do" lead="BTCY tokens add up in your wallet. Withdraw them to your BTCY app wallet, or use them across Indexx products." art={<><LineArt name="coins" height={260} opacity={0.22} className="lp-art lp-art--l" /><img className="lp-earn__bg" src="/illustrations/hero-doodles.webp" width={900} height={1108} alt="" aria-hidden="true" /></>}>
+      <Section id="earn" label="e" eyebrow="BTCY tokens" title="Earn BTCY tokens for the things you already do" lead="BTCY tokens add up in your wallet. Withdraw them to your BTCY app wallet, or use them across Indexx products." art={<><LineArt name="coins" height={260} opacity={0.15} className="lp-art lp-art--l" /><img className="lp-earn__bg" src="/illustrations/hero-doodles.webp" width={900} height={1108} alt="" aria-hidden="true" /></>}>
         <div className="lp-earn">
           <ul className="lp-ways">{WAYS.map(([i, t, d, p]) => <li key={t}><span className="ys-oval ys-oval--wash" style={{ width: 44 }}><Icon name={i} size={20} /></span><span className="p2-col" style={{ flex: 1 }}><strong>{t}</strong><span className="muted">{d}</span></span><b>{p}</b></li>)}</ul>
           <div className="lp-example">
@@ -131,7 +131,7 @@ export function Landing() {
         </div>
       </Section>
 
-      <Section label="x" eyebrow="Indexx ecosystem" title="One account for every Indexx product" lead="Open BTCY, EMMM and the rest from Explore, and keep your BTCY tokens and referrals everywhere." art={<><LineArt name="trader" height={280} opacity={0.22} className="lp-art lp-art--r" /><LineArt name="wallet" height={220} opacity={0.2} className="lp-art lp-art--c" /></>}>
+      <Section label="x" eyebrow="Indexx ecosystem" title="One account for every Indexx product" lead="Open BTCY, EMMM and the rest from Explore, and keep your BTCY tokens and referrals everywhere." art={<><LineArt name="trader" height={280} opacity={0.15} className="lp-art lp-art--r" /><LineArt name="wallet" height={220} opacity={0.14} className="lp-art lp-art--c" /></>}>
         <div className="lp-cards lp-cards--6">{PRODUCTS.map((p) => <div key={p.id} className={`ys-card lp-product${p.live ? '' : ' p2-product--soon'}`}><span className="ys-oval" style={{ width: 56, ['--ys-oval-fill' as string]: '#ffffff' }}><img src={p.logo} alt="" /></span><strong>{p.name}</strong><span className="muted">{p.sub}</span></div>)}</div>
       </Section>
 
@@ -151,12 +151,12 @@ export function Landing() {
         </div>
       </section>
 
-      <Section label="s" eyebrow="Safety and privacy" title="You decide who reaches you" art={<><LineArt name="explorer" height={300} opacity={0.22} className="lp-art lp-art--l" /><LineArt name="snap" height={220} opacity={0.2} className="lp-art lp-art--c" /></>}>
+      <Section label="s" eyebrow="Safety and privacy" title="You decide who reaches you" art={<><LineArt name="explorer" height={300} opacity={0.15} className="lp-art lp-art--l" /><LineArt name="snap" height={220} opacity={0.14} className="lp-art lp-art--c" /></>}>
         <div className="lp-cards lp-cards--3">{SAFETY.map(([i, t, d]) => <div key={t} className="ys-card lp-card"><span className="ys-oval ys-oval--wash" style={{ width: 52 }}><Icon name={i} size={22} /></span><strong>{t}</strong><span>{d}</span></div>)}</div>
       </Section>
 
       <section id="download" className="lp-section" aria-labelledby="d-t">
-        <LineArt name="reader" height={260} opacity={0.18} className="lp-art lp-art--c lp-art--low" />
+        <LineArt name="reader" height={260} opacity={0.13} className="lp-art lp-art--c lp-art--low" />
         <div className="lp-wrap lp-download">
           <div className="p2-col" style={{ gap: 14, flex: 1 }}>
             <span className="ys-eyebrow">Get YaysApp</span>
@@ -169,7 +169,7 @@ export function Landing() {
         </div>
       </section>
 
-      <Section id="faq" label="q" eyebrow="Help" title="Questions people ask" art={<><LineArt name="lantern" height={240} opacity={0.22} className="lp-art lp-art--r" /><LineArt name="morning" height={240} opacity={0.2} className="lp-art lp-art--c" /></>}>
+      <Section id="faq" label="q" eyebrow="Help" title="Questions people ask" art={<><LineArt name="lantern" height={240} opacity={0.15} className="lp-art lp-art--r" /><LineArt name="morning" height={240} opacity={0.14} className="lp-art lp-art--c" /></>}>
         <div className="faq lp-faq">{FAQ.map(([q, a]) => <details key={q}><summary>{q}</summary><p>{a}</p></details>)}</div>
         <p className="muted" style={{ textAlign: 'center' }}>Still stuck? Ask Jack’s AI in the corner.</p>
       </Section>
