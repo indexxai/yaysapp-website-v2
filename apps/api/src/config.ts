@@ -20,10 +20,11 @@ const schema = z.object({
   /** Codes one IP address may request per hour (all numbers and emails together). */
   OTP_IP_PER_HOUR: z.coerce.number().int().min(1).max(100000).default(30),
   OTP_RESEND_SECONDS: z.coerce.number().int().min(0).max(300).default(30),
-  SMS_DRIVER: z.enum(['dev', 'twilio']).default('dev'),
+  SMS_DRIVER: z.enum(['dev', 'twilio', 'twilio_sms']).default('dev'),
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_VERIFY_SID: z.string().optional(),
+  TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),
   EMAIL_DRIVER: z.enum(['dev', 'ses']).default('dev'),
   SES_REGION: z.string().optional(),
   SES_FROM: z.string().optional(),
@@ -136,6 +137,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     if (c.INDEXX_DRIVER === 'dev') problems.push('INDEXX_DRIVER=dev is not allowed in production (use live, or off)');
   }
   if (c.SMS_DRIVER === 'twilio' && !(c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN && c.TWILIO_VERIFY_SID)) problems.push('SMS_DRIVER=twilio needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SID');
+  if (c.SMS_DRIVER === 'twilio_sms' && !(c.TWILIO_ACCOUNT_SID && c.TWILIO_AUTH_TOKEN && c.TWILIO_MESSAGING_SERVICE_SID)) problems.push('SMS_DRIVER=twilio_sms needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_MESSAGING_SERVICE_SID');
   if (c.EMAIL_DRIVER === 'ses' && !(c.SES_REGION && c.SES_FROM)) problems.push('EMAIL_DRIVER=ses needs SES_REGION and SES_FROM');
   if (!c.SES_ACCESS_KEY_ID !== !c.SES_SECRET_ACCESS_KEY) problems.push('SES_ACCESS_KEY_ID and SES_SECRET_ACCESS_KEY go together: set both or neither');
   if (c.STORAGE_DRIVER === 's3' && !(c.S3_BUCKET && c.S3_REGION)) problems.push('STORAGE_DRIVER=s3 needs S3_BUCKET and S3_REGION');
