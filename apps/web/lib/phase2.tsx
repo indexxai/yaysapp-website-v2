@@ -69,7 +69,8 @@ export async function applyStoredRef() {
   try { await api().useReferralCode(code); localStorage.removeItem(REF_KEY); }
   catch (e) { if (e instanceof ApiError && e.status >= 400 && e.status < 500) try { localStorage.removeItem(REF_KEY); } catch { /* ignore */ } }
 }
-export const inviteLink = (code: string) => `${typeof location !== 'undefined' ? location.origin : 'https://yaysapp.com'}/?ref=${encodeURIComponent(code)}`;
+/** An invite: opens sign-up with the code (signed-in people go straight to their chats). */
+export const inviteLink = (code: string) => `${typeof location !== 'undefined' ? location.origin : 'https://web.yaysapp.com'}/sign-in?ref=${encodeURIComponent(code)}`;
 
 export const PRODUCTS = [
   { id: 'btcy', name: 'BTCY', sub: 'Mining and Nuggets', logo: '/brand/products/btcy.png', href: '/btcy' },

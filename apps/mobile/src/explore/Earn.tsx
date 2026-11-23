@@ -14,7 +14,7 @@ import { CheckinPopup } from './Popups';
 import { BRAND, Bar, CheckinWeek, IconOval, Stat, TaskList, errText, fmtPoints, useLoad } from './common';
 import type { IconName } from '../ui/Icon';
 
-export const inviteLink = (code: string) => `${config.webUrl}/?ref=${encodeURIComponent(code)}`;
+export const inviteLink = (code: string) => `${config.webUrl}/sign-in?ref=${encodeURIComponent(code)}`;
 
 /** p06: BTCY token balance, the daily check-in, ways to earn today, bonuses and invites. */
 export function EarnScreen({ me, onBack, nav }: { me: MeProfile; onBack: () => void; nav: { history: () => void; invite: () => void; wallet: () => void; ai: () => void; btcy: () => void; indexx: () => void } }) {
