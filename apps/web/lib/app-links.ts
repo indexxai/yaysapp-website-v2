@@ -7,8 +7,8 @@
 //                        Google Play's app signing key (Play Console › Test and release › App integrity)
 // Without them the files aren't served, and links open in the browser as before.
 
-/** The paths that open the app: invites (groups and circles), circles, posts and events. */
-export const APP_PATHS = ['/join/*', '/c/*', '/circles', '/circles/*'];
+/** The paths that open the app: invites (groups, circles and friend invites to sign up), circles, posts and events. */
+export const APP_PATHS = ['/join/*', '/c/*', '/circles', '/circles/*', '/sign-in'];
 
 export function appleSiteAssociation(env: Record<string, string | undefined> = process.env) {
   const team = env.APPLE_TEAM_ID?.trim();
