@@ -165,7 +165,7 @@ export function Landing() {
             <Stores />
             <div className="row" style={{ gap: 24 }}><OvalButton icon="globe" label="Open web app" size="md" href={SIGN_IN_URL} /></div>
           </div>
-          <LineArt name="skater" height={320} />
+          <LineArt name="skater" height={320} opacity={0.15} />
         </div>
       </section>
 
