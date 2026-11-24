@@ -114,7 +114,7 @@ export function Landing() {
         <div className="lp-hero__art"><img className="lp-hero__bg" src="/illustrations/hero-doodles.webp" width={900} height={1108} alt="" aria-hidden="true" /><img className="lp-hero__img" src="/illustrations/hero-cards.webp" width={1300} height={1273} alt="Three YaysApp phone screens fanned out, with a character playing bass jumping out of the front one" fetchPriority="high" /></div>
       </section>
 
-      <Section id="features" label="f" eyebrow="Features" title="Everything you need to stay close" lead="Chats, calls, communities and an AI assistant, in one app that works the same on your phone and on the web." art={<><LineArt name="selfie" height={300} opacity={0.15} className="lp-art lp-art--r" /><LineArt name="gear" height={400} opacity={0.09} className="lp-art lp-art--mid" /></>}>
+      <Section id="features" label="f" eyebrow="Features" title="Everything you need to stay close" lead="Chats, calls, communities and an AI assistant, in one app that works the same on your phone and on the web." art={<><LineArt name="selfie" height={240} opacity={0.15} className="lp-art lp-art--r" /><LineArt name="gear" height={400} opacity={0.06} className="lp-art lp-art--mid" /></>}>
         <div className="lp-cards lp-cards--4">{FEATURES.map(([i, t, d]) => <div key={t} className="ys-card lp-card"><span className="ys-oval ys-oval--ember" style={{ width: 48 }}><Icon name={i} size={22} /></span><strong>{t}</strong><span>{d}</span></div>)}</div>
       </Section>
 
