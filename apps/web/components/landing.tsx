@@ -132,7 +132,7 @@ export function Landing() {
       </Section>
 
       <section id="download" className="lp-section" aria-labelledby="d-t">
-        <LineArt name="reader" height={373} opacity={0.13} className="lp-art lp-art--mid" />
+        <LineArt name="reader" height={300} opacity={0.15} className="lp-art lp-art--r" />
         <div className="lp-wrap lp-download">
           <div className="p2-col" style={{ gap: 14, flex: 1 }}>
             <span className="ys-eyebrow">Get YaysApp</span>
@@ -141,7 +141,7 @@ export function Landing() {
             <Stores />
             <div className="row" style={{ gap: 24 }}><OvalButton icon="globe" label="Open web app" size="md" href="/sign-in" /></div>
           </div>
-          <LineArt name="skater" height={320} opacity={0.15} />
+
         </div>
       </section>
 
