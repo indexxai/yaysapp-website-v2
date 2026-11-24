@@ -435,3 +435,7 @@ button.p2-ai__searched:hover { color: var(--ember-ink); text-decoration: underli
 .lp-hero__bg, .lp-earn__bg { opacity: .2; }
 [data-theme="dark"] .lp-hero__bg, [data-theme="dark"] .lp-earn__bg { opacity: .1; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lp-hero__bg, :root:not([data-theme="light"]) .lp-earn__bg { opacity: .1; } }
+
+/* Centre drawings: large in the middle of their section; sections clip them so nothing scrolls sideways. */
+.lp-section { overflow-x: clip; }
+@media (max-width: 700px) { .lp-art--mid { height: 340px !important; width: auto !important; } }
