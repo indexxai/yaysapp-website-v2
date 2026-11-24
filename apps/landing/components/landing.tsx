@@ -169,7 +169,7 @@ export function Landing() {
         </div>
       </section>
 
-      <Section id="faq" label="q" eyebrow="Help" title="Questions people ask" art={<><LineArt name="lantern" height={240} opacity={0.15} className="lp-art lp-art--r" /><LineArt name="morning" height={520} opacity={0.14} className="lp-art lp-art--mid" /></>}>
+      <Section id="faq" label="q" eyebrow="Help" title="Questions people ask" art={<><LineArt name="lantern" height={240} opacity={0.15} className="lp-art lp-art--r" /><LineArt name="morning" height={420} opacity={0.14} className="lp-art lp-art--mid" /></>}>
         <div className="faq lp-faq">{FAQ.map(([q, a]) => <details key={q}><summary>{q}</summary><p>{a}</p></details>)}</div>
         <p className="muted" style={{ textAlign: 'center' }}>Still stuck? Ask Jack’s AI in the corner.</p>
       </Section>
