@@ -151,7 +151,7 @@ export function Landing() {
         </div>
       </section>
 
-      <Section label="s" eyebrow="Safety and privacy" title="You decide who reaches you" art={<><LineArt name="explorer" height={300} opacity={0.15} className="lp-art lp-art--l" /><LineArt name="snap" height={373} opacity={0.14} className="lp-art lp-art--mid" /></>}>
+      <Section label="s" eyebrow="Safety and privacy" title="You decide who reaches you" art={<><LineArt name="explorer" height={240} opacity={0.15} className="lp-art lp-art--l" /><LineArt name="snap" height={373} opacity={0.14} className="lp-art lp-art--mid" /></>}>
         <div className="lp-cards lp-cards--3">{SAFETY.map(([i, t, d]) => <div key={t} className="ys-card lp-card"><span className="ys-oval ys-oval--wash" style={{ width: 52 }}><Icon name={i} size={22} /></span><strong>{t}</strong><span>{d}</span></div>)}</div>
       </Section>
 
