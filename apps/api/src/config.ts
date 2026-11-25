@@ -25,6 +25,9 @@ const schema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_VERIFY_SID: z.string().optional(),
   TWILIO_MESSAGING_SERVICE_SID: z.string().optional(),
+  /** App Store / Play review sign-in: this email signs in with REVIEW_CODE and no email is sent. Leave unset to turn it off. */
+  REVIEW_EMAIL: z.string().email().transform((v) => v.toLowerCase()).optional(),
+  REVIEW_CODE: z.string().regex(/^\d{6}$/).optional(),
   EMAIL_DRIVER: z.enum(['dev', 'ses']).default('dev'),
   SES_REGION: z.string().optional(),
   SES_FROM: z.string().optional(),

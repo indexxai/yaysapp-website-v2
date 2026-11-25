@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Keychain from 'react-native-keychain';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import App from '../App';
@@ -47,6 +47,12 @@ beforeEach(async () => { store.clear(); await AsyncStorage.clear(); config.googl
 afterEach(() => jest.clearAllMocks());
 
 describe('Google and Facebook sign-in on mobile, against the real API', () => {
+  afterEach(() => { jest.restoreAllMocks(); });
+  it('iPhone: no Facebook button', () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    const { facebookSignInOn } = require('../src/screens/SocialSignIn') as typeof import('../src/screens/SocialSignIn');
+    expect(facebookSignInOn()).toBe(false);
+  });
   // Google sign-in is turned off (GOOGLE_SIGN_IN_ON); these come back with it.
   it.skip('Google in a development build: the stand-in signs up a new Google account, named by Google', async () => {
     launch();
@@ -75,6 +81,7 @@ describe('Google and Facebook sign-in on mobile, against the real API', () => {
   });
 
   it('Facebook, linked to an account: the sign-in browser goes to Facebook and back, and it signs in', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android'); // Facebook sign-in is Android-only (iPhone would need Sign in with Apple too)
     const omar = await user('Omar');
     await linkFacebook(omar, 'Omar Farooq');
     launch();
@@ -83,10 +90,11 @@ describe('Google and Facebook sign-in on mobile, against the real API', () => {
     fireEvent.press(await screen.findByLabelText('Facebook'));
     expect(await screen.findByText('Welcome, Omar', {}, { timeout: 8000 })).toBeTruthy();
     const sessions = await call('/v1/me/devices', undefined, omar.tokens.accessToken);
-    expect(sessions.some((s: { platform: string }) => s.platform === 'ios')).toBe(true);
+    expect(sessions.some((s: { platform: string }) => s.platform === 'android')).toBe(true);
   });
 
   it('Facebook not linked: the design’s explanation, and email from there; cancelling does nothing', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android'); // Facebook sign-in is Android-only (iPhone would need Sign in with Apple too)
     launch();
     fireEvent.press(await screen.findByLabelText('Get started'));
     fbBrowser(null);
