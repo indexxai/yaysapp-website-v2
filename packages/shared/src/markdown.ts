@@ -44,12 +44,21 @@ export function mdToHtml(md: string, sources?: AiSource[]): string {
       flush();
       const ordered = /\d/.test(li[1]!);
       const items: string[] = [];
+      const ITEM = /^\s*([-*•]|\d+[.)])\s+(.*)$/;
+      const start = ordered ? parseInt(li[1]!, 10) : 1;
       while (i < lines.length) {
-        const m = /^\s*([-*•]|\d+[.)])\s+(.*)$/.exec(lines[i]!);
-        if (!m || /\d/.test(m[1]!) !== ordered) break;
+        const m = ITEM.exec(lines[i]!);
+        if (!m) {
+          // A blank line between items keeps the same list (AI answers often space their numbered points out).
+          let j = i; while (j < lines.length && !lines[j]!.trim()) j++;
+          const next = j > i && j < lines.length ? ITEM.exec(lines[j]!) : null;
+          if (next && /\d/.test(next[1]!) === ordered) { i = j; continue; }
+          break;
+        }
+        if (/\d/.test(m[1]!) !== ordered) break;
         items.push(`<li>${inline(m[2]!, sources)}</li>`); i++;
       }
-      out.push(`<${ordered ? 'ol' : 'ul'}>${items.join('')}</${ordered ? 'ol' : 'ul'}>`);
+      out.push(ordered ? `<ol${start > 1 ? ` start="${start}"` : ''}>${items.join('')}</ol>` : `<ul>${items.join('')}</ul>`);
       continue;
     }
     if (/^>\s?/.test(l)) { flush(); out.push(`<blockquote>${inline(l.replace(/^>\s?/, ''), sources)}</blockquote>`); i++; continue; }

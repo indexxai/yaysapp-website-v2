@@ -206,6 +206,8 @@ a.p2-product:hover { transform: translateY(-2px); }
 .p2-ai__main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--surface); }
 .p2-ai__head { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; padding: 12px 24px; background: var(--ground); border-bottom: 1px solid var(--line); }
 .p2-ai__head strong { flex: 1; min-width: 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.p2-ai__rename { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.p2-ai__rename .ys-input { flex: 1; min-width: 0; height: 36px; }
 .p2-ai__quota { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); white-space: nowrap; }
 .p2-ai__thread { position: relative; z-index: 1; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 20px max(24px, calc((100% - 780px) / 2)); }
 .p2-ai__me { align-self: flex-end; max-width: 70%; white-space: pre-wrap; }
