@@ -47,6 +47,23 @@ export class IndexxClient {
     return typeof m === 'string' && m.trim() ? m.trim().slice(0, 300) : null;
   }
 
+  /**
+   * An Indexx account made with Google: Indexx checks the Google access token with Google and signs that account in.
+   * Gives back the login token and the account's email (read from the token).
+   */
+  async loginGoogle(googleToken: string): Promise<{ token: string; expiresAt: Date | null; email: string }> {
+    const res = await this.send('POST', '/inex/user/login/google', { body: { googleToken }, timeoutMs: 20_000 });
+    const b = await IndexxClient.body(res);
+    const d = (b.data ?? {}) as Record<string, unknown>;
+    const token = [d.access_token, d.accessToken, d.token, b.access_token].find((t): t is string => typeof t === 'string' && t.length > 10);
+    const email = (typeof d.email === 'string' ? d.email : emailOf(token ?? '') ?? '').trim().toLowerCase();
+    if (res.ok && token && email) return { token, expiresAt: expiryOf(token), email };
+    const said = IndexxClient.message(b);
+    this.log.info({ status: res.status, said }, 'Indexx Google sign-in refused');
+    if (res.status >= 502) throw new AppError(503, ErrorCode.PROVIDER_UNAVAILABLE, NO_ANSWER);
+    throw AppError.validation(said && !/^(ok|success|unhandled error.*)$/i.test(said) ? `Indexx said: ${said}` : 'Indexx couldn’t sign in that Google account. Make sure it’s the Google account you use for BTCY and Indexx.');
+  }
+
   /** Email and password → the person's Indexx login token. The password is never kept or logged. */
   async login(email: string, password: string): Promise<{ token: string; expiresAt: Date | null }> {
     const res = await this.send('POST', '/inex/user/login', { body: { email, password }, timeoutMs: 20_000 });
@@ -79,6 +96,13 @@ export class IndexxClient {
 }
 
 /** When a JWT login token runs out (read from the token, not checked: Indexx checks it). */
+/** The account's email inside an Indexx login token, when it carries one. */
+export function emailOf(token: string): string | null {
+  try {
+    const p = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as { email?: unknown };
+    return typeof p.email === 'string' ? p.email : null;
+  } catch { return null; }
+}
 export function expiryOf(token: string): Date | null {
   try {
     const p = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString('utf8')) as { exp?: unknown };

@@ -32,6 +32,7 @@ test.describe('Week 2 · sign-in on the web', () => {
 
     const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4c40000000049454e44ae426082', 'hex');
     await page.getByTestId('photo-input').setInputFiles({ name: 'me.png', mimeType: 'image/png', buffer: png });
+    await page.getByRole('button', { name: 'Use photo' }).click();
     await expect(page.getByRole('button', { name: 'Change photo' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Continue' }).click();

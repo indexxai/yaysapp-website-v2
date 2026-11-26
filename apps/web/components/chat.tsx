@@ -406,8 +406,8 @@ export function Conversation({ id, onBack, onInfo, infoOpen, jumpSeq, jumpKey = 
       <PinnedBar c={c} />
       {summary && <JackSummary c={c} onClose={() => setSummary(false)} />}
       {/* Each chat keeps its own piece of brand art behind the messages. */}
-      {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
-      {notice && <div className="convo__error"><Banner tone="success">{notice}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => setNotice(null)}><Icon name="close" size={16} /></button></div>}
+      {actionError && <div className="convo__error"><Banner>{actionError}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" title="Dismiss" onClick={() => setActionError(null)}><Icon name="close" size={16} /></button></div>}
+      {notice && <div className="convo__error"><Banner tone="success">{notice}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" title="Dismiss" onClick={() => setNotice(null)}><Icon name="close" size={16} /></button></div>}
       <Thread id={id} items={items} me={me} typing={!!typing} loading={!thread?.loaded} hasMore={!!thread?.hasMore} group={c.kind === 'group'} c={c} jump={jump} onOpenMedia={setViewerAt} />
       {c.canSend ? <Composer id={id} replyTo={replyTo} editing={editing} onDone={() => { setReplyTo(null); setEditing(null); }} onFiles={setAttachFiles} /> : <LockedComposer c={c} onGone={onBack} />}
       {dragging && <div className="drop-hint" aria-hidden><Icon name="upload" size={32} /> Drop files to send them to {name}</div>}

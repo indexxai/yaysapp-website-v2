@@ -35,10 +35,10 @@ export function NotifyBanner() {
             } catch { setError('Couldn’t turn on notifications. Try again.'); setState('blocked'); }
             finally { setBusy(false); }
           }} />
-          <button type="button" className="icon-btn" aria-label="Not now" onClick={() => { dismissBanner(); setHidden(true); }}><Icon name="close" size={16} /></button>
+          <button type="button" className="icon-btn" aria-label="Not now" title="Not now" onClick={() => { dismissBanner(); setHidden(true); }}><Icon name="close" size={16} /></button>
         </>
       )}
-      {state === 'blocked' && <button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => { setError(null); dismissBanner(); }}><Icon name="close" size={16} /></button>}
+      {state === 'blocked' && <button type="button" className="icon-btn" aria-label="Dismiss" title="Dismiss" onClick={() => { setError(null); dismissBanner(); }}><Icon name="close" size={16} /></button>}
     </div>
   );
 }

@@ -21,7 +21,7 @@ interface PostDoc {
   status: PostStatus; removedReason?: string; pinnedAt: Date | null; likeCount: number; commentCount: number;
   answerId: ObjectId | null; flagged: boolean; createdAt: Date; editedAt: Date | null;
 }
-interface CommentDoc { _id: ObjectId; circleId: ObjectId; postId?: ObjectId; eventId?: ObjectId; authorId: ObjectId; text: string; parentId: ObjectId | null; answer: boolean; createdAt: Date }
+interface CommentDoc { _id: ObjectId; circleId: ObjectId; postId?: ObjectId; eventId?: ObjectId; authorId: ObjectId; text: string; parentId: ObjectId | null; answer: boolean; createdAt: Date; editedAt?: Date }
 interface ReportDoc { _id: string; circleId: ObjectId; postId: ObjectId; reporterId: ObjectId; targetUserId: ObjectId; reason: PostReportReason; note: string; at: Date; status: 'open' | 'closed'; handled?: { by: ObjectId; action: string; at: Date } }
 interface MuteDoc { _id: string; circleId: ObjectId; userId: ObjectId; until: Date; reason: string; by: ObjectId }
 /** "No" to a request, or removed: no asking again until `until`. */
@@ -499,7 +499,7 @@ export class CirclesService {
     const [authors, blocked] = await Promise.all([this.authors(me, c, docs.map((d) => d.authorId)), this.chat.blockedEitherWay(me, docs.map((d) => d.authorId))]);
     return docs.map((d) => {
       const b = blocked.has(d.authorId.toHexString());
-      return { id: d._id.toHexString(), author: authors.get(d.authorId.toHexString())!, text: b ? '' : d.text, createdAt: d.createdAt.toISOString(), parentId: d.parentId?.toHexString() ?? null, answer: d.answer, mine: d.authorId.equals(me), hidden: b ? 'blocked' : null };
+      return { id: d._id.toHexString(), author: authors.get(d.authorId.toHexString())!, text: b ? '' : d.text, createdAt: d.createdAt.toISOString(), parentId: d.parentId?.toHexString() ?? null, answer: d.answer, mine: d.authorId.equals(me), hidden: b ? 'blocked' : null, editedAt: d.editedAt?.toISOString() ?? null };
     });
   }
   async commentsOn(me: ObjectId, pid: string) {
@@ -523,6 +523,17 @@ export class CirclesService {
     const par = await this.comments.findOne({ ...on, _id: this.parseId(parentId, 'Comment') });
     if (!par) throw AppError.notFound('That comment was deleted.');
     return par.parentId ?? par._id;
+  }
+  /** Authors can change their own comments and event questions; they show as edited. */
+  async editComment(me: ObjectId, cid: string, text: string) {
+    const d = await this.comments.findOne({ _id: this.parseId(cid, 'Comment') });
+    if (!d) throw AppError.notFound('That comment was deleted.');
+    if (!d.authorId.equals(me)) throw AppError.forbidden('You can only edit your own comments.');
+    const { c } = await this.member(d.circleId.toHexString(), me);
+    await this.notMuted(c, me);
+    this.flagCheck(text);
+    const n = await this.comments.findOneAndUpdate({ _id: d._id }, { $set: { text, editedAt: new Date() } }, { returnDocument: 'after' });
+    return (await this.presentComments(me, c, [n!]))[0]!;
   }
   async deleteComment(me: ObjectId, cid: string) {
     const d = await this.comments.findOne({ _id: this.parseId(cid, 'Comment') });

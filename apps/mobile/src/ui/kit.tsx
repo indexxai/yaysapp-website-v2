@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, View, type TextInputPr
 import { Text, TextInput } from './Text';
 import { font, useTheme, type Theme } from '../lib/theme';
 import { Icon, type IconName } from './Icon';
-import { Oval } from './Oval';
+import { Oval, OvalPhoto } from './Oval';
 
 const SIZES = { sm: { w: 32, icon: 16 }, md: { w: 40, icon: 20 }, lg: { w: 54, icon: 24 }, xl: { w: 64, icon: 28 } } as const;
 type Variant = 'primary' | 'soft' | 'secondary' | 'ghost' | 'danger';
@@ -40,9 +40,8 @@ const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((
 export function Avatar({ name, photoUrl, size = 44 }: { name: string; photoUrl?: string | null; size?: number }) {
   const t = useTheme();
   return (
-    <Oval width={size} fill={t['ember-wash']}>
-      {photoUrl ? <Image source={{ uri: photoUrl }} style={{ width: size * 0.8, height: size * 0.8, borderRadius: size }} accessibilityIgnoresInvertColors />
-        : <Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: size * 0.36, color: t['ember-ink'] }}>{initials(name)}</Text>}
+    photoUrl ? <OvalPhoto width={size} uri={photoUrl} fill={t['ember-wash']} /> : <Oval width={size} fill={t['ember-wash']}>
+      {<Text style={{ fontFamily: font.display, fontWeight: '800', fontSize: size * 0.36, color: t['ember-ink'] }}>{initials(name)}</Text>}
     </Oval>
   );
 }

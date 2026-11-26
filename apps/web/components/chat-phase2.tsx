@@ -37,7 +37,7 @@ export function JackSummary({ c, onClose }: { c: ConversationSummary; onClose: (
         {step === 'busy' ? <span className="ys-spin" aria-hidden /> : <span>{error ?? s!.text}</span>}
         {step === 'done' && !error && <span className="muted p2-xs">AI summary · may miss details · <button type="button" className="link-btn p2-xs" onClick={() => { void api().aiSetConsent(c.id, false); onClose(); }}>Stop letting Jack read this chat</button></span>}
       </div>
-      <button type="button" className="icon-btn" aria-label="Close summary" onClick={onClose}><Icon name="close" size={16} /></button>
+      <button type="button" className="icon-btn" aria-label="Close summary" title="Close summary" onClick={onClose}><Icon name="close" size={16} /></button>
     </div>
   );
 }

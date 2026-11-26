@@ -139,6 +139,12 @@ describe('Circles', () => {
     const reply = (await api(omar).post(`/v1/circle-posts/${q.id}/comments`, { text: 'Thanks!', parentId: a.id }).expect(200)).body as CircleComment;
     const deep = (await api(hana).post(`/v1/circle-posts/${q.id}/comments`, { text: 'Same', parentId: reply.id }).expect(200)).body as CircleComment;
     expect([reply.parentId, deep.parentId]).toEqual([a.id, a.id]); // one level of replies
+    // Editing a comment (QA #19): only its author; it shows as edited and others see the new text.
+    expect((await api(sara).patch(`/v1/circle-comments/${reply.id}`, { text: 'hijack' })).status).toBe(403);
+    const ed = (await api(omar).patch(`/v1/circle-comments/${reply.id}`, { text: 'Thanks, that helps!' }).expect(200)).body as CircleComment;
+    expect(ed).toMatchObject({ text: 'Thanks, that helps!', mine: true, editedAt: expect.any(String) });
+    expect(((await api(hana).get(`/v1/circle-posts/${q.id}/comments`).expect(200)).body as CircleComment[]).find((x) => x.id === reply.id)).toMatchObject({ text: 'Thanks, that helps!', editedAt: expect.any(String) });
+    expect((await api(omar).patch(`/v1/circle-comments/${reply.id}`, { text: '' })).status).toBe(400);
     expect((await api(sara).put(`/v1/circle-comments/${a.id}/answer`)).status).toBe(403);
     expect(((await api(owner).put(`/v1/circle-comments/${a.id}/answer`).expect(200)).body as CircleComment).answer).toBe(true);
     const f = await feed(hana, btcy.id);

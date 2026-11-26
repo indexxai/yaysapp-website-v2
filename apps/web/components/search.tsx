@@ -193,9 +193,9 @@ export function InChatSearch({ convId, onJump, onClose }: { convId: string; onJu
       <span className="in-search__pos" role="status" data-testid="in-chat-result">
         {seqs === null ? '' : total ? `Result ${total - at} of ${total}${total >= 500 ? '+' : ''}` : 'No results'}
       </span>
-      <button type="button" className="icon-btn" aria-label="Older result" disabled={!total || at === 0} onClick={() => go(-1)}><Icon name="chevron-up" size={18} /></button>
-      <button type="button" className="icon-btn" aria-label="Newer result" disabled={!total || at === total - 1} onClick={() => go(1)}><Icon name="chevron-down" size={18} /></button>
-      <button type="button" className="icon-btn" aria-label="Close search" onClick={onClose}><Icon name="close" size={18} /></button>
+      <button type="button" className="icon-btn" aria-label="Older result" title="Older result" disabled={!total || at === 0} onClick={() => go(-1)}><Icon name="chevron-up" size={18} /></button>
+      <button type="button" className="icon-btn" aria-label="Newer result" title="Newer result" disabled={!total || at === total - 1} onClick={() => go(1)}><Icon name="chevron-down" size={18} /></button>
+      <button type="button" className="icon-btn" aria-label="Close search" title="Close search" onClick={onClose}><Icon name="close" size={18} /></button>
     </div>
   );
 }

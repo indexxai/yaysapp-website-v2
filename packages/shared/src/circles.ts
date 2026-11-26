@@ -91,6 +91,8 @@ export interface CircleFeed { items: CirclePost[]; next: string | null }
 export interface CircleComment {
   id: string; author: CircleAuthor; text: string; createdAt: string;
   parentId: string | null; answer: boolean; mine: boolean; hidden: 'blocked' | null;
+  /** Set when the author changed it. */
+  editedAt?: string | null;
 }
 
 export type EventMode = 'in_person' | 'online' | 'both';
@@ -205,6 +207,7 @@ export const circlePostSchema = z.object({
 }).refine((v) => v.text.length > 0 || v.photoKeys.length > 0, 'Write something or add a photo.');
 export type CirclePostInput = z.input<typeof circlePostSchema>;
 export const editPostSchema = z.object({ text: body(CIRCLE_LIMITS.post).pipe(z.string().min(1, 'Write something.')) });
+export const commentEditSchema = z.object({ text: body(CIRCLE_LIMITS.comment).pipe(z.string().min(1, 'Write a comment.')) });
 export const commentSchema = z.object({ text: body(CIRCLE_LIMITS.comment).pipe(z.string().min(1, 'Write a comment.')), parentId: objectIdSchema.optional() });
 export const POST_REPORT_REASONS = ['spam', 'impersonation', 'scam', 'harassment', 'other'] as const;
 export type PostReportReason = (typeof POST_REPORT_REASONS)[number];

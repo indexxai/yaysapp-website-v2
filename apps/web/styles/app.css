@@ -599,7 +599,8 @@ textarea.ys-input { min-height: 110px; resize: vertical; padding-top: 10px; font
 .call__person--speaking { box-shadow: inset 0 0 0 2px var(--ember); }
 .call__person--pending { padding: 8px 12px; opacity: .7; }
 .call__controls { display: flex; justify-content: center; align-items: flex-start; flex-wrap: wrap; gap: 26px; padding: 18px 24px 26px; }
-.call-btn[aria-pressed="true"] .ys-oval { box-shadow: inset 0 0 0 2px rgba(255,255,255,.5); }
+/* On (camera off, sharing): a ring that follows the oval, not the square box around it. */
+.call-btn[aria-pressed="true"] .ys-oval { filter: drop-shadow(1.5px 0 0 rgba(255,255,255,.6)) drop-shadow(-1.5px 0 0 rgba(255,255,255,.6)) drop-shadow(0 1.5px 0 rgba(255,255,255,.6)) drop-shadow(0 -1.5px 0 rgba(255,255,255,.6)); }
 .call-btn:disabled { opacity: .45; }
 .call-alerts { position: fixed; top: 20px; right: 24px; z-index: 80; display: flex; flex-direction: column; gap: 12px; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
 .call-alerts > * { pointer-events: auto; }
@@ -712,10 +713,14 @@ textarea.ys-input { min-height: 110px; resize: vertical; padding-top: 10px; font
 .pane-welcome > * { position: relative; }
 .pane-welcome .ys-feature__deco { position: absolute; }
 .pane-welcome__body { position: relative; max-width: 460px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+/* Short windows (laptops): the welcome scrolls instead of cutting the shortcuts off at the bottom. */
+.pane-welcome { justify-content: safe center; }
+.pane-welcome__body { max-height: 100%; overflow-y: auto; scrollbar-width: none; padding-bottom: 4px; }
 .pane-welcome__body p { margin: 0; font-size: 15px; line-height: 23px; color: var(--ink-soft); }
 .pane-welcome__art { position: relative; z-index: 0; margin-bottom: -16px; }
 .pane-welcome__title { position: relative; z-index: 1; margin: 0; font: 800 30px/36px var(--font-display); letter-spacing: -0.02em; }
 @media (max-height: 760px) { .pane-welcome__art { width: 150px !important; margin-bottom: -40px; } }
+@media (max-height: 620px) { .pane-welcome__art { display: none; } }
 .shortcuts { display: grid; grid-template-columns: auto auto; gap: 8px 14px; margin-top: 14px; font-size: 13px; color: var(--ink-soft); text-align: left; }
 kbd { font: 700 12px var(--font-body); padding: 3px 8px; border-radius: 8px; background: var(--ground); border: 1px solid var(--line); box-shadow: 0 1px 0 var(--line); }
 
@@ -828,3 +833,14 @@ input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; a
 .manage__art { position: fixed; right: 36px; bottom: 28px; pointer-events: none; z-index: 0; }
 .community--manage > :not(.manage__art) { position: relative; z-index: 1; }
 @media (max-width: 1100px) { .call-detail__art, .manage__art { display: none; } }
+
+/* Profile photo crop step */
+.photo-crop { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.photo-crop__frame { position: relative; overflow: hidden; border-radius: 16px; background: var(--sunken); cursor: grab; touch-action: none; user-select: none; }
+.photo-crop__frame:active { cursor: grabbing; }
+.photo-crop__frame img { position: absolute; left: 50%; top: 50%; max-width: none; pointer-events: none; }
+.photo-crop__mask { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.photo-crop__shade { fill: rgba(0, 0, 0, .5); }
+.photo-crop__hole { fill: none; stroke: rgba(255, 255, 255, .9); stroke-width: 8; }
+.photo-crop__zoom { display: flex; align-items: center; gap: 12px; width: 280px; font-weight: 600; font-size: 14px; }
+.photo-crop__zoom input { flex: 1; }

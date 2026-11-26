@@ -332,6 +332,8 @@ export class YaysClient {
   // ---- Indexx account, wallet, BTCY, products ----
   indexx() { return this.request<IndexxLink>('GET', '/v1/indexx'); }
   signInIndexx(email: string, password: string) { return this.request<IndexxLink>('POST', '/v1/indexx/sign-in', { email, password }); }
+  /** Indexx accounts made with Google: a Google access token from Google's sign-in window. */
+  signInIndexxGoogle(googleToken: string) { return this.request<IndexxLink>('POST', '/v1/indexx/sign-in/google', { googleToken }); }
   unlinkIndexx() { return this.request<IndexxLink>('DELETE', '/v1/indexx/link'); }
   explore() { return this.request<ExploreView>('GET', '/v1/explore'); }
   /** One product's card, for refreshing it alone. */
@@ -405,6 +407,7 @@ export class YaysClient {
   reportCirclePost(id: string, reason: PostReportReason, block = false) { return this.request<void>('POST', `/v1/circle-posts/${c(id)}/report`, { reason, block }); }
   circleComments(postId: string) { return this.request<CircleComment[]>('GET', `/v1/circle-posts/${c(postId)}/comments`); }
   commentOnCirclePost(postId: string, text: string, parentId?: string) { return this.request<CircleComment>('POST', `/v1/circle-posts/${c(postId)}/comments`, { text, ...(parentId ? { parentId } : {}) }); }
+  editCircleComment(id: string, text: string) { return this.request<CircleComment>('PATCH', `/v1/circle-comments/${c(id)}`, { text }); }
   deleteCircleComment(id: string) { return this.request<void>('DELETE', `/v1/circle-comments/${c(id)}`); }
   markCircleAnswer(id: string, on: boolean) { return this.request<CircleComment>(on ? 'PUT' : 'DELETE', `/v1/circle-comments/${c(id)}/answer`); }
   circleReview(id: string) { return this.request<CircleReview>('GET', `/v1/circles/${c(id)}/review`); }
