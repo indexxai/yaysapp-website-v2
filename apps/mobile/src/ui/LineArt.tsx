@@ -26,6 +26,9 @@ export const ART_NAMES = Object.keys(ART) as ArtName[];
  * Defaults to the bottom right corner, partly off screen, like the designs. `place="center"` draws it big and faint
  * in the middle of the screen instead, for screens whose content leaves open space (forms, lists, info pages).
  */
+/** All background art is drawn this much of the opacity a screen asks for (0.7 = 30% fainter). */
+export const ART_STRENGTH = 0.7;
+
 export function LineArt({ name, height, opacity, ink, style, place = 'corner' }: { name: ArtName; height?: number; opacity?: number; ink?: string; style?: StyleProp<ImageStyle>; place?: 'corner' | 'center' }) {
   const t = useTheme();
   const a = ART[name];
@@ -34,7 +37,7 @@ export function LineArt({ name, height, opacity, ink, style, place = 'corner' }:
     return (
       <View pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }]} accessible={false} importantForAccessibility="no-hide-descendants">
         <Image source={a.src} resizeMode="contain"
-          style={[{ height: h, width: h * a.ratio, maxWidth: '96%', opacity: opacity ?? (t.scheme === 'dark' ? 0.12 : 0.09), tintColor: ink ?? t.ember }, style]} />
+          style={[{ height: h, width: h * a.ratio, maxWidth: '96%', opacity: (opacity ?? (t.scheme === 'dark' ? 0.12 : 0.09)) * ART_STRENGTH, tintColor: ink ?? t.ember }, style]} />
       </View>
     );
   }
@@ -42,7 +45,7 @@ export function LineArt({ name, height, opacity, ink, style, place = 'corner' }:
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill} accessible={false} importantForAccessibility="no-hide-descendants">
       <Image source={a.src} resizeMode="contain"
-        style={[{ position: 'absolute', right: -30, bottom: 90, height: h, width: h * a.ratio, opacity: opacity ?? 0.2, tintColor: ink ?? t.ember }, style]} />
+        style={[{ position: 'absolute', right: -30, bottom: 90, height: h, width: h * a.ratio, opacity: (opacity ?? 0.2) * ART_STRENGTH, tintColor: ink ?? t.ember }, style]} />
     </View>
   );
 }

@@ -283,7 +283,7 @@ a.p2-product:hover { transform: translateY(-2px); }
 .lp-hero__art { position: relative; flex: 1 1 380px; display: grid; place-items: center; height: 460px; }
 .lp-hero__art .ys-oval { position: absolute; width: min(420px, 90vw); }
 .lp-hero__art .ys-lineart { position: relative; }
-.lp-hero__bg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: auto; height: 580px; max-width: none; opacity: .35; pointer-events: none; }
+.lp-hero__bg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: auto; height: 580px; max-width: none; pointer-events: none; }
 .lp-hero__img { position: relative; width: auto; height: 460px; max-width: 100%; object-fit: contain; filter: drop-shadow(0 18px 30px rgba(0,0,0,.12)); }
 @media (max-width: 560px) { .lp-hero__art { height: 380px; } .lp-hero__img { height: 360px; } .lp-hero__bg { height: 460px; } }
 .lp-stores { display: flex; flex-wrap: wrap; gap: 12px; }
@@ -426,3 +426,16 @@ button.p2-ai__searched:hover { color: var(--ember-ink); text-decoration: underli
 .p2-meter { display: block; height: 6px; border-radius: 6px; background: var(--surface); overflow: hidden; max-width: 260px; }
 .p2-meter > span { display: block; height: 100%; border-radius: 6px; background: var(--ember); }
 .p2-ixsign p a { color: var(--ink); font-weight: 700; }
+
+/* The earn section: the hero's doodles behind the example account on the right. */
+.lp-earn__bg { position: absolute; z-index: 0; left: 70%; top: 55%; transform: translate(-50%, -50%); width: auto; height: 560px; max-width: none; pointer-events: none; }
+@media (max-width: 900px) { .lp-earn__bg { left: 50%; top: auto; bottom: 0; transform: translateX(-50%); height: 460px; } }
+
+/* The hero doodles (hero and earn sections): 0.2 in light mode, 0.1 in dark mode. */
+.lp-hero__bg, .lp-earn__bg { opacity: .2; }
+[data-theme="dark"] .lp-hero__bg, [data-theme="dark"] .lp-earn__bg { opacity: .1; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lp-hero__bg, :root:not([data-theme="light"]) .lp-earn__bg { opacity: .1; } }
+
+/* Centre drawings: large in the middle of their section; sections clip them so nothing scrolls sideways. */
+.lp-section { overflow-x: clip; }
+@media (max-width: 700px) { .lp-art--mid { height: 340px !important; width: auto !important; } }

@@ -23,7 +23,7 @@ export function WelcomeScreen({ onStart }: { onStart: () => void }) {
       </View>
 
       <View style={styles.stage} accessible={false}>
-        <Image source={DOODLES} style={[styles.doodles, { tintColor: t.ember, opacity: t.scheme === 'dark' ? 0.22 : 0.16 }]} resizeMode="contain" />
+        <Image source={DOODLES} style={[styles.doodles, { tintColor: t.ember, opacity: t.scheme === 'dark' ? 0.1 : 0.2 }]} resizeMode="contain" />
         {/* A soft oval behind the cards, so the art sits on the page instead of floating. */}
         <Oval width={320} fill={t.scheme === 'dark' ? 'rgba(232,105,44,0.14)' : t['ember-wash']} style={styles.oval} />
         <Image source={ART} style={styles.art} resizeMode="contain" testID="welcome-art"

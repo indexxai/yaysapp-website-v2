@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import App from '../App';
 import { resetApiForTests } from '../src/lib/api';
 import { config } from '../src/lib/config';
-import { API } from './helpers';
+import { API, codeFor, freshEmail, freshPhone, local } from './helpers';
 import { call, say, user, type U } from './people';
 
 // Links that open the app (invites, circles, posts, invite codes), handled against the real API.
@@ -70,5 +70,32 @@ describe('Links that open the app, against the real API', () => {
     const code = (await call('/v1/rewards/referrals', undefined, as(hana))).code as string;
     tap(`${config.webUrl}/?ref=${code}`);
     await waitFor(async () => expect((await call('/v1/rewards/referrals', undefined, as(hana))).invited).toBe(1), T);
+  });
+
+  it('an invite link opens the app for someone new: they sign up and the invite counts', async () => {
+    const hana = await user('Hana');
+    const code = (await call('/v1/rewards/referrals', undefined, as(hana))).code as string;
+    // The app is opened by the invite link (the same link the Invite screen and the website share).
+    (Linking.getInitialURL as jest.Mock).mockResolvedValue(`${config.webUrl}/sign-in?ref=${code}`);
+    (globalThis as { YAYS_API_URL?: string }).YAYS_API_URL = API;
+    resetApiForTests();
+    render(<App />);
+    const phone = freshPhone(), email = freshEmail('invited');
+    fireEvent.press(await screen.findByLabelText('Get started', {}, T));
+    fireEvent.changeText(await screen.findByLabelText('Phone number'), local(phone));
+    fireEvent.press(screen.getByLabelText('Send code'));
+    await screen.findByText('Enter the code', {}, T);
+    fireEvent.changeText(screen.getByLabelText('6-digit code'), await codeFor(phone));
+    await screen.findByText('Add your email', {}, T);
+    fireEvent.changeText(screen.getByLabelText('Email'), email);
+    fireEvent.press(screen.getByLabelText('Send code'));
+    await screen.findByText('Check your email', {}, T);
+    fireEvent.changeText(screen.getByLabelText('6-digit code'), await codeFor(email));
+    await screen.findByText('Set up your profile', {}, T);
+    fireEvent.changeText(screen.getByLabelText('Your name'), 'Bilal Khan');
+    fireEvent.press(screen.getByLabelText('Continue'));
+    expect(await screen.findByText('Welcome, Bilal Khan', {}, T)).toBeTruthy();
+    await waitFor(async () => expect((await call('/v1/rewards/referrals', undefined, as(hana))).invited).toBe(1), T);
+    expect(await AsyncStorage.getItem('yays.ref')).toBeNull();
   });
 });

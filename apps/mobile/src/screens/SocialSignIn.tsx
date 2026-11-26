@@ -22,6 +22,8 @@ type Done = (r: AuthResult) => void;
 /** Google is set up when the app has the Google client ids; in development builds without them, a stand-in asks for an email. */
 /** Off: the sign-in screen shows no Google button. */
 export const GOOGLE_SIGN_IN_ON = false;
+// Facebook sign-in stays on Android only: on iPhone, App Store rule 4.8 would also require Sign in with Apple.
+export const facebookSignInOn = () => Platform.OS !== 'ios';
 const googleReady = () => !!config.google.webClientId;
 let configured = false;
 async function googleIdToken(): Promise<string | null> {
@@ -107,11 +109,11 @@ export function SocialSignIn({ onDone, onEmail }: { onDone: Done; onEmail?: () =
       </View>
       {error ? <Banner>{error}</Banner> : null}
       <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start', gap: 28 }}>
-        <OvalButton icon="facebook" label="Facebook" size="lg" loading={busy === 'facebook'} disabled={!!busy} onPress={facebook} />
+        {facebookSignInOn() ? <OvalButton icon="facebook" label="Facebook" size="lg" loading={busy === 'facebook'} disabled={!!busy} onPress={facebook} /> : null}
         {showGoogle ? <OvalButton icon="google" label="Google" size="lg" loading={busy === 'google'} disabled={!!busy} onPress={google} /> : null}
         {onEmail ? <OvalButton icon="mail" label="Email" size="lg" disabled={!!busy} onPress={onEmail} /> : null}
       </View>
-      <Text style={{ fontSize: 12, lineHeight: 17, color: t['ink-soft'], textAlign: 'center' }}>Facebook works once you’ve linked it in Me › Social accounts. New here? Start with your phone number.</Text>
+      {facebookSignInOn() ? <Text style={{ fontSize: 12, lineHeight: 17, color: t['ink-soft'], textAlign: 'center' }}>Facebook works once you’ve linked it in Me › Social accounts. New here? Start with your phone number.</Text> : null}
       {devGoogle ? <DevGoogle onClose={() => setDevGoogle(false)} onToken={(tok) => { setDevGoogle(false); void run('google', async () => finish(await (await api()).google(tok))); }} /> : null}
       {notLinked !== null ? <NotLinked name={notLinked} onClose={(to) => { setNotLinked(null); if (to === 'email') onEmail?.(); }} /> : null}
     </>

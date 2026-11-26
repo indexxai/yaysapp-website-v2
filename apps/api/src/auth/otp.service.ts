@@ -31,9 +31,12 @@ export class OtpService {
     await this.limiter.hit(`otp:t:${t.value}`, 5, 3600, 'Too many codes for this address in the last hour. Try again later.');
     await this.limiter.hit(`otp:ip:${ip}`, this.c.OTP_IP_PER_HOUR, 3600);
     const managed = t.kind === 'phone' && this.phone.managesCodes;
-    const code = managed ? undefined : String(randomInt(0, 1_000_000)).padStart(6, '0');
+    // App review account: a fixed code, nothing sent (REVIEW_EMAIL + REVIEW_CODE).
+    const review = p === 'email_login' && t.kind === 'email' && !!this.c.REVIEW_EMAIL && !!this.c.REVIEW_CODE && t.value.toLowerCase() === this.c.REVIEW_EMAIL;
+    const code = review ? this.c.REVIEW_CODE : managed ? undefined : String(randomInt(0, 1_000_000)).padStart(6, '0');
     // Send first: a failed send must not burn the cooldown or replace a code the person already has.
-    if (t.kind === 'phone') await this.phone.send(t.value, t.channel, code);
+    if (review) { /* nothing to send */ }
+    else if (t.kind === 'phone') await this.phone.send(t.value, t.channel, code);
     else await this.email.send(t.value, `${code} is your YaysApp code`, `Your YaysApp code is ${code}. It expires in ${Math.round(this.c.OTP_TTL_SECONDS / 60)} minutes. If you didn't ask for it, ignore this email.`, code!);
     const ttl = this.c.OTP_TTL_SECONDS;
     const tx = this.redis.multi()

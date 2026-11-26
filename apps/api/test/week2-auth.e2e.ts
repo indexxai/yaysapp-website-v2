@@ -477,3 +477,24 @@ describe('Week 2 · adding a phone and matching contacts', () => {
     expect((await t.http.post('/v1/contacts/match').set(bearer(a)).send({ phones: [] })).status).toBe(429);
   });
 });
+
+describe('App review sign-in (REVIEW_EMAIL + REVIEW_CODE)', () => {
+  let t: TestApp;
+  beforeAll(async () => { t = await startApp({ REVIEW_EMAIL: 'AppReview@Example.com', REVIEW_CODE: '246810' }); });
+  afterAll(async () => { await t.close(); });
+
+  it('signs the review email in with the fixed code and sends nothing', async () => {
+    await t.http.post('/v1/auth/email/start').send({ email: 'appreview@example.com' }).expect(200);
+    expect((await t.http.get('/v1/_test/outbox').query({ to: 'appreview@example.com' })).status).not.toBe(200);
+    const r = await t.http.post('/v1/auth/email/verify').send({ email: 'appreview@example.com', code: '246810', device: device() }).expect(200);
+    expect(r.body.tokens.accessToken).toBeTruthy();
+  });
+
+  it('leaves every other email on normal codes', async () => {
+    await t.http.post('/v1/auth/email/start').send({ email: 'someone@example.com' }).expect(200);
+    const code = await lastCode(t, 'someone@example.com');
+    expect(code).not.toBe('246810');
+    const bad = await t.http.post('/v1/auth/email/verify').send({ email: 'someone@example.com', code: code === '246810' ? '000000' : '246810', device: device() });
+    expect(bad.status).toBe(400);
+  });
+});

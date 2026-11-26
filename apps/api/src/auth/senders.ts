@@ -32,10 +32,14 @@ export class DevPhoneSender implements PhoneSender {
   }
 }
 
-/** Turns a Twilio error into a message people can act on. */
-function twilioFail(e: unknown): never {
+/**
+ * Logs why Twilio refused (as twilioCode: the logger hides fields named "code") and turns it into a message
+ * people can act on.
+ */
+function twilioFail(e: unknown, log?: Logger, what = 'Twilio send failed'): never {
   const status = (e as { status?: number }).status;
   const code = (e as { code?: number }).code;
+  log?.error({ twilio: { twilioCode: code, status, message: (e as { message?: string }).message, moreInfo: (e as { moreInfo?: string }).moreInfo } }, what);
   if (code === 60200 || code === 21211 || code === 21614 || code === 21408 || code === 21612) throw AppError.validation('That number can\'t receive codes. Check it and try again.');
   if (code === 60203 || status === 429) throw AppError.rateLimited(600, 'Too many codes sent to this number. Try again in 10 minutes.');
   throw new AppError(503, ErrorCode.PROVIDER_UNAVAILABLE, "We couldn't send the code right now. Try again in a minute.");
@@ -54,19 +58,15 @@ export class TwilioSmsSender implements PhoneSender {
     try {
       const m = await this.client.messages.create({ to: phone, messagingServiceSid: this.messagingServiceSid, body: `${code} is your YaysApp verification code. It expires in 10 minutes. Don't share it with anyone.` });
       this.log.info({ sid: m.sid }, 'sms code sent');
-    } catch (e) {
-      const err = e as { code?: number; status?: number; message?: string };
-      this.log.error({ err: { code: err.code, status: err.status, message: err.message } }, 'Twilio SMS send failed');
-      twilioFail(e);
-    }
+    } catch (e) { twilioFail(e, this.log, 'Twilio SMS send failed'); }
   }
 }
 
 export class TwilioPhoneSender implements PhoneSender {
   readonly managesCodes = true;
   private client: twilio.Twilio;
-  constructor(sid: string, token: string, private readonly serviceSid: string) { this.client = twilio(sid, token); }
-  private fail(e: unknown): never { twilioFail(e); }
+  constructor(sid: string, token: string, private readonly serviceSid: string, private readonly log?: Logger) { this.client = twilio(sid, token); }
+  private fail(e: unknown): never { twilioFail(e, this.log, 'Twilio Verify failed'); }
   async send(phone: string, channel: 'sms' | 'whatsapp') {
     try { await this.client.verify.v2.services(this.serviceSid).verifications.create({ to: phone, channel }); } catch (e) { this.fail(e); }
   }
@@ -110,10 +110,11 @@ export const OUTBOX = Symbol('OUTBOX');
 
 export function createSenders(c: Config, redis: Redis, log: Logger) {
   const outbox = new Outbox(redis);
-  const phone: PhoneSender = c.SMS_DRIVER === 'twilio' ? new TwilioPhoneSender(c.TWILIO_ACCOUNT_SID!, c.TWILIO_AUTH_TOKEN!, c.TWILIO_VERIFY_SID!)
+  const phone: PhoneSender = c.SMS_DRIVER === 'twilio' ? new TwilioPhoneSender(c.TWILIO_ACCOUNT_SID!, c.TWILIO_AUTH_TOKEN!, c.TWILIO_VERIFY_SID!, log)
     : c.SMS_DRIVER === 'twilio_sms' ? new TwilioSmsSender(c.TWILIO_ACCOUNT_SID!, c.TWILIO_AUTH_TOKEN!, c.TWILIO_MESSAGING_SERVICE_SID!, log)
     : new DevPhoneSender(outbox, log);
   const sesKeys = c.SES_ACCESS_KEY_ID && c.SES_SECRET_ACCESS_KEY ? { accessKeyId: c.SES_ACCESS_KEY_ID, secretAccessKey: c.SES_SECRET_ACCESS_KEY } : undefined;
   const email: EmailSender = c.EMAIL_DRIVER === 'ses' ? new SesEmailSender(c.SES_REGION!, c.SES_FROM!, log, sesKeys) : new DevEmailSender(outbox);
+  log.info({ sms: c.SMS_DRIVER, email: c.EMAIL_DRIVER }, 'sign-in code senders');
   return { outbox, phone, email };
 }

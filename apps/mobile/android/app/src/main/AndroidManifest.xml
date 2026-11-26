@@ -56,6 +56,7 @@
             <data android:pathPrefix="/join/" />
             <data android:pathPrefix="/c/" />
             <data android:pathPrefix="/circles" />
+            <data android:path="/sign-in" />
         </intent-filter>
       </activity>
     </application>
