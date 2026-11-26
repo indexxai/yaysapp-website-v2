@@ -1,5 +1,5 @@
 import React, { type ReactNode } from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ApiError, CIRCLE_CATEGORY_LABEL, type CircleAuthor, type CircleCard, type CircleEventMini, type CircleView, type SchemeMatch } from '@yays/shared';
 import { font, useTheme, type Theme } from '../lib/theme';
@@ -141,6 +141,8 @@ export function Sheet({ title, lead, onClose, children, testID }: { title: strin
   const t = useTheme();
   return (
     <Modal transparent visible animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+      {/* The sheet rides up with the keyboard, so the field being typed in stays visible (PIN, social links). */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Pressable accessibilityLabel="Close" style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }} onPress={onClose} />
       <SafeAreaView edges={['bottom']} style={{ backgroundColor: t.ground, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '88%' }} testID={testID}>
         <ScrollView contentContainerStyle={{ padding: 20, gap: 14 }} keyboardShouldPersistTaps="handled">
@@ -149,6 +151,7 @@ export function Sheet({ title, lead, onClose, children, testID }: { title: strin
           {children}
         </ScrollView>
       </SafeAreaView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

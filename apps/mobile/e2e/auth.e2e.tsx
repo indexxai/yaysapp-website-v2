@@ -5,6 +5,7 @@ import * as Keychain from 'react-native-keychain';
 import App from '../App';
 import { resetApiForTests } from '../src/lib/api';
 import { API, codeFor, freshEmail, freshPhone, local, seedLegacy } from './helpers';
+import { call } from './people';
 
 const store = (Keychain as unknown as { __store: Map<string, string> }).__store;
 beforeEach(() => { store.clear(); resetApiForTests(); });
@@ -117,5 +118,46 @@ describe('Week 2 · mobile sign-in against the real API', () => {
     store.set('yays.tokens', JSON.stringify({ accessToken: 'x.y.z', refreshToken: 'deadbeefdeadbeefdeadbeefdeadbeef.secret-that-is-gone', accessExpiresAt: '', sessionId: 'deadbeefdeadbeefdeadbeefdeadbeef' }));
     render(<App />);
     expect(await screen.findByText('Chat. Earn. Together.')).toBeTruthy();
+  });
+});
+
+describe('Two-step verification on mobile (QA #13)', () => {
+  async function pinUser(name: string, pin: string) {
+    const phone = freshPhone(), email = freshEmail(name.toLowerCase());
+    const dev = { deviceId: `m-${phone.slice(-7)}-pin`, platform: 'android', name: 'Setup phone' };
+    await call('/v1/auth/phone/start', { phone });
+    const v = await call('/v1/auth/phone/verify', { phone, code: await codeFor(phone), device: dev });
+    await call('/v1/auth/signup/email/start', { signupToken: v.signupToken, email });
+    const r = await call('/v1/auth/signup/email/verify', { signupToken: v.signupToken, email, code: await codeFor(email), device: dev });
+    await call('/v1/me', { displayName: name }, r.tokens.accessToken, 'PATCH');
+    await call('/v1/me/two-step', { pin }, r.tokens.accessToken, 'PUT');
+    return { phone, email };
+  }
+
+  it('after the code it asks for the PIN; a wrong PIN says so, the right one signs in', async () => {
+    const { phone } = await pinUser('Imaan', '482913');
+    render(<App />);
+    await startPhone(phone);
+    fireEvent.changeText(screen.getByLabelText('6-digit code'), await codeFor(phone));
+    expect(await screen.findByText('Enter your PIN')).toBeTruthy();
+    expect(screen.queryByText(/Sign in on YaysApp Web/)).toBeNull();
+    fireEvent.changeText(screen.getByLabelText('6-digit PIN'), '111111');
+    expect(await screen.findByText(/^Wrong PIN\. \d tries left\.$/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByLabelText('6-digit PIN').props.value).toBe(''));
+    fireEvent.changeText(screen.getByLabelText('6-digit PIN'), '482913');
+    expect(await screen.findByText('Welcome, Imaan')).toBeTruthy();
+  });
+
+  it('Forgot PIN: a code to the other address turns two-step off and signs in', async () => {
+    const { phone, email } = await pinUser('Rida', '135790');
+    render(<App />);
+    await startPhone(phone);
+    fireEvent.changeText(screen.getByLabelText('6-digit code'), await codeFor(phone));
+    await screen.findByText('Enter your PIN');
+    fireEvent.press(screen.getByLabelText('Forgot PIN?'));
+    expect(await screen.findByText('Reset your PIN')).toBeTruthy();
+    expect(screen.getByText(/turns off two-step verification/)).toBeTruthy();
+    fireEvent.changeText(screen.getByLabelText('6-digit code'), await codeFor(email));
+    expect(await screen.findByText('Welcome, Rida')).toBeTruthy();
   });
 });

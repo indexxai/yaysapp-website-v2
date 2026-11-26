@@ -68,13 +68,13 @@ export async function facebookReturn(url: string, path = 'auth/facebook'): Promi
 }
 const param = (url: string, k: string) => { const m = new RegExp(`[?&]${k}=([^&#]*)`).exec(url); return m ? decodeURIComponent(m[1]!.replace(/\+/g, ' ')) : null; };
 
-export function SocialSignIn({ onDone, onEmail }: { onDone: Done; onEmail?: () => void }) {
+export function SocialSignIn({ onDone, onEmail, onPin }: { onDone: Done; onEmail?: () => void; /** Two-step verification: the PIN step takes over. */ onPin?: (pinToken: string) => void }) {
   const t = useTheme();
   const [busy, setBusy] = useState<'google' | 'facebook' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [devGoogle, setDevGoogle] = useState(false);
   const [notLinked, setNotLinked] = useState<string | null>(null);
-  const finish = (r: SignInResult) => { if (needsPin(r)) throw new Error('This account has two-step verification. Sign in on YaysApp Web for now.'); onDone(r); };
+  const finish = (r: SignInResult) => { if (needsPin(r)) { if (!onPin) throw new Error('This account has two-step verification. Enter your PIN after signing in with your phone or email.'); onPin(r.pinToken); return; } onDone(r); };
   const run = async (which: 'google' | 'facebook', fn: () => Promise<void>) => {
     setBusy(which); setError(null);
     try { await fn(); } catch (e) { setError(msg(e, 'That did not work. Try again.')); } finally { setBusy(null); }

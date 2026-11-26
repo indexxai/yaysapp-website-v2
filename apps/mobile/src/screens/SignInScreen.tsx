@@ -11,7 +11,8 @@ import { SocialSignIn } from './SocialSignIn';
 type Step =
   | { s: 'phone' } | { s: 'phone-code'; phone: string; sent: CodeSent }
   | { s: 'signup-email'; phone: string; signupToken: string } | { s: 'signup-code'; phone: string; signupToken: string; email: string; sent: CodeSent }
-  | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent };
+  | { s: 'email' } | { s: 'email-code'; email: string; sent: CodeSent }
+  | { s: 'pin'; pinToken: string } | { s: 'pin-reset'; pinToken: string; sent: CodeSent };
 
 const msg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : 'Something went wrong. Try again.');
 
@@ -37,6 +38,8 @@ export function SignInScreen({ onDone }: { onDone: (r: AuthResult) => void }) {
     } finally { setBusy(false); }
   };
   const sent = (s: CodeSent) => setResendAt(Date.now() + s.resendInSeconds * 1000);
+  // Two-step verification: after the code, the account's PIN.
+  const finish = (r: SignInResult) => { if (needsPin(r)) { setResendAt(0); setStep({ s: 'pin', pinToken: r.pinToken }); return; } onDone(r as AuthResult); };
 
   if (step.s === 'phone' || step.s === 'email') {
     return (
@@ -53,7 +56,7 @@ export function SignInScreen({ onDone }: { onDone: (r: AuthResult) => void }) {
         {step.s === 'phone'
           ? <PhoneForm busy={busy} onSubmit={(phone) => run(async () => { const r = await (await api()).startPhone(phone); sent(r); setStep({ s: 'phone-code', phone, sent: r }); })} />
           : <EmailForm busy={busy} onSubmit={(email) => run(async () => { const r = await (await api()).startEmail(email); sent(r); setStep({ s: 'email-code', email, sent: r }); })} />}
-        <SocialSignIn onDone={onDone} onEmail={step.s === 'phone' ? () => { setError(null); setStep({ s: 'email' }); } : undefined} />
+        <SocialSignIn onDone={onDone} onPin={(pinToken) => { setError(null); setStep({ s: 'pin', pinToken }); }} onEmail={step.s === 'phone' ? () => { setError(null); setStep({ s: 'email' }); } : undefined} />
       </Screen>
     );
   }
@@ -63,6 +66,24 @@ export function SignInScreen({ onDone }: { onDone: (r: AuthResult) => void }) {
         {error ? <Banner>{error}</Banner> : null}
         <EmailForm busy={busy} onSubmit={(email) => run(async () => { const r = await (await api()).startSignupEmail(step.signupToken, email); sent(r); setStep({ ...step, s: 'signup-code', email, sent: r }); })} />
       </Screen>
+    );
+  }
+  if (step.s === 'pin') {
+    const pinToken = step.pinToken;
+    return (
+      <PinStep busy={busy} error={error}
+        onSubmit={(pin) => run(async () => onDone(await (await api()).signInWithPin(pinToken, pin)))}
+        onForgot={() => run(async () => { const r = await (await api()).forgotPin(pinToken); sent(r); setStep({ s: 'pin-reset', pinToken, sent: r }); })} />
+    );
+  }
+  if (step.s === 'pin-reset') {
+    const reset = step;
+    return (
+      <CodeStep key="pin-reset" title="Reset your PIN" sentTo={reset.sent.sentTo} busy={busy} error={error} left={left}
+        note="Entering it turns off two-step verification so you can sign in. You can set a new PIN in Me › Profile and account."
+        backLabel="I remember my PIN" onBack={() => { setError(null); setStep({ s: 'pin', pinToken: reset.pinToken }); }}
+        onResend={() => run(async () => sent(await (await api()).forgotPin(reset.pinToken)))}
+        onSubmit={(value) => run(async () => onDone(await (await api()).resetPin(reset.pinToken, value)))} />
     );
   }
   const code = step;
@@ -76,8 +97,6 @@ export function SignInScreen({ onDone }: { onDone: (r: AuthResult) => void }) {
       })}
       onSubmit={(value) => run(async () => {
         const c = await api();
-        // The PIN screen for two-step verification arrives with the mobile settings work.
-        const finish = (r: SignInResult) => { if (needsPin(r)) throw new Error('This account has two-step verification. Sign in on YaysApp Web for now.'); onDone(r); };
         if (code.s === 'phone-code') {
           const r = await c.verifyPhone(code.phone, value);
           if (r.status === 'signed_in' || r.status === 'pin_required') return finish(r);
@@ -115,9 +134,10 @@ function EmailForm({ busy, onSubmit }: { busy: boolean; onSubmit: (e: string) =>
   );
 }
 
-function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack, backLabel }: {
-  title: string; sentTo: string; busy: boolean; error: string | null; left: number; onSubmit: (c: string) => void; onResend: () => void; onBack: () => void; backLabel: string;
+function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack, backLabel, note }: {
+  title: string; sentTo: string; busy: boolean; error: string | null; left: number; onSubmit: (c: string) => void; onResend: () => void; onBack: () => void; backLabel: string; note?: string;
 }) {
+  const t = useTheme();
   const [code, setCode] = useState('');
   const last = useRef('');
   useEffect(() => { if (code.length === 6 && last.current !== code && !busy) { last.current = code; onSubmit(code); } }, [code, busy, onSubmit]);
@@ -125,6 +145,7 @@ function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack
   return (
     <Screen art="lantern" title={title} lead={<>We sent a 6-digit code to <Text style={{ fontWeight: '700' }}>{sentTo}</Text>.</>}>
       {error ? <Banner>{error}</Banner> : null}
+      {note ? <Text style={{ fontSize: 14, lineHeight: 20, color: t['ink-soft'] }}>{note}</Text> : null}
       <Field label="6-digit code" value={code} onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad"
         textContentType="oneTimeCode" autoComplete="sms-otp" maxLength={6} editable={!busy} autoFocus />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -132,6 +153,23 @@ function CodeStep({ title, sentTo, busy, error, left, onSubmit, onResend, onBack
         <TextLink label={left > 0 ? `Resend in ${left}s` : 'Resend code'} onPress={onResend} disabled={left > 0 || busy} />
       </View>
       <View style={{ alignItems: 'center' }}><OvalButton icon="check" label="Verify" size="lg" loading={busy} disabled={code.length !== 6} onPress={() => { last.current = code; onSubmit(code); }} /></View>
+    </Screen>
+  );
+}
+
+/** Two-step verification: the 6-digit PIN after the code. */
+function PinStep({ busy, error, onSubmit, onForgot }: { busy: boolean; error: string | null; onSubmit: (pin: string) => void; onForgot: () => void }) {
+  const [pin, setPin] = useState('');
+  const last = useRef('');
+  useEffect(() => { if (pin.length === 6 && last.current !== pin && !busy) { last.current = pin; onSubmit(pin); } }, [pin, busy, onSubmit]);
+  useEffect(() => { if (error) { setPin(''); last.current = ''; } }, [error]);
+  return (
+    <Screen art="lantern" title="Enter your PIN" lead="This account has two-step verification. Enter the 6-digit PIN you chose.">
+      {error ? <Banner>{error}</Banner> : null}
+      <Field label="PIN" value={pin} onChangeText={(v) => setPin(v.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" secureTextEntry
+        maxLength={6} editable={!busy} autoFocus accessibilityLabel="6-digit PIN" testID="pin-input" />
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}><TextLink label="Forgot PIN?" onPress={onForgot} disabled={busy} /></View>
+      <View style={{ alignItems: 'center' }}><OvalButton icon="check" label="Continue" size="lg" loading={busy} disabled={pin.length !== 6} onPress={() => { last.current = pin; onSubmit(pin); }} /></View>
     </Screen>
   );
 }
