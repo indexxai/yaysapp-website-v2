@@ -28,8 +28,8 @@ import type { ChatPrefDoc, ConversationDoc } from '../chat/chat.service';
 export interface PushSubDoc { _id: string; userId: ObjectId; sid: string; endpoint: string; keys?: { p256dh: string; auth: string }; kind?: 'web' | 'fcm' | 'apns' | 'voip'; sandbox?: boolean; createdAt: Date; lastOkAt?: Date; userAgent?: string }
 
 export type PushPayload =
-  | { type: 'message'; conversationId: string; messageId: string; title: string; body: string; tag: string; url: string }
-  | { type: 'read'; conversationId: string; tag: string }
+  | { type: 'message'; conversationId: string; messageId: string; title: string; body: string; tag: string; url: string; badge?: number }
+  | { type: 'read'; conversationId: string; tag: string; badge?: number }
   | { type: 'call'; callId: string; title: string; body: string; tag: string; url: string; media?: 'voice' | 'video'; caller?: string }
   | { type: 'call_end'; callId: string; tag: string };
 
@@ -79,6 +79,8 @@ export class PushService {
   readonly subs: Collection<PushSubDoc>;
   readonly prefs: Collection<ChatPrefDoc>;
   private readonly users: Collection<UserDoc>;
+  private readonly convs: Collection<{ _id: ObjectId; seq: number; members: ObjectId[]; lastAt: Date }>;
+  private readonly receipts: Collection<{ _id: string; convId: ObjectId; userId: ObjectId; readSeq: number; fromSeq?: number }>;
   private readonly sender: Sender;
   readonly publicKey: string;
   /** webpush: the server delivers notifications itself; dev: it only records them, so an open tab shows its own. */
@@ -91,6 +93,8 @@ export class PushService {
     this.subs = db.collection(C.pushSubs);
     this.prefs = db.collection(C.chatPrefs);
     this.users = db.collection(C.users);
+    this.convs = db.collection(C.conversations);
+    this.receipts = db.collection(C.receipts);
     let pub = c.VAPID_PUBLIC_KEY, priv = c.VAPID_PRIVATE_KEY;
     if (!pub || !priv) { const k = keys ?? webpush.generateVAPIDKeys(); pub = k.publicKey; priv = k.privateKey; } // dev only (config refuses this in production)
     this.publicKey = pub;
@@ -185,15 +189,27 @@ export class PushService {
         body: n && !n.preview && m.type !== 'system' ? (c.kind === 'group' ? `${sender.split(' ')[0]} sent a message` : 'New message')
           : c.kind === 'group' && m.type !== 'system' ? `${sender.split(' ')[0]}: ${preview}` : preview,
       };
-      await Promise.all(list.map((s) => this.deliver(s, payload)));
+      // iPhones show the number of chats with unread messages on the app icon.
+      const badge = list.some((s) => s.kind === 'apns') ? await this.unreadChats(new ObjectId(uid)) : undefined;
+      await Promise.all(list.map((s) => this.deliver(s, s.kind === 'apns' ? { ...payload, badge } : payload)));
     }
+  }
+
+  /** How many of my chats have messages I haven't read (for the iPhone app icon's badge). */
+  async unreadChats(userId: ObjectId) {
+    const convs = await this.convs.find({ members: userId }, { projection: { seq: 1 } }).sort({ lastAt: -1 }).limit(500).toArray();
+    if (!convs.length) return 0;
+    const reads = new Map((await this.receipts.find({ userId, convId: { $in: convs.map((c) => c._id) } }, { projection: { convId: 1, readSeq: 1, fromSeq: 1 } }).toArray())
+      .map((r) => [r.convId.toHexString(), Math.max(r.readSeq ?? 0, r.fromSeq ?? 0)]));
+    return convs.filter((c) => (c.seq ?? 0) > (reads.get(c._id.toHexString()) ?? 0)).length;
   }
 
   /** After I read a chat on one device, clear its notification on the others. */
   read(userId: ObjectId, conversationId: string) {
     void (async () => {
       const subs = await this.subs.find({ userId }).toArray();
-      await Promise.all(subs.map((s) => this.deliver(s, { type: 'read', conversationId, tag: `c:${conversationId}` })));
+      const badge = subs.some((s) => s.kind === 'apns') ? await this.unreadChats(userId) : undefined;
+      await Promise.all(subs.map((s) => this.deliver(s, { type: 'read', conversationId, tag: `c:${conversationId}`, ...(s.kind === 'apns' ? { badge } : {}) })));
     })().catch((e) => this.log.warn({ err: e }, 'push read failed'));
   }
 

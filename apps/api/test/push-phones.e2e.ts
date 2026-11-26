@@ -110,7 +110,8 @@ describe('Phone notifications: delivery to Firebase and Apple', () => {
     const a = apnsSent[0]!;
     expect(a.path).toBe(`/3/device/${APNS_TOKEN}`);
     expect(a.headers).toMatchObject({ 'apns-topic': 'com.indexx.yaysapp', 'apns-push-type': 'alert', 'apns-priority': '10', 'apns-collapse-id': `c:${c.id}` });
-    expect(a.body).toMatchObject({ aps: { alert: { title: 'Sara', body: 'Running 10 minutes late' }, sound: 'default', 'thread-id': c.id }, type: 'message', conversationId: c.id });
+    // The app icon's badge: one chat with unread messages (QA #20).
+    expect(a.body).toMatchObject({ aps: { alert: { title: 'Sara', body: 'Running 10 minutes late' }, sound: 'default', 'thread-id': c.id, badge: 1 }, type: 'message', conversationId: c.id });
     // Apple's token: ES256 from the team, with the key's id.
     const jwt = String(a.headers.authorization).replace(/^bearer /, '');
     expect(decodeProtectedHeader(jwt)).toMatchObject({ alg: 'ES256', kid: 'KEY1234567' });
@@ -123,7 +124,8 @@ describe('Phone notifications: delivery to Firebase and Apple', () => {
     expect(fcmSent[0]!.message).toMatchObject({ data: { type: 'read', conversationId: c.id }, android: { priority: 'normal' } });
     expect(fcmSent[0]!.message.notification).toBeUndefined();
     expect(apnsSent[0]!.headers).toMatchObject({ 'apns-push-type': 'background', 'apns-priority': '5' });
-    expect(apnsSent[0]!.body).toMatchObject({ aps: { 'content-available': 1 } });
+    expect(apnsSent[0]!.body).toMatchObject({ aps: { 'content-available': 1, badge: 0 } });
+    expect((fcmSent[0]!.message as { data: Record<string, string> }).data.badge).toBeUndefined();
     // One Google token for all of it.
     expect(tokenAsks).toBe(1);
   });
