@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert } from 'react-native';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import * as Keychain from 'react-native-keychain';
 import App from '../App';
 import { resetApiForTests } from '../src/lib/api';
@@ -97,6 +97,40 @@ describe('Week 2 · mobile sign-in against the real API', () => {
     expect(await screen.findByText('Chrome on Mac was logged out.')).toBeTruthy();
     const after = await fetch(`${API}/v1/me`, { headers: { authorization: `Bearer ${web.tokens.accessToken}` } });
     expect(after.status).toBe(401);
+  });
+
+  it('Link a device (QA #01): scan the QR code on the computer, or type its code; the browser is signed in', async () => {
+    const cam = jest.requireMock('react-native-vision-camera') as { __scan: (v: string) => void; __camera: { granted: boolean } };
+    cam.__camera.granted = false;
+    const phone = freshPhone();
+    render(<App />);
+    await phoneSignUp(phone, freshEmail('link'));
+    await screen.findByText('Set up your profile');
+    fireEvent.changeText(screen.getByLabelText('Your name'), 'Hina');
+    fireEvent.press(screen.getByLabelText('Continue'));
+    await screen.findByText('Welcome, Hina');
+    const browser = async (name: string) => (await (await fetch(`${API}/v1/auth/link/start`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ device: { deviceId: `web-${name.replace(/\W/g, '')}-123456`, platform: 'web', name } }) })).json()) as { qr: string; code: string; pollId: string };
+    const poll = async (id: string) => (await (await fetch(`${API}/v1/auth/link/${id}`)).json()) as { status: string };
+
+    fireEvent.press(screen.getByLabelText('Me'));
+    fireEvent.press(await screen.findByLabelText('Linked devices'));
+    // Scan: the camera asks first, then the code on the screen links that browser.
+    const chrome = await browser('Chrome on Mac');
+    fireEvent.press(await screen.findByLabelText('Link a device'));
+    fireEvent.press(await screen.findByLabelText('Scan the code'));
+    expect(await screen.findByTestId('qr-scanner')).toBeTruthy();
+    act(() => { cam.__scan(chrome.qr); });
+    expect(await screen.findByText('Chrome on Mac is now signed in to your account.')).toBeTruthy();
+    expect((await poll(chrome.pollId)).status).toBe('linked');
+    // Or type the 8-character code shown under it.
+    const safari = await browser('Safari on Mac');
+    fireEvent.press(screen.getByLabelText('Link a device'));
+    fireEvent.press(await screen.findByLabelText('Type the code instead'));
+    fireEvent.changeText(screen.getByLabelText('Code from the computer'), safari.code);
+    fireEvent.press(screen.getByLabelText('Link device'));
+    expect(await screen.findByText('Safari on Mac is now signed in to your account.')).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByTestId('device-row')).toHaveLength(3));
   });
 
   it('log out from Settings returns to the welcome screen', async () => {

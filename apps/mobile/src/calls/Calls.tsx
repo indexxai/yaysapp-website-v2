@@ -178,6 +178,8 @@ export function statusLine(view: CallView, state: CallSession['state'], me: stri
 }
 
 const camTrack = (p: Participant) => { const pub = p.getTrackPublication(Track.Source.Camera); return pub?.track && !pub.isMuted ? (pub.track as VideoTrack) : undefined; };
+/** A screen someone is sharing (from the web app). */
+const screenTrack = (p: Participant) => { const pub = p.getTrackPublication(Track.Source.ScreenShare); return pub?.track && !pub.isMuted ? (pub.track as VideoTrack) : undefined; };
 
 function CallScreen({ session }: { session: CallSession }) {
   const engine = useEngine();
@@ -189,6 +191,8 @@ function CallScreen({ session }: { session: CallSession }) {
   const live = view.status !== 'ended';
   useTicker(live);
   const [adding, setAdding] = useState(false);
+  // Over full-screen video, a tap hides the buttons and name, and another tap brings them back (QA #18).
+  const [chromeHidden, setChromeHidden] = useState(false);
   const room = session.room;
   const remotes = [...room.remoteParticipants.values()];
   const everyone: Participant[] = [room.localParticipant, ...remotes];
@@ -220,20 +224,27 @@ function CallScreen({ session }: { session: CallSession }) {
     );
   }
 
-  const remoteVideo = view.kind === 'direct' ? remotes.find((p) => camTrack(p)) : undefined;
+  // Someone sharing their screen fills the screen, whole (not cropped), in any call (QA #05).
+  const presenter = remotes.find((p) => screenTrack(p));
+  const remoteVideo = !presenter && view.kind === 'direct' ? remotes.find((p) => camTrack(p)) : undefined;
+  const fullVideo = !!presenter || !!remoteVideo;
+  const hide = chromeHidden && fullVideo && live;
   const myVideo = camTrack(room.localParticipant);
   // Tiles are for group calls. One to one, it's the other person: their video full screen, or their photo while
   // their camera is off, with you in the corner whenever your camera is on.
-  const tiles = anyVideo && view.kind !== 'direct';
-  const headTitle = !!remoteVideo || tiles;
+  const tiles = anyVideo && view.kind !== 'direct' && !presenter;
+  const headTitle = fullVideo || tiles;
   return (
     <Modal visible animationType="slide" statusBarTranslucent onRequestClose={() => session.setMinimized(true)}>
       <StatusBar barStyle="light-content" />
       <View testID="call-screen" accessibilityLabel={`${view.media === 'video' ? 'Video' : 'Voice'} call with ${view.title}`} style={[styles.fill, { backgroundColor: C.bg }]}>
         {/* A one-to-one video call: the other person fills the screen, you in the corner. */}
-        {remoteVideo ? <VideoView videoTrack={camTrack(remoteVideo)} objectFit="cover" style={StyleSheet.absoluteFillObject} /> : null}
+        {presenter ? <View testID="screen-share" style={[StyleSheet.absoluteFillObject, { backgroundColor: '#000' }]}><VideoView videoTrack={screenTrack(presenter)} objectFit="contain" style={StyleSheet.absoluteFillObject} /></View>
+          : remoteVideo ? <VideoView videoTrack={camTrack(remoteVideo)} objectFit="cover" style={StyleSheet.absoluteFillObject} /> : null}
+        {fullVideo && live ? <Pressable testID="call-video-tap" accessibilityRole="button" accessibilityLabel={hide ? 'Show call controls' : 'Hide call controls'} onPress={() => setChromeHidden((v) => !v)} style={StyleSheet.absoluteFillObject} /> : null}
         <SafeAreaView style={styles.fill} pointerEvents="box-none">
-          <View style={[styles.head, remoteVideo ? styles.scrim : null]}>
+          {hide ? null : <>
+          <View style={[styles.head, fullVideo ? styles.scrim : null]}>
             <Pressable accessibilityRole="button" accessibilityLabel="Minimise call" onPress={() => session.setMinimized(true)} hitSlop={12} style={styles.headBtn}><Icon name="chevron-down" size={22} color={C.ink} /></Pressable>
             <View style={{ flex: 1, alignItems: 'center' }}>
               <Text style={{ color: C.soft, fontSize: 13, fontFamily: font.display, fontWeight: '700' }}>YaysApp {view.kind === 'group' ? 'group ' : ''}{anyVideo ? 'video' : view.media} call</Text>
@@ -243,9 +254,11 @@ function CallScreen({ session }: { session: CallSession }) {
             <View style={{ width: 40 }} />
           </View>
           {session.error ? <View style={{ paddingHorizontal: 16 }}><Banner tone="warning">{session.error}</Banner></View> : null}
+          {presenter ? <View testID="sharing-chip" style={styles.chip}><Icon name="screen-share" size={14} color={C.ink} /><Text style={{ color: C.ink, fontSize: 13 }}>{nameOf(presenter)} is sharing their screen</Text></View> : null}
           {weak ? <View style={styles.chip}><Icon name="alert-triangle" size={14} color={C.ink} /><Text style={{ color: C.ink, fontSize: 13 }}>Weak connection. Video lowered to keep the call going.</Text></View> : null}
 
-          {remoteVideo ? <View style={{ flex: 1 }} />
+          </>}
+          {fullVideo ? <View style={{ flex: 1 }} pointerEvents="none" />
             : tiles ? (
               <ScrollView contentContainerStyle={styles.grid}>
                 {everyone.map((p) => {
@@ -274,16 +287,16 @@ function CallScreen({ session }: { session: CallSession }) {
             )}
 
           {/* You, in the corner of a one-to-one video call. */}
-          {view.kind === 'direct' && myVideo ? <View testID="local-video" style={styles.selfie}><VideoView videoTrack={myVideo} objectFit="cover" mirror={session.frontCamera} zOrder={1} style={StyleSheet.absoluteFillObject} /></View> : null}
+          {(view.kind === 'direct' || presenter) && myVideo ? <View testID="local-video" pointerEvents="none" style={styles.selfie}><VideoView videoTrack={myVideo} objectFit="cover" mirror={session.frontCamera} zOrder={1} style={StyleSheet.absoluteFillObject} /></View> : null}
 
-          <View style={styles.controls}>
+          {hide ? null : <View style={styles.controls}>
             <RoundButton icon={session.speaker ? 'volume' : 'volume-off'} label={session.speaker ? 'Speaker on' : 'Speaker'} pressed={session.speaker} fill={session.speaker ? '#ffffff' : C.raised} ink={session.speaker ? C.bg : C.ink} onPress={() => void session.toggleSpeaker()} disabled={!live} />
             <RoundButton icon={session.cam ? 'video' : 'video-off'} label={session.cam ? 'Camera off' : 'Camera'} pressed={session.cam} onPress={() => void session.toggleCam()} disabled={!live} />
             <RoundButton icon={session.mic ? 'mic' : 'mic-off'} label={session.mic ? 'Mute' : 'Unmute'} pressed={!session.mic} fill={session.mic ? C.raised : '#ffffff'} ink={session.mic ? C.ink : C.bg} onPress={() => void session.toggleMic()} disabled={!live} />
             {session.cam ? <RoundButton icon="refresh" label="Flip" onPress={() => void session.flipCamera()} disabled={!live} />
               : view.kind === 'group' ? <RoundButton icon="person-add" label="Add people" onPress={() => setAdding(true)} disabled={!live} /> : null}
             <RoundButton icon="phone-off" label={view.kind === 'direct' ? 'End' : 'Leave'} fill={C.end} onPress={hangUp} testID="hang-up" />
-          </View>
+          </View>}
         </SafeAreaView>
         {adding && view.conversationId ? <AddPeople call={view} onClose={() => setAdding(false)} /> : null}
       </View>

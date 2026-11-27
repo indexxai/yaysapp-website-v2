@@ -41,6 +41,7 @@
     "react-native-screens": "4.9.1",
     "react-native-svg": "15.11.2",
     "react-native-video": "6.19.3",
+    "react-native-vision-camera": "4.7.2",
     "react-native-voip-push-notification": "3.3.3"
   },
   "devDependencies": {
