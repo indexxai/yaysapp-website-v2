@@ -10,8 +10,8 @@ import type { Logger } from '../common/logger';
 // Both take the same payloads as Web Push (push.service.ts) and say 'gone' when the phone dropped its token.
 // ---------------------------------------------------------------------------------------------------------------
 export type PhonePayload =
-  | { type: 'message'; conversationId: string; messageId: string; title: string; body: string; tag: string; url: string }
-  | { type: 'read'; conversationId: string; tag: string }
+  | { type: 'message'; conversationId: string; messageId: string; title: string; body: string; tag: string; url: string; badge?: number }
+  | { type: 'read'; conversationId: string; tag: string; badge?: number }
   | { type: 'call'; callId: string; title: string; body: string; tag: string; url: string; media?: 'voice' | 'video'; caller?: string }
   | { type: 'call_end'; callId: string; tag: string };
 
@@ -127,9 +127,11 @@ export class ApnsSender {
   /** The APNs body and headers for one payload. Rings and messages alert; "read" and "call over" are background pushes. */
   static request(p: PhonePayload) {
     const shows = p.type === 'message' || p.type === 'call';
+    // The app icon's red number: chats with unread messages, sent with every message and read push.
+    const badge = (p.type === 'message' || p.type === 'read') && typeof p.badge === 'number' ? { badge: p.badge } : {};
     const aps = shows
-      ? { alert: { title: p.title, body: p.body }, sound: 'default', 'thread-id': 'conversationId' in p ? p.conversationId : p.callId, ...(p.type === 'call' ? { 'interruption-level': 'time-sensitive' } : {}) }
-      : { 'content-available': 1 };
+      ? { alert: { title: p.title, body: p.body }, sound: 'default', 'thread-id': 'conversationId' in p ? p.conversationId : p.callId, ...(p.type === 'call' ? { 'interruption-level': 'time-sensitive' } : {}), ...badge }
+      : { 'content-available': 1, ...badge };
     return {
       headers: {
         'apns-push-type': shows ? 'alert' : 'background', 'apns-priority': shows ? '10' : '5',

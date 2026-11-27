@@ -119,7 +119,7 @@ export function PostCard({ p, c, onChange, onGone, full }: { p: CirclePost; c: C
         {p.status === 'pending' && <Tag kind="warn" icon="clock">Waiting for approval</Tag>}
         {(member || p.mine) && (
           <span className="cmenu">
-            <button type="button" className="icon-btn" aria-label="Post options" aria-expanded={menu} onClick={() => setMenu(!menu)}><Icon name="more-horizontal" size={18} /></button>
+            <button type="button" className="icon-btn" aria-label="Post options" title="Post options" aria-expanded={menu} onClick={() => setMenu(!menu)}><Icon name="more-horizontal" size={18} /></button>
             {menu && (
               <span className="cmenu__list" role="menu">
                 {admin && p.status === 'live' && <button type="button" role="menuitem" onClick={() => void run(() => api().pinCirclePost(p.id, !p.pinned))}><Icon name="pin" size={16} />{p.pinned ? 'Unpin' : 'Pin to top'}</button>}
@@ -302,17 +302,32 @@ function OwnerStart({ c }: { c: CircleView }) {
 export function Thread({ comments, c, onReply, onChanged, canAnswer, mutedOrVisitor }: { comments: CircleComment[]; c: CircleView; onReply: (to: CircleComment) => void; onChanged: () => void; canAnswer: boolean; mutedOrVisitor: boolean }) {
   const tops = comments.filter((x) => !x.parentId);
   const sorted = [...tops.filter((x) => x.answer), ...tops.filter((x) => !x.answer)];
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [editErr, setEditErr] = useState<string | null>(null);
+  const saveEdit = async () => {
+    if (!editing) return;
+    if (!editing.text.trim()) { setEditErr('Write a comment.'); return; }
+    try { await api().editCircleComment(editing.id, editing.text.trim()); setEditing(null); setEditErr(null); onChanged(); }
+    catch (e) { setEditErr(e instanceof Error ? e.message : 'That didn’t save. Try again.'); }
+  };
   const one = (x: CircleComment, reply = false) => (
     <div key={x.id} className={`ccomment${reply ? ' ccomment--reply' : ''}`} data-testid="comment">
       <Avatar name={x.author.displayName} photoUrl={x.author.photoUrl} size={reply ? 28 : 32} />
       <div className="ccomment__body">
         <div className={`ccomment__bubble${x.answer ? ' ccomment__bubble--answer' : ''}`}>
           <strong>{x.author.displayName}<AuthorTags a={x.author} />{x.answer && <Tag kind="ok" icon="check">Answer</Tag>}</strong>
-          <span>{x.hidden === 'blocked' ? <em className="muted">Hidden: you blocked this person.</em> : x.text}</span>
+          {editing?.id === x.id
+            ? <textarea className="ccomment__edit" aria-label="Edit comment" value={editing.text} autoFocus rows={2} maxLength={2000}
+                onChange={(e) => setEditing({ id: x.id, text: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void saveEdit(); } if (e.key === 'Escape') setEditing(null); }} />
+            : <span>{x.hidden === 'blocked' ? <em className="muted">Hidden: you blocked this person.</em> : x.text}</span>}
         </div>
+        {editing?.id === x.id && editErr && <span className="ccomment__err" role="alert">{editErr}</span>}
         <span className="ccomment__meta">
-          {ago(x.createdAt)}
-          {!mutedOrVisitor && <button type="button" className="link-btn" onClick={() => onReply(x)}>Reply</button>}
+          {ago(x.createdAt)}{x.editedAt ? ' · edited' : ''}
+          {editing?.id === x.id && <><button type="button" className="link-btn" onClick={() => void saveEdit()}>Save</button><button type="button" className="link-btn" onClick={() => { setEditing(null); setEditErr(null); }}>Cancel</button></>}
+          {editing?.id !== x.id && x.mine && !mutedOrVisitor && x.hidden !== 'blocked' && <button type="button" className="link-btn" onClick={() => { setEditErr(null); setEditing({ id: x.id, text: x.text }); }}>Edit</button>}
+          {editing?.id !== x.id && !mutedOrVisitor && <button type="button" className="link-btn" onClick={() => onReply(x)}>Reply</button>}
           {canAnswer && !reply && <button type="button" className="link-btn" onClick={() => void api().markCircleAnswer(x.id, !x.answer).then(onChanged)}>{x.answer ? 'Unmark answer' : 'Mark as answer'}</button>}
           {(x.mine || c.access === 'admin') && <button type="button" className="link-btn link-btn--danger" onClick={() => void api().deleteCircleComment(x.id).then(onChanged)}>Delete</button>}
         </span>

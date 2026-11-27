@@ -44,6 +44,8 @@ function Ai() {
   /** "Change this picture": the next message edits it. */
   const [editing, setEditing] = useState<{ messageId: string; n: number; url: string } | null>(null);
   /** What "Send to chat" is sending: a picture (n) or the document of a reply. */
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [sharing, setSharing] = useState<{ messageId: string; n?: number; label: string } | null>(null);
   const thread = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
@@ -100,8 +102,16 @@ function Ai() {
     const s = await api().aiUpdateChat(chat.id, { saved: !chat.saved }).catch(() => null);
     if (s) { setChat({ ...chat, saved: s.saved }); setList((l) => l?.map((x) => (x.id === s.id ? s : x)) ?? null); }
   };
+  const rename = async () => {
+    const title = renaming?.trim();
+    if (!chat || !title) { setRenaming(null); return; }
+    const s = await api().aiUpdateChat(chat.id, { title }).catch((e) => { setError(errText(e)); return null; });
+    if (s) { setChat({ ...chat, title: s.title }); setList((l) => l?.map((x) => (x.id === s.id ? s : x)) ?? null); }
+    setRenaming(null);
+  };
   const remove = async () => {
     if (!chat) return;
+    setConfirmDelete(false);
     await api().aiDeleteChat(chat.id).catch(() => undefined);
     setList((l) => l?.filter((x) => x.id !== chat.id) ?? null);
     router.replace('/ai');
@@ -143,11 +153,19 @@ function Ai() {
           <LineArt name="reader" height={340} opacity={0.12} className="p2-art p2-art--br" />
           <header className="p2-ai__head">
             <img src="/brand/jack.png" alt="" style={{ width: 28 }} />
-            <strong>{chat?.title ?? 'New conversation'}</strong>
+            {chat && renaming !== null ? (
+              <form className="p2-ai__rename" onSubmit={(e) => { e.preventDefault(); void rename(); }}>
+                <input className="ys-input" value={renaming} maxLength={80} autoFocus aria-label="Conversation name"
+                  onChange={(e) => setRenaming(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
+                <OvalButton icon="check" label="Save" size="sm" type="submit" disabled={!renaming.trim()} />
+                <OvalButton icon="close" label="Cancel" size="sm" variant="ghost" onClick={() => setRenaming(null)} />
+              </form>
+            ) : <strong>{chat?.title ?? 'New conversation'}</strong>}
             {quota && !imageMode && <span className="p2-ai__quota" title={`Resets in ${timeLeft(quota.resetsAt)}`}><span className="p2-bar" style={{ width: 120 }}><span style={{ width: `${Math.min(100, Math.round((quota.used / quota.limit) * 100))}%` }} /></span>{quota.used} of {quota.limit} today</span>}
             {quota && imageMode && <span className="p2-ai__quota" data-testid="pics-left" title={`Resets in ${timeLeft(quota.resetsAt)}`}><Icon name="image" size={14} />{picsLeft} of {quota.images.limit} pictures left today</span>}
             {chat && <OvalButton icon="star" label={chat.saved ? 'Saved' : 'Save'} size="sm" variant={chat.saved ? 'soft' : 'ghost'} onClick={() => void toggleSave()} />}
-            {chat && <OvalButton icon="trash" label="Delete" size="sm" variant="ghost" onClick={() => void remove()} />}
+            {chat && renaming === null && <OvalButton icon="edit" label="Rename" size="sm" variant="ghost" onClick={() => setRenaming(chat.title)} />}
+            {chat && <OvalButton icon="trash" label="Delete" size="sm" variant="ghost" onClick={() => setConfirmDelete(true)} />}
           </header>
           <div className="p2-ai__thread" ref={thread} aria-live="polite">
             {!chat && !pending && (
@@ -194,6 +212,12 @@ function Ai() {
         </main>
 
         {side === 'doc' && doc && <DocPanel doc={doc} onClose={closePanel} onShare={docMessage ? () => setSharing({ messageId: docMessage.id, label: doc.title }) : undefined} />}
+        {confirmDelete && chat && (
+          <Modal title="Delete this conversation?" onClose={() => setConfirmDelete(false)}>
+            <p className="muted" style={{ margin: 0 }}>“{chat.title}” and everything in it, including pictures and documents, will be deleted. This can’t be undone.</p>
+            <div className="row center"><OvalButton icon="close" label="Cancel" variant="ghost" onClick={() => setConfirmDelete(false)} /><OvalButton icon="trash" label="Delete" variant="danger" onClick={() => void remove()} /></div>
+          </Modal>
+        )}
         {sharing && <ShareDialog what={sharing} onClose={() => setSharing(null)} onSent={(c) => { setSharing(null); router.push(`/chats?c=${c}`); }} />}
         {side === 'sources' && lastSources && (
           <aside className="p2-ai__side" aria-label="Sources">

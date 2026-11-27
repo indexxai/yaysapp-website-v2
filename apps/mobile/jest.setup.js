@@ -169,3 +169,21 @@ jest.mock('@notifee/react-native', () => {
 // Photo previews: none unless a test makes one.
 jest.mock('@bam.tech/react-native-image-resizer', () => ({ __esModule: true, default: { createResizedImage: jest.fn(async () => { throw new Error('no resizing in tests'); }) } }));
 jest.mock('react-native-create-thumbnail', () => ({ createThumbnail: jest.fn(async () => { throw new Error('no thumbnail in tests'); }) }));
+
+// QR scanning: tests "point the camera" at a code with __scan(value).
+jest.mock('react-native-vision-camera', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  const cam = { granted: false, onScan: null };
+  return {
+    Camera: (props) => React.createElement(View, { testID: 'camera' }),
+    useCameraDevice: () => ({ id: 'back' }),
+    useCameraPermission: () => {
+      const [ok, setOk] = React.useState(cam.granted);
+      return { hasPermission: ok, requestPermission: async () => { cam.granted = true; setOk(true); return true; } };
+    },
+    useCodeScanner: (o) => { cam.onScan = o.onCodeScanned; return o; },
+    __camera: cam,
+    __scan: (value) => cam.onScan && cam.onScan([{ type: 'qr', value }]),
+  };
+});

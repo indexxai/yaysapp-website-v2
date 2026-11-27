@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import {
-  cancelEventSchema, circlePostSchema, commentSchema, createCircleSchema, createEventSchema, editPostSchema, joinCircleSchema, muteSchema, newOwnerSchema,
+  cancelEventSchema, circlePostSchema, commentSchema, commentEditSchema, createCircleSchema, createEventSchema, editPostSchema, joinCircleSchema, muteSchema, newOwnerSchema,
   rateEventSchema, removeMemberSchema, removePostSchema, reportPostSchema, rsvpSchema, settleReportSchema, updateCircleSchema, updateEventSchema,
 } from '@yays/shared';
 import { parse } from '../common/zod';
@@ -84,6 +84,7 @@ export class CirclePostsController {
 @UseGuards(AuthGuard)
 export class CircleCommentsController {
   constructor(@Inject(CIRCLES) private s: CirclesService) {}
+  @Patch(':id') edit(@Auth() a: AuthCtx, @Param('id') id: string, @Body() b: unknown) { return this.s.editComment(a.userId, id, parse(commentEditSchema, b).text); }
   @Delete(':id') @HttpCode(204) async del(@Auth() a: AuthCtx, @Param('id') id: string) { await this.s.deleteComment(a.userId, id); }
   @Put(':id/answer') answer(@Auth() a: AuthCtx, @Param('id') id: string) { return this.s.markAnswer(a.userId, id, true); }
   @Delete(':id/answer') unanswer(@Auth() a: AuthCtx, @Param('id') id: string) { return this.s.markAnswer(a.userId, id, false); }

@@ -262,7 +262,7 @@ function SharedView({ id, name, onBack, onJump }: { id: string; name: string; on
                     : <a className="ys-row-item__title" href={linkOf(m.text).startsWith('http') ? linkOf(m.text) : `https://${linkOf(m.text)}`} target="_blank" rel="noopener noreferrer">{linkOf(m.text)}</a>}
                   <span className="ys-row-item__sub">{engine.nameOf(m.senderId)} · {dayLabel(m.createdAt)}</span>
                 </span>
-                <button type="button" className="icon-btn" aria-label="Show in chat" onClick={() => onJump(m.seq)}><Icon name="arrow-right" size={18} /></button>
+                <button type="button" className="icon-btn" aria-label="Show in chat" title="Show in chat" onClick={() => onJump(m.seq)}><Icon name="arrow-right" size={18} /></button>
               </div>
             ))}
           </div>

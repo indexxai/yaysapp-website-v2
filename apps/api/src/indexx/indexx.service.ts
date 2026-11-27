@@ -80,6 +80,17 @@ export class IndexxService {
     return this.status(me);
   }
 
+  /** An Indexx account made with Google (it has no Indexx password). */
+  async signInGoogle(me: ObjectId, googleToken: string): Promise<IndexxLink> {
+    if (!this.client) throw AppError.validation('Signing in to Indexx isn’t available yet.');
+    const { token, expiresAt, email } = await this.client.loginGoogle(googleToken);
+    const taken = await this.users.findOne({ 'yc.indexx.email': email, 'yc.indexx.token': { $exists: true }, _id: { $ne: me } } as Record<string, unknown>, { projection: { _id: 1 } });
+    if (taken) throw AppError.conflict('That Indexx account is already signed in on another YaysApp account.');
+    await this.users.updateOne({ _id: me }, { $set: { 'yc.indexx': { email, token: this.seal(token), expiresAt, linkedAt: new Date() } } });
+    this.log.info({ userId: me.toHexString(), via: 'google' }, 'signed in to Indexx');
+    return this.status(me);
+  }
+
   async signOut(me: ObjectId): Promise<IndexxLink> {
     await this.users.updateOne({ _id: me }, { $unset: { 'yc.indexx': '' } });
     return this.status(me);

@@ -91,7 +91,7 @@ export function Discover({ onNew }: { onNew: () => void }) {
     <div className="cdisc">
       <div className="cdisc__head">
         <h1>Discover circles</h1>
-        <div className="ys-field__box cdisc__search"><Icon name="search" size={18} /><input className="ys-input" aria-label="Search circles" placeholder="Search circles and events" value={q} onChange={(e) => setQ(e.target.value)} />{q && <button type="button" className="icon-btn" aria-label="Clear search" onClick={() => setQ('')}><Icon name="close" size={16} /></button>}</div>
+        <div className="ys-field__box cdisc__search"><Icon name="search" size={18} /><input className="ys-input" aria-label="Search circles" placeholder="Search circles and events" value={q} onChange={(e) => setQ(e.target.value)} />{q && <button type="button" className="icon-btn" aria-label="Clear search" title="Clear search" onClick={() => setQ('')}><Icon name="close" size={16} /></button>}</div>
         <OvalButton icon="plus" label="New circle" size="sm" onClick={onNew} />
       </div>
       <div className="chips" role="radiogroup" aria-label="Category">

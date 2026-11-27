@@ -450,3 +450,17 @@ test('Facebook: link it, sign in with it, and it shows verified on the profile',
   await shot(q, 'p32-facebook-not-linked');
   await ctx.close();
 });
+
+test('Indexx account made with Google: Continue with Google signs it in (QA #08)', async ({ browser }) => {
+  const lena = await apiUser('Lena Fischer');
+  const email = ixEmail(lena, 'lena.google');
+  const a = await pageAs(browser, lena, VP);
+  await a.page.goto('/explore');
+  const card = a.page.getByRole('region', { name: 'Sign in to Indexx' });
+  await expect(card.getByText('For Indexx accounts you made with Google.')).toBeVisible();
+  a.page.once('dialog', (d) => void d.accept(email));
+  await card.getByRole('button', { name: 'Continue with Google' }).click();
+  await expect(card).toBeHidden();
+  await expect(a.page.getByTestId('indexx-as')).toHaveText(`Signed in to Indexx as ${email}`);
+  await a.ctx.close();
+});

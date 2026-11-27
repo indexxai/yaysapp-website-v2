@@ -96,6 +96,9 @@ body { background: var(--ground); color: var(--ink); font-family: var(--font-bod
 .ys-field--pill .ys-field__box { border-radius: var(--radius-pill); background: var(--surface); border-color: transparent; }
 .ys-field--pill .ys-field__box:focus-within { border-color: var(--ember-deep); }
 .ys-input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font: 500 15px/22px var(--font-body); color: var(--ink); }
+/* Browser autofill (saved emails/phones) keeps the theme instead of Chrome's light-blue box, in dark mode too. */
+.ys-input:-webkit-autofill, .ys-input:-webkit-autofill:hover, .ys-input:-webkit-autofill:focus, .ys-input:autofill {
+  -webkit-text-fill-color: var(--ink); caret-color: var(--ink); transition: background-color 100000s 0s, color 100000s 0s; }
 .ys-input::placeholder { color: var(--ink-faint); }
 .ys-field__hint { font-size: 13px; line-height: 18px; color: var(--ink-soft); }
 .ys-field--error .ys-field__box { border-color: var(--danger-ink); }

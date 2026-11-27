@@ -10,7 +10,7 @@ import { API } from './helpers';
 import { call, say, user, type U } from './people';
 
 // No WebRTC under Jest: livekit-client is the stand-in from jest.setup.js, the call API and LiveKit server are real.
-const lk = jest.requireMock('livekit-client') as { __rooms: Array<{ url?: string; token?: string; disconnected?: boolean; localParticipant: { isMicrophoneEnabled: boolean; isCameraEnabled: boolean; pubs: Record<string, { track: { facingMode?: string } } | undefined> }; __join: (id: string, o?: { video?: boolean }) => void }> };
+const lk = jest.requireMock('livekit-client') as { __rooms: Array<{ url?: string; token?: string; disconnected?: boolean; localParticipant: { isMicrophoneEnabled: boolean; isCameraEnabled: boolean; pubs: Record<string, { track: { facingMode?: string } } | undefined> }; __join: (id: string, o?: { video?: boolean }) => void; remoteParticipants: Map<string, unknown>; emit: (ev: string, ...a: unknown[]) => void }> };
 const audio = jest.requireMock('@livekit/react-native') as { __outputs: { selected: string[] } };
 const lastRoom = () => lk.__rooms[lk.__rooms.length - 1]!;
 const store = (Keychain as unknown as { __store: Map<string, string> }).__store;
@@ -92,6 +92,25 @@ describe('Calls on mobile, against the real API and LiveKit', () => {
     // Sara's phone joins the room with her camera on: she fills the screen, I'm in the corner.
     act(() => { lastRoom().__join(sara.id, { video: true }); });
     expect(await screen.findByTestId('local-video')).toBeTruthy();
+    // Over her video, a tap hides the buttons and another brings them back (QA #18).
+    fireEvent.press(screen.getByTestId('call-video-tap'));
+    await waitFor(() => expect(screen.queryByTestId('hang-up')).toBeNull());
+    fireEvent.press(screen.getByLabelText('Show call controls'));
+    expect(await screen.findByTestId('hang-up')).toBeTruthy();
+    // Sara shares her screen from the web app: it fills the phone's screen, uncropped, and says so (QA #05).
+    act(() => {
+      const p = lastRoom().remoteParticipants.get(sara.id) as unknown as { pubs: Record<string, unknown> };
+      p.pubs.screen_share = { isMuted: false, track: { kind: 'video' } };
+      lastRoom().emit('trackSubscribed', {}, {}, p);
+    });
+    expect(await screen.findByTestId('screen-share')).toBeTruthy();
+    expect(screen.getByText(/is sharing their screen$/)).toBeTruthy();
+    act(() => {
+      const p = lastRoom().remoteParticipants.get(sara.id) as unknown as { pubs: Record<string, unknown> };
+      delete p.pubs.screen_share;
+      lastRoom().emit('trackUnsubscribed', {}, {}, p);
+    });
+    await waitFor(() => expect(screen.queryByTestId('screen-share')).toBeNull());
     fireEvent.press(screen.getByLabelText('Flip'));
     await waitFor(() => expect(lastRoom().localParticipant.pubs.camera?.track.facingMode).toBe('environment'));
 

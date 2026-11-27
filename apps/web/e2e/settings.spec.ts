@@ -170,6 +170,19 @@ test.describe('Settings on the web', () => {
     const a = await pageAs(browser, ali);
     await a.page.goto('/settings/profile');
     await a.page.getByTestId('photo-input').setInputFiles({ name: 'holiday.jpg', mimeType: 'image/jpeg', buffer: readFileSync(path.join(__dirname, 'fixtures/wide-photo.jpg')) });
+    // The crop step (QA #07): the oval preview, a zoom slider and dragging; Cancel keeps the old photo.
+    await expect(a.page.getByText('Adjust your photo')).toBeVisible();
+    await expect(a.page.getByLabel('Zoom')).toBeVisible();
+    await a.page.getByRole('button', { name: 'Cancel' }).last().click();
+    await expect(a.page.getByText('Adjust your photo')).toHaveCount(0);
+    expect((await me(ali)).photoUrl).toBeNull();
+    await a.page.getByTestId('photo-input').setInputFiles({ name: 'holiday.jpg', mimeType: 'image/jpeg', buffer: readFileSync(path.join(__dirname, 'fixtures/wide-photo.jpg')) });
+    await a.page.getByLabel('Zoom').fill('2');
+    const frame = a.page.getByTestId('photo-crop-frame');
+    const box = (await frame.boundingBox())!;
+    await a.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await a.page.mouse.down(); await a.page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2, { steps: 4 }); await a.page.mouse.up();
+    await a.page.getByRole('button', { name: 'Use photo' }).click();
     await expect(a.page.getByTestId('photo-note')).toHaveText('Photo saved.');
     // Saved without pressing Save: the server has it, as a 640 × 640 WebP well under the original's size.
     await expect.poll(async () => (await me(ali)).photoUrl).not.toBeNull();

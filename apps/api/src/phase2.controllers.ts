@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Ip, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ObjectId, type Collection } from 'mongodb';
 import {
-  aiAskSchema, aiShareSchema, aiChatPatchSchema, dismissPopupSchema, leadSchema, indexxSignInSchema, withdrawSchema, referralCodeSchema,
+  aiAskSchema, aiShareSchema, aiChatPatchSchema, dismissPopupSchema, leadSchema, indexxSignInSchema, indexxGoogleSchema, withdrawSchema, referralCodeSchema,
   siteAskSchema, socialSchema, socialUrl, socialVisibilitySchema, supportAskSchema, supportTicketSchema, SOCIAL_NETWORKS,
   type ExploreProduct, type SocialNetwork, type SocialsView,
 } from '@yays/shared';
@@ -52,6 +52,11 @@ export class IndexxController {
     await this.limiter.hit(`indexx:${a.userId}`, 10, 3600, 'Too many tries. Try again later.');
     const v = parse(indexxSignInSchema, b);
     return this.x.signIn(a.userId, v.email, v.password);
+  }
+  @Post('indexx/sign-in/google') @HttpCode(200)
+  async signInGoogle(@Auth() a: AuthCtx, @Body() b: unknown) {
+    await this.limiter.hit(`indexx:${a.userId}`, 10, 3600, 'Too many tries. Try again later.');
+    return this.x.signInGoogle(a.userId, parse(indexxGoogleSchema, b).googleToken);
   }
   @Delete('indexx/link') signOut(@Auth() a: AuthCtx) { return this.x.signOut(a.userId); }
   @Get('explore') explore(@Auth() a: AuthCtx) { return this.x.explore(a.userId); }

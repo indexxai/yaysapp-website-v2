@@ -93,6 +93,8 @@ export const dismissPopupSchema = z.object({
  * BTCY, EMMM, ShoperPal, Wall Street and the wallet with it. `email` stays after a sign-in ends, to fill the form.
  */
 export interface IndexxLink { linked: boolean; email: string | null; linkedAt: string | null; available: boolean }
+/** An Indexx account that was made with Google: a Google access token from Google's own sign-in window. */
+export const indexxGoogleSchema = z.object({ googleToken: z.string().min(10).max(4096) });
 export const indexxSignInSchema = z.object({
   email: z.string().trim().email('Enter the email of your Indexx account.'),
   password: z.string().min(1, 'Enter your Indexx password.').max(200),

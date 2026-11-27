@@ -11,6 +11,7 @@ import { Oval } from '../ui/Oval';
 import { ProfileForm } from './ProfileForm';
 import { Screen } from './Screen';
 import { SettingsPage } from '../settings/ui';
+import { LinkDeviceSheet } from '../settings/LinkDevice';
 
 export function ProfileSetupScreen() {
   const s = useSession();
@@ -23,6 +24,7 @@ export function DevicesScreen({ onBack }: { onBack: () => void }) {
   const [list, setList] = useState<DeviceSession[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ tone: 'danger' | 'success'; text: string } | null>(null);
+  const [linking, setLinking] = useState(false);
   const load = useCallback(async () => { try { setList(await (await api()).devices()); } catch (e) { setMsg({ tone: 'danger', text: e instanceof ApiError ? e.message : 'Could not load devices.' }); } }, []);
   useEffect(() => { void load(); }, [load]);
   const act = async (id: string, fn: () => Promise<unknown>, ok: string) => {
@@ -33,6 +35,7 @@ export function DevicesScreen({ onBack }: { onBack: () => void }) {
     <SettingsPage title="Linked devices" art="gear" onBack={onBack} testID="devices-screen">
       <Text style={{ fontSize: 15, lineHeight: 22, color: t['ink-soft'], paddingHorizontal: 4 }}>Use YaysApp on your phone, the web and other devices. Log out any you don't recognise.</Text>
       {msg ? <Banner tone={msg.tone}>{msg.text}</Banner> : null}
+      <View style={{ alignItems: 'center' }}><OvalButton icon="qr" label="Link a device" onPress={() => { setMsg(null); setLinking(true); }} testID="link-a-device" /></View>
       <View style={{ backgroundColor: t.raised, borderRadius: 24, overflow: 'hidden' }}>
         {list?.map((d, i) => (
           <View key={d.id} testID="device-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderTopWidth: i ? 1 : 0, borderTopColor: t.line, backgroundColor: d.current ? t['ember-wash'] : undefined }}>
@@ -46,6 +49,7 @@ export function DevicesScreen({ onBack }: { onBack: () => void }) {
         ))}
       </View>
       {list && list.length > 1 ? <View style={{ alignItems: 'center' }}><OvalButton icon="logout" label="Log out all other devices" variant="danger" loading={busy === 'others'} onPress={() => act('others', async () => (await api()).revokeOtherDevices(), 'All other devices were logged out.')} /></View> : null}
+      {linking ? <LinkDeviceSheet onClose={() => setLinking(false)} onLinked={(name) => { setLinking(false); setMsg({ tone: 'success', text: `${name} is now signed in to your account.` }); void load(); }} /> : null}
     </SettingsPage>
   );
 }

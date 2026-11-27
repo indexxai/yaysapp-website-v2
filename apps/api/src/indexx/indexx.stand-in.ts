@@ -113,6 +113,15 @@ export function standInIndexx(db: Db): typeof fetch {
       const iat = Math.floor(now.getTime() / 1000);
       return json(200, { status: 200, data: { access_token: `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ email, iat, exp: iat + 7 * 86400 })}.${randomBytes(12).toString('base64url')}` } });
     }
+    // Google accounts: the stand-in takes "dev-google:<email>" as the Google access token (local and tests only).
+    if (init?.method === 'POST' && path === '/inex/user/login/google') {
+      const m = /^dev-google:(.+@.+)$/.exec(String(body.googleToken ?? ''));
+      if (!m) return json(500, { status: 500, data: { message: 'Invalid Google token' } });
+      const email = m[1]!.trim().toLowerCase();
+      await col.updateOne({ _id: email }, { $setOnInsert: newStubAccount(email, now) }, { upsert: true });
+      const iat = Math.floor(now.getTime() / 1000);
+      return json(200, { status: 200, data: { access_token: `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ email, iat, exp: iat + 7 * 86400 })}.${randomBytes(12).toString('base64url')}` } });
+    }
     if (path === '/yays/ecosystem/config') return ok({ products: { btcy: 'live', shoperpal: 'live', emmm: 'live', rehuman: 'content', wallstreet: 'live' } });
 
     // Everything else needs the login token.

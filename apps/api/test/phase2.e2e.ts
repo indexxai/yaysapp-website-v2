@@ -196,6 +196,17 @@ describe('Indexx account, wallet and BTCY', () => {
   const stub = () => t.db.collection('yc_indexx_stub');
   const signIn = (u: TUser, email: string, password = 'secret-pass') => t.http.post('/v1/indexx/sign-in').set(u.auth).send({ email, password });
 
+  it('an Indexx account made with Google signs in with a Google token (QA #08); a bad token says so', async () => {
+    const bad = await t.http.post('/v1/indexx/sign-in/google').set(lena.auth).send({ googleToken: 'not-a-google-token' });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error.message).toBe('Indexx said: Invalid Google token');
+    expect((await t.http.post('/v1/indexx/sign-in/google').set(lena.auth).send({ googleToken: 'dev-google:Lena.G@gmail.com' }).expect(200)).body).toMatchObject({ linked: true, email: 'lena.g@gmail.com' });
+    expect((await t.http.get('/v1/explore').set(lena.auth).expect(200)).body).toMatchObject({ linked: true });
+    // The same Google account can't be on two YaysApp accounts.
+    expect((await t.http.post('/v1/indexx/sign-in/google').set(amara.auth).send({ googleToken: 'dev-google:lena.g@gmail.com' })).status).toBe(409);
+    await t.http.delete('/v1/indexx/link').set(lena.auth).expect(200);
+  });
+
   it('signs in to Indexx with email and password; keeps only the token, encrypted; one YaysApp account per Indexx account', async () => {
     expect((await t.http.get('/v1/indexx').set(sara.auth).expect(200)).body).toMatchObject({ linked: false, available: true });
     expect((await t.http.get('/v1/explore').set(sara.auth).expect(200)).body).toMatchObject({ linked: false, btcy: null, links: { btcy: 'https://bitcoinyay.com', rehuman: 'https://rehumansystem.com' } });

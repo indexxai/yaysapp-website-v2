@@ -309,6 +309,16 @@ export function Thread({ comments, c, onReply, onChanged, canAnswer, readOnly }:
   const tops = comments.filter((x) => !x.parentId);
   const sorted = [...tops.filter((x) => x.answer), ...tops.filter((x) => !x.answer)];
   const act = (fn: (a: Awaited<ReturnType<typeof api>>) => Promise<unknown>) => void api().then(fn).then(onChanged, () => undefined);
+  // Editing my own comment in place (QA #19).
+  const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [editErr, setEditErr] = useState<string | null>(null);
+  const saveEdit = async () => {
+    if (!editing) return;
+    const text = editing.text.trim();
+    if (!text) { setEditErr('Write a comment.'); return; }
+    try { await (await api()).editCircleComment(editing.id, text); setEditing(null); setEditErr(null); onChanged(); }
+    catch (e) { setEditErr(errText(e, 'That didn’t save. Try again.')); }
+  };
   const one = (x: CircleComment, reply = false) => (
     <View key={x.id} testID="comment" style={{ flexDirection: 'row', gap: 10, marginLeft: reply ? 42 : 0 }}>
       <Avatar name={x.author.displayName} photoUrl={x.author.photoUrl} size={reply ? 28 : 32} />
@@ -317,11 +327,20 @@ export function Thread({ comments, c, onReply, onChanged, canAnswer, readOnly }:
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: t.ink }}>{x.author.displayName}</Text><AuthorTag a={x.author} />{x.answer ? <Tag kind="ok" icon="check">Answer</Tag> : null}
           </View>
-          <Text style={{ fontSize: 14, lineHeight: 20, color: x.hidden === 'blocked' ? t['ink-soft'] : t.ink, fontStyle: x.hidden === 'blocked' ? 'italic' : 'normal' }}>{x.hidden === 'blocked' ? 'Hidden: you blocked this person.' : x.text}</Text>
+          {editing?.id === x.id
+            ? <TextInput accessibilityLabel="Edit comment" value={editing.text} onChangeText={(v) => setEditing({ id: x.id, text: v })} multiline autoFocus maxLength={2000}
+                style={{ fontSize: 14, lineHeight: 20, color: t.ink, padding: 0, minHeight: 40 }} />
+            : <Text style={{ fontSize: 14, lineHeight: 20, color: x.hidden === 'blocked' ? t['ink-soft'] : t.ink, fontStyle: x.hidden === 'blocked' ? 'italic' : 'normal' }}>{x.hidden === 'blocked' ? 'Hidden: you blocked this person.' : x.text}</Text>}
         </View>
+        {editing?.id === x.id && editErr ? <Text accessibilityRole="alert" style={{ fontSize: 12, color: t['danger-ink'] }}>{editErr}</Text> : null}
         <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-          <Text style={{ fontSize: 12, color: t['ink-soft'] }}>{ago(x.createdAt)}</Text>
-          {!readOnly ? <TextLink label="Reply" onPress={() => onReply(x)} /> : null}
+          <Text style={{ fontSize: 12, color: t['ink-soft'] }}>{ago(x.createdAt)}{x.editedAt ? ' · edited' : ''}</Text>
+          {editing?.id === x.id ? (<>
+            <TextLink label="Save" onPress={() => void saveEdit()} />
+            <TextLink label="Cancel" onPress={() => { setEditing(null); setEditErr(null); }} />
+          </>) : null}
+          {editing?.id !== x.id && x.mine && !readOnly && x.hidden !== 'blocked' ? <TextLink label="Edit" onPress={() => { setEditErr(null); setEditing({ id: x.id, text: x.text }); }} /> : null}
+          {editing?.id !== x.id && !readOnly ? <TextLink label="Reply" onPress={() => onReply(x)} /> : null}
           {canAnswer && !reply ? <TextLink label={x.answer ? 'Unmark answer' : 'Mark as answer'} onPress={() => act((a) => a.markCircleAnswer(x.id, !x.answer))} /> : null}
           {x.mine || c.access === 'admin' ? <TextLink label="Delete" onPress={() => act((a) => a.deleteCircleComment(x.id))} /> : null}
         </View>

@@ -113,6 +113,26 @@ describe('Privacy', () => {
     expect((await emit<Array<{ lastSeenAt: string | null }>>(a, 'presence:watch', { userIds: [sara.id] })).data![0].lastSeenAt).toBeTruthy();
   });
 
+  it('People I chat with (QA #03): switching to it while a chat contact watches keeps them seeing online and last seen', async () => {
+    await t.http.put('/v1/me/privacy').set(ali.auth).send({ lastSeen: 'everyone' }).expect(200);
+    const a = await connect(t.url, ali.token); sockets.push(a);
+    const s = await connect(t.url, sara.token); sockets.push(s);
+    expect((await emit<Array<{ online: boolean }>>(s, 'presence:watch', { userIds: [ali.id] })).data![0].online).toBe(true);
+    // Ali changes to "People I chat with": Sara is asked to check again, and still sees him online.
+    const rechecked = new Promise((r) => s.once('presence:recheck', r));
+    await t.http.put('/v1/me/privacy').set(ali.auth).send({ lastSeen: 'contacts' }).expect(200);
+    await rechecked;
+    expect((await emit<Array<{ online: boolean }>>(s, 'presence:watch', { userIds: [ali.id] })).data).toEqual([{ userId: ali.id, online: true, lastSeenAt: null }]);
+    // Sara (her own setting is also "People I chat with") still gets his last seen when he leaves.
+    await t.http.put('/v1/me/privacy').set(sara.auth).send({ lastSeen: 'contacts' }).expect(200);
+    const left = new Promise<{ online: boolean; lastSeenAt: string | null }>((r) => s.on('presence', (p) => { if (p.userId === ali.id && !p.online && p.lastSeenAt) r(p); }));
+    a.close();
+    expect((await left).lastSeenAt).toBeTruthy();
+    expect((await emit<Array<{ lastSeenAt: string | null }>>(s, 'presence:watch', { userIds: [ali.id] })).data![0].lastSeenAt).toBeTruthy();
+    await t.http.put('/v1/me/privacy').set(sara.auth).send({ lastSeen: 'everyone' }).expect(200);
+    await t.http.put('/v1/me/privacy').set(ali.auth).send({ lastSeen: 'everyone' }).expect(200);
+  });
+
   it('read receipts off: the other side sees delivered, and I don’t see theirs either', async () => {
     const m = (await t.http.post(`/v1/conversations/${c}/messages`).set(ali.auth).send({ clientId: cid(), text: 'did you read?' }).expect(200)).body.message;
     await t.http.put('/v1/me/privacy').set(sara.auth).send({ readReceipts: false }).expect(200);

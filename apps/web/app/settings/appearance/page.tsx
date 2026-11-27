@@ -33,7 +33,7 @@ function Appearance() {
         </div>
       </Card>
       <Card label="Chats">
-        <SetRow label="Text size" hint="For messages in chats." htmlFor="text-size">
+        <SetRow label="Text size" hint="For messages in chats. Saves as you move it, on all your devices." htmlFor="text-size">
           <span className="set-row__value">{SIZES[p.textSize - 1]}</span>
           <input id="text-size" type="range" min={1} max={5} step={1} value={p.textSize} onChange={(e) => setPrefs({ textSize: Number(e.target.value) as LocalPrefs['textSize'] })} style={{ accentColor: 'var(--ember)', width: 140 }} aria-valuetext={SIZES[p.textSize - 1]} />
         </SetRow>

@@ -76,15 +76,25 @@ export function Markdown({ md, sources, size = 14 }: { md: string; sources?: AiS
     if (li) {
       flush();
       const ordered = /\d/.test(li[1]!);
-      const items: string[] = [];
+      const items: Array<{ n: number; text: string }> = [];
+      const ITEM = /^\s*([-*•]|\d+[.)])\s+(.*)$/;
       while (i < lines.length) {
-        const m = /^\s*([-*•]|\d+[.)])\s+(.*)$/.exec(lines[i]!);
-        if (!m || /\d/.test(m[1]!) !== ordered) break;
-        items.push(m[2]!); i++;
+        const m = ITEM.exec(lines[i]!);
+        if (!m) {
+          // A blank line between items keeps the same list (AI answers often space their numbered points out).
+          let j = i; while (j < lines.length && !lines[j]!.trim()) j++;
+          const next = j > i && j < lines.length ? ITEM.exec(lines[j]!) : null;
+          if (next && /\d/.test(next[1]!) === ordered) { i = j; continue; }
+          break;
+        }
+        if (/\d/.test(m[1]!) !== ordered) break;
+        // Numbered items keep the number written (or count on from the last one).
+        const written = ordered ? parseInt(m[1]!, 10) : 0;
+        items.push({ n: ordered ? (items.length && written <= items[items.length - 1]!.n ? items[items.length - 1]!.n + 1 : written) : 0, text: m[2]! }); i++;
       }
       blocks.push(
         <View key={blocks.length} style={{ gap: 3 }}>
-          {items.map((it, n) => <View key={n} style={{ flexDirection: 'row', gap: 8 }}><Text style={[body, { minWidth: 16, color: t['ink-soft'] }]}>{ordered ? `${n + 1}.` : '•'}</Text><Text style={[body, { flex: 1 }]}><Inline text={it} sources={sources} size={size} /></Text></View>)}
+          {items.map((it, k) => <View key={k} style={{ flexDirection: 'row', gap: 8 }}><Text style={[body, { minWidth: 16, color: t['ink-soft'] }]}>{ordered ? `${it.n}.` : '•'}</Text><Text style={[body, { flex: 1 }]}><Inline text={it.text} sources={sources} size={size} /></Text></View>)}
         </View>,
       );
       continue;

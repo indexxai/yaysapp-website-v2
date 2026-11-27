@@ -125,7 +125,7 @@ export function CallLayer() {
       <div className="call-alerts">
         {ringing.slice(0, 2).map((c) => <IncomingCall key={c.id} call={c} />)}
         {asking.map((c) => <JoinRequests key={c.id} call={c} />)}
-        {calls.error && !calls.session && <div className="call-alert call-alert--light" role="alert"><Banner>{calls.error}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" onClick={calls.clearError}><Icon name="close" size={16} /></button></div>}
+        {calls.error && !calls.session && <div className="call-alert call-alert--light" role="alert"><Banner>{calls.error}</Banner><button type="button" className="icon-btn" aria-label="Dismiss" title="Dismiss" onClick={calls.clearError}><Icon name="close" size={16} /></button></div>}
       </div>
     </>
   );

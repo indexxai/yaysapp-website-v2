@@ -4,7 +4,8 @@ import { ApiError, USERNAME_RE, type MeProfile } from '@yays/shared';
 import { api } from '@/lib/api';
 import { Avatar, Banner, Field, OvalButton } from './ui';
 import { Icon } from '@/lib/icons';
-import { PHOTO_ACCEPT, PhotoError, preparePhoto } from '@/lib/photo';
+import { PHOTO_ACCEPT, PhotoError, preparePhoto, type PhotoCrop } from '@/lib/photo';
+import { PhotoCropper } from '@/components/photo-crop';
 
 export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me: MeProfile; submitLabel: string; onSaved: (m: MeProfile) => void; layout?: 'setup' | 'settings' }) {
   // A name made up from the email is a placeholder, not the person's choice: start empty.
@@ -36,13 +37,20 @@ export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me
   // Settings saves a new photo straight away (like the phone apps); the first-time profile step keeps it for Continue.
   const autoSave = layout === 'settings';
   const [photoNote, setPhotoNote] = useState<string | null>(null);
-  const pick = async (f: File | undefined) => {
+  const [cropping, setCropping] = useState<File | null>(null);
+  // A new photo first opens the crop step (move and zoom); anything that isn't a picture is refused straight away.
+  const pick = (f: File | undefined) => {
     if (file.current) file.current.value = '';
     if (!f) return;
     setError(null); setPhotoNote(null);
+    if (f.type && !f.type.startsWith('image/')) { setError('Choose a photo (JPG, PNG, WebP or HEIC).'); return; }
+    setCropping(f);
+  };
+  const upload = async (f: File, area: PhotoCrop) => {
+    setCropping(null);
     setUploading(true);
     try {
-      const small = await preparePhoto(f);
+      const small = await preparePhoto(f, area);
       const key = await api().uploadPhoto(small);
       const url = URL.createObjectURL(small);
       if (autoSave) {
@@ -89,6 +97,7 @@ export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me
     return (
       <form onSubmit={submit} className="profile-side" noValidate>
         <input ref={file} type="file" accept={PHOTO_ACCEPT} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
+        {cropping && <PhotoCropper file={cropping} onCancel={() => setCropping(null)} onUse={(area) => void upload(cropping, area)} />}
         <div className="profile-side__photo">
           <button type="button" className="profile-photo" aria-label={photo.url ? 'Change photo' : 'Add photo'} onClick={() => file.current?.click()} disabled={uploading}>
             <Avatar name={name || me.displayName} photoUrl={photo.url} size={116} />
@@ -125,6 +134,7 @@ export function ProfileForm({ me, submitLabel, onSaved, layout = 'setup' }: { me
       <div className="row">
         <Avatar name={name || me.displayName} photoUrl={photo.url} size={96} />
         <input ref={file} type="file" accept={PHOTO_ACCEPT} hidden onChange={(e) => pick(e.target.files?.[0])} data-testid="photo-input" />
+        {cropping && <PhotoCropper file={cropping} onCancel={() => setCropping(null)} onUse={(area) => void upload(cropping, area)} />}
         <OvalButton icon="camera" label={photo.url ? 'Change photo' : 'Add photo'} size="md" variant="soft" loading={uploading} onClick={() => file.current?.click()} />
         {photo.url && <OvalButton icon="trash" label="Remove" size="md" variant="ghost" onClick={() => void removePhoto()} />}
       </div>
