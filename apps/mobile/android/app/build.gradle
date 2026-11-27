@@ -102,6 +102,14 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+def uploadProps = null
+if (project.hasProperty("yaysUploadProperties")) {
+    def f = file(project.property("yaysUploadProperties"))
+    if (!f.exists()) throw new GradleException("Upload key settings not found: ${f}")
+    uploadProps = new Properties()
+    f.withInputStream { uploadProps.load(it) }
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -112,7 +120,8 @@ android {
         applicationId "com.indexx.yaysapp"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 29
+        // play-release-mac.command passes a new, higher number for every Play upload (-PyaysVersionCode).
+        versionCode(project.hasProperty("yaysVersionCode") ? project.property("yaysVersionCode").toInteger() : 29)
         versionName "2.0.0"
     }
     signingConfigs {
@@ -122,15 +131,26 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // The Google Play upload key never lives in this repo. Builds for Play pass the path of a private
+        // properties file (YAYS_UPLOAD_STORE_FILE, YAYS_UPLOAD_KEY_ALIAS, YAYS_UPLOAD_STORE_PASSWORD,
+        // YAYS_UPLOAD_KEY_PASSWORD) with -PyaysUploadProperties=/path/to/file.
+        if (uploadProps != null) {
+            upload {
+                storeFile file(uploadProps["YAYS_UPLOAD_STORE_FILE"])
+                storePassword uploadProps["YAYS_UPLOAD_STORE_PASSWORD"]
+                keyAlias uploadProps["YAYS_UPLOAD_KEY_ALIAS"]
+                keyPassword uploadProps["YAYS_UPLOAD_KEY_PASSWORD"]
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Signed with the Play upload key when one is given (see above); otherwise with the debug key,
+            // which is fine for tester APKs but is refused by Google Play.
+            signingConfig uploadProps != null ? signingConfigs.upload : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
