@@ -171,7 +171,8 @@ test.describe('Settings on the web', () => {
     await a.page.goto('/settings/profile');
     await a.page.getByTestId('photo-input').setInputFiles({ name: 'holiday.jpg', mimeType: 'image/jpeg', buffer: readFileSync(path.join(__dirname, 'fixtures/wide-photo.jpg')) });
     // The crop step (QA #07): the oval preview, a zoom slider and dragging; Cancel keeps the old photo.
-    await expect(a.page.getByRole('dialog', { name: 'Adjust your photo' }).or(a.page.getByText('Adjust your photo'))).toBeVisible();
+    await expect(a.page.getByText('Adjust your photo')).toBeVisible();
+    await expect(a.page.getByLabel('Zoom')).toBeVisible();
     await a.page.getByRole('button', { name: 'Cancel' }).last().click();
     await expect(a.page.getByText('Adjust your photo')).toHaveCount(0);
     expect((await me(ali)).photoUrl).toBeNull();
