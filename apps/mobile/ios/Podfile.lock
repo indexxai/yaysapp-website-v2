@@ -2024,6 +2024,12 @@ PODS:
     - React-Core
   - SocketRocket (0.7.1)
   - TOCropViewController (2.8.0)
+  - VisionCamera (4.7.2):
+    - VisionCamera/Core (= 4.7.2)
+    - VisionCamera/React (= 4.7.2)
+  - VisionCamera/Core (4.7.2)
+  - VisionCamera/React (4.7.2):
+    - React-Core
   - WebRTC-SDK (144.7559.10)
   - Yoga (0.0.0)
 
@@ -2116,6 +2122,7 @@ DEPENDENCIES:
   - RNScreens (from `../../../node_modules/react-native-screens`)
   - RNSVG (from `../../../node_modules/react-native-svg`)
   - RNVoipPushNotification (from `../../../node_modules/react-native-voip-push-notification`)
+  - VisionCamera (from `../../../node_modules/react-native-vision-camera`)
   - Yoga (from `../../../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
@@ -2304,6 +2311,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/react-native-svg"
   RNVoipPushNotification:
     :path: "../../../node_modules/react-native-voip-push-notification"
+  VisionCamera:
+    :path: "../../../node_modules/react-native-vision-camera"
   Yoga:
     :path: "../../../node_modules/react-native/ReactCommon/yoga"
 
@@ -2404,6 +2413,7 @@ SPEC CHECKSUMS:
   RNVoipPushNotification: 4998fe6724d421da616dca765da7dc421ff54c4e
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   TOCropViewController: 797deaf39c90e6e9ddd848d88817f6b9a8a09888
+  VisionCamera: 30b358b807324c692064f78385e9a732ce1bebfe
   WebRTC-SDK: 1d7fc2ae91da6edd63e25f3882ff24f86a8d9d8b
   Yoga: afd04ff05ebe0121a00c468a8a3c8080221cb14c
 
